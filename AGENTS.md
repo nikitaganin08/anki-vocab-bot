@@ -42,6 +42,14 @@ The app receives words and stable expressions from Telegram, generates learning 
 - `httpx`
 - `SQLite` storage
 - `uv` for dependency management and runtime commands
+- Backend package layout:
+  - `app/core/` for settings and shared runtime config
+  - `app/db/` for SQLAlchemy base and session setup
+  - `app/models/` for ORM entities
+  - `app/schemas/` for LLM contract validation
+  - `app/clients/` for external integrations such as OpenRouter
+  - `app/services/` for prompts and domain workflows
+  - `app/scripts/` for local helper entrypoints
 
 ### Frontend
 
