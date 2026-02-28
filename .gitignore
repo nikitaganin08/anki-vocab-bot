@@ -1,0 +1,3 @@
+# Track planning and backlog files in-repo.
+# Runtime artifacts inside .beads are filtered by .beads/.gitignore.
+.idea/
