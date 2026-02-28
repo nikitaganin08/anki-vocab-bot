@@ -1,0 +1,26 @@
+from __future__ import annotations
+
+from collections.abc import Iterator
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+
+from app.core.config import get_settings
+
+settings = get_settings()
+database_path = settings.database_path
+if database_path is not None:
+    database_path.parent.mkdir(parents=True, exist_ok=True)
+
+connect_args = (
+    {"check_same_thread": False}
+    if settings.normalized_database_url.startswith("sqlite")
+    else {}
+)
+engine = create_engine(settings.normalized_database_url, connect_args=connect_args)
+SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
+
+
+def get_session() -> Iterator[Session]:
+    with SessionLocal() as session:
+        yield session
