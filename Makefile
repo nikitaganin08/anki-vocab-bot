@@ -1,7 +1,10 @@
-.PHONY: backend-dev frontend-dev backend-test frontend-test test build-frontend sync-anki
+.PHONY: backend-dev bot-dev frontend-dev backend-test frontend-test test build-frontend sync-anki
 
 backend-dev:
 	cd backend && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+bot-dev:
+	cd backend && uv run python -m app.scripts.run_telegram_bot
 
 frontend-dev:
 	cd frontend && npm run dev

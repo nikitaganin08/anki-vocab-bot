@@ -43,6 +43,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 - `SQLite` storage
 - `uv` for dependency management and runtime commands
 - Backend package layout:
+  - `app/bot/` for Telegram bot runtime, handlers, formatter, and rate limiting
   - `app/core/` for settings and shared runtime config
   - `app/db/` for SQLAlchemy base and session setup
   - `app/models/` for ORM entities
@@ -237,6 +238,7 @@ Required environment variables:
 
 The repository should maintain a `Makefile` with at least:
 - `make backend-dev`
+- `make bot-dev`
 - `make frontend-dev`
 - `make test`
 - `make build-frontend`
