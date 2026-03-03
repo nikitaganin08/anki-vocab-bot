@@ -1,0 +1,15 @@
+.git
+.gitignore
+.idea
+.tasks
+.beads
+
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.ruff_cache
+**/.venv
+**/node_modules
+
+frontend/dist
+backend/data
