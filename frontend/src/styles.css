@@ -240,6 +240,96 @@ a {
   background: rgba(255, 255, 255, 0.62);
 }
 
+.batch-panel {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border-radius: 0.95rem;
+  border: 1px solid var(--border-soft);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.batch-panel-header {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.batch-panel-header h3 {
+  font-size: 1.05rem;
+}
+
+.batch-panel-header p {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.batch-panel label {
+  font-size: 0.86rem;
+  color: var(--text-muted);
+}
+
+.batch-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.batch-message {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.batch-message-error {
+  color: var(--danger);
+}
+
+.batch-results {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.batch-summary-grid {
+  display: grid;
+  gap: 0.35rem 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.batch-summary-grid p {
+  border: 1px solid var(--border-soft);
+  border-radius: 0.65rem;
+  background: var(--surface-strong);
+  padding: 0.35rem 0.5rem;
+  font-size: 0.88rem;
+}
+
+.batch-table-wrap {
+  overflow: auto;
+  border: 1px solid var(--border-soft);
+  border-radius: 0.9rem;
+}
+
+.batch-table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 720px;
+  background: #fff;
+}
+
+.batch-table th,
+.batch-table td {
+  border-bottom: 1px solid rgba(18, 33, 49, 0.12);
+  text-align: left;
+  vertical-align: middle;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.88rem;
+}
+
+.batch-table th {
+  background: #f0f5f6;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
 .search-row {
   display: flex;
   align-items: center;
@@ -269,12 +359,14 @@ a {
 }
 
 input,
+textarea,
 select,
 button {
   font: inherit;
 }
 
 input,
+textarea,
 select {
   width: 100%;
   min-height: 2.3rem;
@@ -284,7 +376,13 @@ select {
   background: #fff;
 }
 
+textarea {
+  min-height: 9rem;
+  resize: vertical;
+}
+
 input:focus-visible,
+textarea:focus-visible,
 select:focus-visible,
 button:focus-visible,
 .table-link:focus-visible,
@@ -552,6 +650,10 @@ button:focus-visible,
 
   .cards-table {
     min-width: 560px;
+  }
+
+  .batch-table {
+    min-width: 600px;
   }
 
   .pagination-bar {

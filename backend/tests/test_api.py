@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Generator
+from dataclasses import dataclass, field
 
 import pytest
 from fastapi.testclient import TestClient
@@ -8,11 +9,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.api.deps import require_anki_token
+import app.api.deps as deps_mod
+from app.api.deps import get_card_generator, require_anki_token
+from app.clients.openrouter import OpenRouterTimeoutError
 from app.db.base import Base
 from app.db.session import get_session
 from app.main import app
 from app.models.card import AnkiSyncStatus, Card
+from app.schemas.llm import AcceptedLlmResponse, RejectedLlmResponse
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -84,6 +88,49 @@ def _make_card(**overrides: object) -> Card:
     )
     defaults.update(overrides)
     return Card(**defaults)  # type: ignore[arg-type]
+
+
+def _make_accepted_llm_response(
+    source_text: str,
+    *,
+    canonical_text: str | None = None,
+    entry_type: str = "phrasal_verb",
+) -> AcceptedLlmResponse:
+    canonical = canonical_text or source_text
+    return AcceptedLlmResponse.model_validate(
+        {
+            "accepted": True,
+            "source_text": source_text,
+            "source_language": "en",
+            "entry_type": entry_type,
+            "canonical_text": canonical,
+            "canonical_text_normalized": canonical.lower(),
+            "transcription": "/test/",
+            "translation_variants": ["пример один", "пример два"],
+            "explanation": "A stable lexical unit used in English.",
+            "examples": [
+                "This is the first example.",
+                "This is the second example.",
+                "This is the third example.",
+            ],
+            "frequency": 4,
+            "frequency_note": "Common enough.",
+            "llm_model": "test-model",
+        }
+    )
+
+
+@dataclass
+class FakeBatchGenerator:
+    outcomes: dict[str, AcceptedLlmResponse | RejectedLlmResponse | Exception]
+    calls: list[str] = field(default_factory=list)
+
+    def generate_card(self, source_text: str) -> AcceptedLlmResponse | RejectedLlmResponse:
+        self.calls.append(source_text)
+        outcome = self.outcomes[source_text]
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
 
 
 # ---------------------------------------------------------------------------
@@ -216,6 +263,168 @@ def test_list_cards_search(client: TestClient, session: Session) -> None:
     data = resp.json()
     assert data["total"] == 1
     assert data["items"][0]["canonical_text"] == "take off"
+
+
+# ---------------------------------------------------------------------------
+# POST /api/cards/batch
+# ---------------------------------------------------------------------------
+
+
+def test_batch_import_mixed_statuses(client: TestClient, session: Session) -> None:
+    session.add(
+        _make_card(
+            source_text="turn down",
+            canonical_text="turn down",
+            canonical_text_normalized="turn down",
+        )
+    )
+    session.add(
+        _make_card(
+            source_text="seed source",
+            canonical_text="break down",
+            canonical_text_normalized="break down",
+        )
+    )
+    session.commit()
+
+    fake_generator = FakeBatchGenerator(
+        outcomes={
+            "look up": _make_accepted_llm_response("look up", entry_type="phrasal_verb"),
+            "decompose": _make_accepted_llm_response(
+                "decompose",
+                canonical_text="break down",
+                entry_type="expression",
+            ),
+            "very random sentence": RejectedLlmResponse.model_validate(
+                {
+                    "accepted": False,
+                    "reason": "not_lexical_unit",
+                    "message_for_user": "This does not look like a stable lexical unit.",
+                }
+            ),
+        }
+    )
+    app.dependency_overrides[get_card_generator] = lambda: fake_generator
+
+    resp = client.post(
+        "/api/cards/batch",
+        json={
+            "source_texts": [
+                "look up",
+                "turn down",
+                "decompose",
+                "very random sentence",
+                "one two three four five six seven eight nine",
+            ]
+        },
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert [item["status"] for item in data["items"]] == [
+        "created",
+        "duplicate_source",
+        "duplicate_canonical",
+        "rejected",
+        "invalid_input",
+    ]
+    assert data["items"][0]["canonical_text"] == "look up"
+    assert data["items"][1]["canonical_text"] == "turn down"
+    assert data["items"][2]["canonical_text"] == "break down"
+    assert data["items"][3]["message"] == "This does not look like a stable lexical unit."
+    assert data["items"][4]["message"] == "Please send up to 8 words."
+    assert data["summary"] == {
+        "total": 5,
+        "created": 1,
+        "duplicate_source": 1,
+        "duplicate_canonical": 1,
+        "rejected": 1,
+        "invalid_input": 1,
+        "upstream_error": 0,
+    }
+    assert fake_generator.calls == ["look up", "decompose", "very random sentence"]
+
+
+def test_batch_import_rejects_more_than_fifty_items(client: TestClient) -> None:
+    fake_generator = FakeBatchGenerator(outcomes={})
+    app.dependency_overrides[get_card_generator] = lambda: fake_generator
+
+    resp = client.post(
+        "/api/cards/batch",
+        json={"source_texts": [f"word-{i}" for i in range(51)]},
+    )
+
+    assert resp.status_code == 422
+
+
+def test_batch_import_marks_invalid_rows_without_llm_call(client: TestClient) -> None:
+    fake_generator = FakeBatchGenerator(
+        outcomes={
+            "take off": _make_accepted_llm_response("take off"),
+        }
+    )
+    app.dependency_overrides[get_card_generator] = lambda: fake_generator
+
+    resp = client.post(
+        "/api/cards/batch",
+        json={
+            "source_texts": [
+                "take off",
+                "one two three four five six seven eight nine",
+            ]
+        },
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [item["status"] for item in data["items"]] == ["created", "invalid_input"]
+    assert data["summary"]["created"] == 1
+    assert data["summary"]["invalid_input"] == 1
+    assert fake_generator.calls == ["take off"]
+
+
+def test_batch_import_continues_after_upstream_error(client: TestClient) -> None:
+    fake_generator = FakeBatchGenerator(
+        outcomes={
+            "look up": OpenRouterTimeoutError(
+                "timeout",
+                code="openrouter_timeout",
+                user_message="The language model timed out. Please try again.",
+            ),
+            "break down": _make_accepted_llm_response("break down", entry_type="expression"),
+        }
+    )
+    app.dependency_overrides[get_card_generator] = lambda: fake_generator
+
+    resp = client.post(
+        "/api/cards/batch",
+        json={"source_texts": ["look up", "break down"]},
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert [item["status"] for item in data["items"]] == ["upstream_error", "created"]
+    assert data["items"][0]["message"] == "The language model timed out. Please try again."
+    assert data["summary"]["upstream_error"] == 1
+    assert data["summary"]["created"] == 1
+
+
+def test_batch_import_returns_503_when_llm_not_configured(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    @dataclass
+    class SettingsStub:
+        openrouter_api_key: str | None = None
+        llm_model: str = "test-model"
+
+    monkeypatch.setattr(deps_mod, "get_settings", lambda: SettingsStub())
+
+    resp = client.post("/api/cards/batch", json={"source_texts": ["look up"]})
+
+    assert resp.status_code == 503
+    assert resp.json()["detail"] == "LLM is not configured"
 
 
 # ---------------------------------------------------------------------------

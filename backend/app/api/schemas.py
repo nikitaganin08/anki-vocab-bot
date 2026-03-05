@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.models.card import AnkiSyncStatus, EntryType, SourceLanguage
 
@@ -61,6 +62,43 @@ class CardListResponse(BaseModel):
     total: int
     offset: int
     limit: int
+
+
+BatchImportItemStatus = Literal[
+    "created",
+    "duplicate_source",
+    "duplicate_canonical",
+    "rejected",
+    "invalid_input",
+    "upstream_error",
+]
+
+
+class CardBatchImportRequest(BaseModel):
+    source_texts: list[str] = Field(min_length=1, max_length=50)
+
+
+class CardBatchImportItemResponse(BaseModel):
+    source_text: str
+    status: BatchImportItemStatus
+    card_id: int | None = None
+    canonical_text: str | None = None
+    message: str | None = None
+
+
+class CardBatchImportSummaryResponse(BaseModel):
+    total: int
+    created: int
+    duplicate_source: int
+    duplicate_canonical: int
+    rejected: int
+    invalid_input: int
+    upstream_error: int
+
+
+class CardBatchImportResponse(BaseModel):
+    items: list[CardBatchImportItemResponse]
+    summary: CardBatchImportSummaryResponse
 
 
 class AnkiPendingCardResponse(BaseModel):

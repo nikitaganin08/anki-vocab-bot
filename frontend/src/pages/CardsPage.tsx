@@ -2,13 +2,30 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
-import { ApiError, deleteCard, getCards } from "../api/client";
-import type { AnkiSyncStatus, EntryType, SourceLanguage } from "../api/types";
+import { ApiError, deleteCard, getCards, importCardsBatch } from "../api/client";
+import type {
+  AnkiSyncStatus,
+  CardBatchImportItemStatus,
+  CardBatchImportResponse,
+  CardBatchImportSummary,
+  EntryType,
+  SourceLanguage,
+} from "../api/types";
 import { EmptyState, ErrorState, LoadingState } from "../components/PageState";
 
 const PAGE_SIZE = 20;
+const BATCH_CHUNK_SIZE = 50;
 
 type EligibleFilter = "all" | "true" | "false";
+interface BatchProgress {
+  processed: number;
+  total: number;
+}
+
+interface BatchRunResult {
+  response: CardBatchImportResponse;
+  fatalErrorMessage: string | null;
+}
 
 function toPositiveInt(value: string | null, fallback: number): number {
   if (!value) {
@@ -27,6 +44,64 @@ function prettifyEntryType(entryType: EntryType): string {
   return entryType.replaceAll("_", " ");
 }
 
+function prettifyBatchStatus(status: CardBatchImportItemStatus): string {
+  return status.replaceAll("_", " ");
+}
+
+function parseBatchInput(rawValue: string): string[] {
+  return rawValue
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
+function toChunks<T>(items: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
+  }
+
+  return chunks;
+}
+
+function createEmptyBatchSummary(): CardBatchImportSummary {
+  return {
+    total: 0,
+    created: 0,
+    duplicate_source: 0,
+    duplicate_canonical: 0,
+    rejected: 0,
+    invalid_input: 0,
+    upstream_error: 0,
+  };
+}
+
+function createEmptyBatchResponse(): CardBatchImportResponse {
+  return {
+    items: [],
+    summary: createEmptyBatchSummary(),
+  };
+}
+
+function mergeBatchResponses(
+  base: CardBatchImportResponse,
+  incoming: CardBatchImportResponse,
+): CardBatchImportResponse {
+  return {
+    items: [...base.items, ...incoming.items],
+    summary: {
+      total: base.summary.total + incoming.summary.total,
+      created: base.summary.created + incoming.summary.created,
+      duplicate_source: base.summary.duplicate_source + incoming.summary.duplicate_source,
+      duplicate_canonical: base.summary.duplicate_canonical + incoming.summary.duplicate_canonical,
+      rejected: base.summary.rejected + incoming.summary.rejected,
+      invalid_input: base.summary.invalid_input + incoming.summary.invalid_input,
+      upstream_error: base.summary.upstream_error + incoming.summary.upstream_error,
+    },
+  };
+}
+
 export function CardsPage(): JSX.Element {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -38,6 +113,11 @@ export function CardsPage(): JSX.Element {
   const ankiStatus = (searchParams.get("anki_sync_status") ?? "") as AnkiSyncStatus | "";
   const eligible = (searchParams.get("eligible_for_anki") ?? "all") as EligibleFilter;
   const [searchDraft, setSearchDraft] = useState(search);
+  const [batchInput, setBatchInput] = useState("");
+  const [batchValidationError, setBatchValidationError] = useState<string | null>(null);
+  const [batchFatalError, setBatchFatalError] = useState<string | null>(null);
+  const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
+  const [batchResponse, setBatchResponse] = useState<CardBatchImportResponse | null>(null);
 
   useEffect(() => {
     setSearchDraft(search);
@@ -64,6 +144,59 @@ export function CardsPage(): JSX.Element {
       void queryClient.invalidateQueries({ queryKey: ["cards"] });
     },
   });
+
+  const batchImportMutation = useMutation({
+    mutationFn: async (sourceTexts: string[]): Promise<BatchRunResult> => {
+      const chunks = toChunks(sourceTexts, BATCH_CHUNK_SIZE);
+      let aggregateResponse = createEmptyBatchResponse();
+      let processed = 0;
+
+      for (const chunk of chunks) {
+        try {
+          const chunkResponse = await importCardsBatch(chunk);
+          aggregateResponse = mergeBatchResponses(aggregateResponse, chunkResponse);
+          processed += chunk.length;
+          setBatchProgress({ processed, total: sourceTexts.length });
+        } catch (error) {
+          const message =
+            error instanceof ApiError ? error.message : "Batch import failed due to request error.";
+          return { response: aggregateResponse, fatalErrorMessage: message };
+        }
+      }
+
+      return { response: aggregateResponse, fatalErrorMessage: null };
+    },
+    onMutate: (sourceTexts) => {
+      setBatchValidationError(null);
+      setBatchFatalError(null);
+      setBatchResponse(null);
+      setBatchProgress({ processed: 0, total: sourceTexts.length });
+    },
+    onSuccess: (result) => {
+      setBatchResponse(result.response);
+      setBatchFatalError(result.fatalErrorMessage);
+      void queryClient.invalidateQueries({ queryKey: ["cards"] });
+    },
+    onError: (error) => {
+      const message =
+        error instanceof ApiError ? error.message : "Batch import failed due to unexpected error.";
+      setBatchFatalError(message);
+    },
+  });
+
+  const startBatchImport = (): void => {
+    const sourceTexts = parseBatchInput(batchInput);
+    if (sourceTexts.length === 0) {
+      setBatchValidationError("Please paste at least one lexical unit.");
+      setBatchFatalError(null);
+      setBatchResponse(null);
+      setBatchProgress(null);
+      return;
+    }
+
+    setBatchValidationError(null);
+    batchImportMutation.mutate(sourceTexts);
+  };
 
   const updateParams = (updates: Record<string, string | null>, resetPage = true): void => {
     const next = new URLSearchParams(searchParams);
@@ -92,6 +225,89 @@ export function CardsPage(): JSX.Element {
         <h2>Cards</h2>
         <p>Search and delete generated lexical units.</p>
       </header>
+
+      <section className="batch-panel">
+        <div className="batch-panel-header">
+          <h3>Batch Import</h3>
+          <p>Paste one English lexical unit per line. Large lists are processed in chunks of 50.</p>
+        </div>
+
+        <label htmlFor="batch-import-input">Input list</label>
+        <textarea
+          id="batch-import-input"
+          name="batch-import-input"
+          rows={8}
+          value={batchInput}
+          placeholder={"take off\nlook up\nbreak down"}
+          onChange={(event) => setBatchInput(event.target.value)}
+        />
+
+        <div className="batch-actions-row">
+          <button
+            type="button"
+            className="primary-button"
+            disabled={batchImportMutation.isPending}
+            onClick={startBatchImport}
+          >
+            {batchImportMutation.isPending ? "Importing..." : "Import"}
+          </button>
+        </div>
+
+        {batchValidationError ? (
+          <p className="batch-message batch-message-error">{batchValidationError}</p>
+        ) : null}
+
+        {batchProgress ? (
+          <p className="batch-message">
+            Processed {batchProgress.processed}/{batchProgress.total}
+          </p>
+        ) : null}
+
+        {batchFatalError ? (
+          <p className="batch-message batch-message-error">
+            Import stopped: {batchFatalError}
+          </p>
+        ) : null}
+
+        {batchResponse ? (
+          <div className="batch-results">
+            <div className="batch-summary-grid">
+              <p>Total processed: {batchResponse.summary.total}</p>
+              <p>Created: {batchResponse.summary.created}</p>
+              <p>Duplicate source: {batchResponse.summary.duplicate_source}</p>
+              <p>Duplicate canonical: {batchResponse.summary.duplicate_canonical}</p>
+              <p>Rejected: {batchResponse.summary.rejected}</p>
+              <p>Invalid input: {batchResponse.summary.invalid_input}</p>
+              <p>Upstream errors: {batchResponse.summary.upstream_error}</p>
+            </div>
+
+            {batchResponse.items.length > 0 ? (
+              <div className="batch-table-wrap">
+                <table className="batch-table">
+                  <thead>
+                    <tr>
+                      <th>Input</th>
+                      <th>Status</th>
+                      <th>Canonical</th>
+                      <th>Message</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {batchResponse.items.map((item, index) => (
+                      <tr key={`${item.source_text}-${index}`}>
+                        <td>{item.source_text}</td>
+                        <td>{prettifyBatchStatus(item.status)}</td>
+                        <td>{item.canonical_text ?? "-"}</td>
+                        <td>{item.message ?? "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
 
       <div className="filters-panel">
         <div className="search-row">

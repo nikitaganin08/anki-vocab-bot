@@ -50,3 +50,38 @@ export interface CardsQuery {
   anki_sync_status?: AnkiSyncStatus;
   eligible_for_anki?: boolean;
 }
+
+export type CardBatchImportItemStatus =
+  | "created"
+  | "duplicate_source"
+  | "duplicate_canonical"
+  | "rejected"
+  | "invalid_input"
+  | "upstream_error";
+
+export interface CardBatchImportRequest {
+  source_texts: string[];
+}
+
+export interface CardBatchImportItem {
+  source_text: string;
+  status: CardBatchImportItemStatus;
+  card_id: number | null;
+  canonical_text: string | null;
+  message: string | null;
+}
+
+export interface CardBatchImportSummary {
+  total: number;
+  created: number;
+  duplicate_source: number;
+  duplicate_canonical: number;
+  rejected: number;
+  invalid_input: number;
+  upstream_error: number;
+}
+
+export interface CardBatchImportResponse {
+  items: CardBatchImportItem[];
+  summary: CardBatchImportSummary;
+}

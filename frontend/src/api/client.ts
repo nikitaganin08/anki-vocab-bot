@@ -1,4 +1,5 @@
 import type {
+  CardBatchImportResponse,
   CardListResponse,
   CardsQuery,
   HealthResponse,
@@ -66,6 +67,23 @@ async function getJson<T>(path: string, query?: QueryParams): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function postJson<TResponse, TPayload>(path: string, payload: TPayload): Promise<TResponse> {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await readErrorMessage(response));
+  }
+
+  return (await response.json()) as TResponse;
+}
+
 async function requestNoContent(path: string, method: "DELETE"): Promise<void> {
   const response = await fetch(path, {
     method,
@@ -97,4 +115,11 @@ export function getCards(query: CardsQuery): Promise<CardListResponse> {
 
 export function deleteCard(cardId: number): Promise<void> {
   return requestNoContent(`/api/cards/${cardId}`, "DELETE");
+}
+
+export function importCardsBatch(source_texts: string[]): Promise<CardBatchImportResponse> {
+  return postJson<CardBatchImportResponse, { source_texts: string[] }>(
+    "/api/cards/batch",
+    { source_texts },
+  );
 }
