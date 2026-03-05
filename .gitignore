@@ -1,5 +1,9 @@
-# Track planning and backlog files in-repo.
-# Runtime artifacts inside .beads are filtered by .beads/.gitignore.
+# Keep only stable Beads files in git; ignore local runtime artifacts.
+.beads/*
+!.beads/.gitignore
+!.beads/config.yaml
+!.beads/issues.jsonl
+
 .idea/
 *.pyc
 *.pyo
