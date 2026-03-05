@@ -21,7 +21,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 - Input length limit: 1 to 8 tokens
 - The resulting card always targets an English lexical unit
 - The LLM decides whether the input is a valid lexical unit or just a free-form phrase/sentence
-- Read-only admin UI for browsing cards
+- Admin UI for listing and deleting cards
 - Local sync helper for Anki via AnkiConnect
 
 ## Architecture
@@ -171,6 +171,7 @@ Validation rules:
 - `GET /api/health`
 - `GET /api/cards`
 - `GET /api/cards/{card_id}`
+- `DELETE /api/cards/{card_id}`
 - `GET /api/stats`
 
 ### Telegram Webhook API
@@ -187,10 +188,9 @@ The Anki sync API uses bearer token authentication.
 
 ## Admin UI
 
-The React frontend is read-only and includes:
-- dashboard with counters
+The React frontend includes:
 - cards list with search and filters
-- card detail page
+- card deletion action
 
 The UI reads only from backend JSON endpoints.
 

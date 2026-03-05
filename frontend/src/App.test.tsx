@@ -40,27 +40,6 @@ const cardsPayload = {
   limit: 20,
 };
 
-const cardPayload = cardsPayload.items[0];
-
-const statsPayload = {
-  total_cards: 12,
-  eligible_for_anki: 5,
-  anki_pending: 3,
-  anki_synced: 8,
-  anki_failed: 1,
-  by_entry_type: {
-    word: 6,
-    phrasal_verb: 2,
-    collocation: 2,
-    idiom: 1,
-    expression: 1,
-  },
-  by_source_language: {
-    en: 9,
-    ru: 3,
-  },
-};
-
 function setupFetchMock(): void {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url =
@@ -69,14 +48,6 @@ function setupFetchMock(): void {
         : input instanceof URL
           ? input.toString()
           : input.url;
-
-    if (url.startsWith("/api/stats")) {
-      return jsonResponse(statsPayload);
-    }
-
-    if (url.startsWith("/api/cards/1")) {
-      return jsonResponse(cardPayload);
-    }
 
     if (url.startsWith("/api/cards")) {
       return jsonResponse(cardsPayload);
@@ -98,12 +69,11 @@ describe("App", () => {
     window.history.pushState({}, "", "/");
   });
 
-  it("renders the dashboard with stats", async () => {
+  it("renders cards list on index route", async () => {
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument();
-    expect(screen.getByText("Total cards")).toBeInTheDocument();
-    expect(screen.getByText("12")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Cards" })).toBeInTheDocument();
+    expect((await screen.findAllByText("take off")).length).toBeGreaterThan(0);
   });
 
   it("renders cards table on cards route", async () => {
@@ -112,20 +82,9 @@ describe("App", () => {
     render(<App />);
 
     expect(await screen.findByRole("heading", { name: "Cards" })).toBeInTheDocument();
-    const canonicalLink = await screen.findByRole("link", { name: "take off" });
-    expect(canonicalLink).toBeInTheDocument();
-
-    const row = canonicalLink.closest("tr");
+    const [canonicalCell] = await screen.findAllByText("take off");
+    const row = canonicalCell.closest("tr");
     expect(row).not.toBeNull();
     expect(within(row as HTMLTableRowElement).getByText("pending")).toBeInTheDocument();
-  });
-
-  it("renders card detail route", async () => {
-    window.history.pushState({}, "", "/cards/1");
-
-    render(<App />);
-
-    expect(await screen.findByRole("heading", { name: "take off" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Translations" })).toBeInTheDocument();
   });
 });

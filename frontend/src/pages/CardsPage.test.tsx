@@ -1,19 +1,22 @@
 import { screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getCards } from "../api/client";
+import { deleteCard, getCards } from "../api/client";
 import { renderRouteWithProviders } from "../test/renderWithProviders";
 import { CardsPage } from "./CardsPage";
 
 vi.mock("../api/client", () => ({
   getCards: vi.fn(),
+  deleteCard: vi.fn(),
 }));
 
 const mockedGetCards = vi.mocked(getCards);
+const mockedDeleteCard = vi.mocked(deleteCard);
 
 describe("CardsPage", () => {
   beforeEach(() => {
     mockedGetCards.mockReset();
+    mockedDeleteCard.mockReset();
   });
 
   it("renders card rows and pagination info", async () => {
@@ -51,7 +54,8 @@ describe("CardsPage", () => {
     });
 
     expect(await screen.findByRole("heading", { name: "Cards" })).toBeInTheDocument();
-    expect(await screen.findByRole("link", { name: "turn down" })).toBeInTheDocument();
+    expect((await screen.findAllByText("turn down")).length).toBeGreaterThan(0);
+    expect(await screen.findByRole("button", { name: "Delete" })).toBeInTheDocument();
     expect(await screen.findByText("Showing 1-1 of 1")).toBeInTheDocument();
   });
 });

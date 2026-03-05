@@ -68,6 +68,19 @@ async function getJson<T>(path: string, query?: QueryParams): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function requestNoContent(path: string, method: "DELETE"): Promise<void> {
+  const response = await fetch(path, {
+    method,
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new ApiError(response.status, await readErrorMessage(response));
+  }
+}
+
 export function getHealth(): Promise<HealthResponse> {
   return getJson<HealthResponse>("/api/health");
 }
@@ -90,4 +103,8 @@ export function getCard(cardId: number): Promise<Card> {
 
 export function getStats(): Promise<StatsResponse> {
   return getJson<StatsResponse>("/api/stats");
+}
+
+export function deleteCard(cardId: number): Promise<void> {
+  return requestNoContent(`/api/cards/${cardId}`, "DELETE");
 }

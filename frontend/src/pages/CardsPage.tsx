@@ -1,8 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 
-import { getCards } from "../api/client";
+import { ApiError, deleteCard, getCards } from "../api/client";
 import type { AnkiSyncStatus, EntryType, SourceLanguage } from "../api/types";
 import { EmptyState, ErrorState, LoadingState } from "../components/PageState";
 
@@ -28,6 +28,7 @@ function prettifyEntryType(entryType: EntryType): string {
 }
 
 export function CardsPage(): JSX.Element {
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const page = toPositiveInt(searchParams.get("page"), 1);
@@ -57,6 +58,13 @@ export function CardsPage(): JSX.Element {
       }),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: deleteCard,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["cards"] });
+    },
+  });
+
   const updateParams = (updates: Record<string, string | null>, resetPage = true): void => {
     const next = new URLSearchParams(searchParams);
 
@@ -82,7 +90,7 @@ export function CardsPage(): JSX.Element {
     <section className="cards-page">
       <header className="page-title-block">
         <h2>Cards</h2>
-        <p>Search and inspect generated lexical units.</p>
+        <p>Search and delete generated lexical units.</p>
       </header>
 
       <div className="filters-panel">
@@ -177,6 +185,17 @@ export function CardsPage(): JSX.Element {
         <EmptyState title="No cards found" message="Try a different search term or remove filters." />
       ) : (
         <>
+          {deleteMutation.isError ? (
+            <ErrorState
+              title="Delete failed"
+              error={
+                deleteMutation.error instanceof ApiError
+                  ? new Error(deleteMutation.error.message)
+                  : (deleteMutation.error as Error)
+              }
+            />
+          ) : null}
+
           <div className="table-meta">
             <p>
               Showing {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, total)} of {total}
@@ -193,16 +212,13 @@ export function CardsPage(): JSX.Element {
                   <th>Lang</th>
                   <th>Frequency</th>
                   <th>Anki</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {cardsQuery.data?.items.map((card) => (
                   <tr key={card.id}>
-                    <td>
-                      <Link to={`/cards/${card.id}`} className="table-link">
-                        {card.canonical_text}
-                      </Link>
-                    </td>
+                    <td>{card.canonical_text}</td>
                     <td>{card.source_text}</td>
                     <td>{prettifyEntryType(card.entry_type)}</td>
                     <td>{card.source_language.toUpperCase()}</td>
@@ -211,6 +227,21 @@ export function CardsPage(): JSX.Element {
                       <span className={`status-pill status-${card.anki_sync_status}`}>
                         {card.anki_sync_status}
                       </span>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="danger-button"
+                        disabled={deleteMutation.isPending}
+                        onClick={() => {
+                          if (!window.confirm(`Delete card "${card.canonical_text}"?`)) {
+                            return;
+                          }
+                          deleteMutation.mutate(card.id);
+                        }}
+                      >
+                        Delete
+                      </button>
                     </td>
                   </tr>
                 ))}

@@ -3,9 +3,7 @@ import { useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { AdminLayout } from "./components/AdminLayout";
-import { CardDetailPage } from "./pages/CardDetailPage";
 import { CardsPage } from "./pages/CardsPage";
-import { DashboardPage } from "./pages/DashboardPage";
 
 function resolveBasename(): string | undefined {
   if (
@@ -36,9 +34,8 @@ export function App(): JSX.Element {
       <BrowserRouter basename={resolveBasename()}>
         <Routes>
           <Route path="/" element={<AdminLayout />}>
-            <Route index element={<DashboardPage />} />
+            <Route index element={<CardsPage />} />
             <Route path="cards" element={<CardsPage />} />
-            <Route path="cards/:cardId" element={<CardDetailPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

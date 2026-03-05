@@ -242,6 +242,28 @@ def test_get_card_not_found(client: TestClient) -> None:
 
 
 # ---------------------------------------------------------------------------
+# DELETE /api/cards/{card_id}
+# ---------------------------------------------------------------------------
+
+
+def test_delete_card(client: TestClient, session: Session) -> None:
+    card = _make_card()
+    session.add(card)
+    session.commit()
+    session.refresh(card)
+
+    resp = client.delete(f"/api/cards/{card.id}")
+    assert resp.status_code == 204
+
+    assert session.get(Card, card.id) is None
+
+
+def test_delete_card_not_found(client: TestClient) -> None:
+    resp = client.delete("/api/cards/9999")
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
 # GET /api/stats
 # ---------------------------------------------------------------------------
 
