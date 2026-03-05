@@ -10,7 +10,8 @@ from app.services.anki_sync import map_card_to_anki_payload, sync_pending_cards
 def _pending_card() -> PendingCard:
     return PendingCard(
         id=7,
-        canonical_text="take off",
+        canonical_text="Take Off",
+        canonical_text_normalized="take off",
         transcription="/teik of/",
         translation_variants=["взлетать", "снимать"],
         explanation="To leave the ground.",

@@ -40,7 +40,7 @@ def map_card_to_anki_payload(card: PendingCard) -> AnkiNotePayload:
     translation = ", ".join(card.translation_variants)
     example = "\n".join(card.examples[:2])
     fields = {
-        "Word": card.canonical_text,
+        "Word": card.canonical_text_normalized,
         "Transcription": card.transcription or "",
         "Translation": translation,
         "Explanation": card.explanation,

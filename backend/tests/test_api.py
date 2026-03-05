@@ -515,6 +515,7 @@ def test_anki_pending_returns_eligible_cards(authed_client: TestClient, session:
     data = resp.json()
     assert len(data) == 1
     assert data[0]["canonical_text"] == "take off"
+    assert data[0]["canonical_text_normalized"] == "take off"
     # Only Anki-relevant fields are exposed — no source_text
     assert "source_text" not in data[0]
 

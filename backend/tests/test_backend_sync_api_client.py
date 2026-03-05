@@ -21,7 +21,8 @@ def test_get_pending_parses_cards() -> None:
             json=[
                 {
                     "id": 1,
-                    "canonical_text": "take off",
+                    "canonical_text": "Take Off",
+                    "canonical_text_normalized": "take off",
                     "transcription": "/teik of/",
                     "translation_variants": ["взлетать", "снимать"],
                     "explanation": "To leave the ground.",
@@ -40,7 +41,8 @@ def test_get_pending_parses_cards() -> None:
     assert pending == [
         PendingCard(
             id=1,
-            canonical_text="take off",
+            canonical_text="Take Off",
+            canonical_text_normalized="take off",
             transcription="/teik of/",
             translation_variants=["взлетать", "снимать"],
             explanation="To leave the ground.",

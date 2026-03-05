@@ -104,6 +104,7 @@ class CardBatchImportResponse(BaseModel):
 class AnkiPendingCardResponse(BaseModel):
     id: int
     canonical_text: str
+    canonical_text_normalized: str
     transcription: str | None
     translation_variants: list[str]
     explanation: str
@@ -119,6 +120,7 @@ class AnkiPendingCardResponse(BaseModel):
         return cls(
             id=c.id,
             canonical_text=c.canonical_text,
+            canonical_text_normalized=c.canonical_text_normalized,
             transcription=c.transcription,
             translation_variants=c.translation_variants_json,
             explanation=c.explanation,

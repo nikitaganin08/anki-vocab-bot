@@ -10,6 +10,7 @@ import httpx
 class PendingCard:
     id: int
     canonical_text: str
+    canonical_text_normalized: str
     transcription: str | None
     translation_variants: list[str]
     explanation: str
@@ -163,6 +164,7 @@ class BackendSyncApiClient:
         required_keys = {
             "id",
             "canonical_text",
+            "canonical_text_normalized",
             "transcription",
             "translation_variants",
             "explanation",
@@ -177,6 +179,7 @@ class BackendSyncApiClient:
 
         card_id = item["id"]
         canonical_text = item["canonical_text"]
+        canonical_text_normalized = item["canonical_text_normalized"]
         transcription = item["transcription"]
         translation_variants = item["translation_variants"]
         explanation = item["explanation"]
@@ -185,6 +188,7 @@ class BackendSyncApiClient:
         if (
             not isinstance(card_id, int)
             or not isinstance(canonical_text, str)
+            or not isinstance(canonical_text_normalized, str)
             or not (transcription is None or isinstance(transcription, str))
             or not isinstance(translation_variants, list)
             or not all(isinstance(v, str) for v in translation_variants)
@@ -201,6 +205,7 @@ class BackendSyncApiClient:
         return PendingCard(
             id=card_id,
             canonical_text=canonical_text,
+            canonical_text_normalized=canonical_text_normalized,
             transcription=transcription,
             translation_variants=translation_variants,
             explanation=explanation,
