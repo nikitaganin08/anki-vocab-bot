@@ -4,6 +4,7 @@ import type {
   CardsQuery,
   HealthResponse,
 } from "./types";
+import { resolveApiPath } from "../routing";
 
 type QueryValue = string | number | boolean | null | undefined;
 type QueryParams = Record<string, QueryValue>;
@@ -19,8 +20,9 @@ export class ApiError extends Error {
 }
 
 function toUrl(path: string, query?: QueryParams): string {
+  const resolvedPath = resolveApiPath(path);
   if (!query) {
-    return path;
+    return resolvedPath;
   }
 
   const params = new URLSearchParams();
@@ -32,7 +34,7 @@ function toUrl(path: string, query?: QueryParams): string {
   }
 
   const queryString = params.toString();
-  return queryString ? `${path}?${queryString}` : path;
+  return queryString ? `${resolvedPath}?${queryString}` : resolvedPath;
 }
 
 async function readErrorMessage(response: Response): Promise<string> {
@@ -68,7 +70,7 @@ async function getJson<T>(path: string, query?: QueryParams): Promise<T> {
 }
 
 async function postJson<TResponse, TPayload>(path: string, payload: TPayload): Promise<TResponse> {
-  const response = await fetch(path, {
+  const response = await fetch(resolveApiPath(path), {
     method: "POST",
     headers: {
       Accept: "application/json",
@@ -85,7 +87,7 @@ async function postJson<TResponse, TPayload>(path: string, payload: TPayload): P
 }
 
 async function requestNoContent(path: string, method: "DELETE"): Promise<void> {
-  const response = await fetch(path, {
+  const response = await fetch(resolveApiPath(path), {
     method,
     headers: {
       Accept: "application/json",

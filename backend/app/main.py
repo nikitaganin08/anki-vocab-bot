@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from app.api import anki, cards, telegram_webhook
 
@@ -18,6 +18,20 @@ def healthcheck() -> dict[str, str]:
 
 
 _FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+_FRONTEND_INDEX = _FRONTEND_DIST / "index.html"
 
-if _FRONTEND_DIST.exists():
-    app.mount("/admin", StaticFiles(directory=str(_FRONTEND_DIST), html=True), name="admin")
+if _FRONTEND_INDEX.exists():
+
+    @app.get("/admin")
+    @app.get("/admin/")
+    def admin_index() -> FileResponse:
+        return FileResponse(_FRONTEND_INDEX)
+
+
+    @app.get("/admin/{path:path}")
+    def admin_spa(path: str) -> FileResponse:
+        candidate = _FRONTEND_DIST / path
+        if candidate.is_file():
+            return FileResponse(candidate)
+
+        return FileResponse(_FRONTEND_INDEX)

@@ -49,7 +49,7 @@ function setupFetchMock(): void {
           ? input.toString()
           : input.url;
 
-    if (url.startsWith("/api/cards")) {
+    if (url.includes("/api/cards")) {
       return jsonResponse(cardsPayload);
     }
 
@@ -78,6 +78,32 @@ describe("App", () => {
 
   it("renders cards table on cards route", async () => {
     window.history.pushState({}, "", "/cards");
+
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "Cards" })).toBeInTheDocument();
+    const [canonicalCell] = await screen.findAllByText("take off");
+    const row = canonicalCell.closest("tr");
+    expect(row).not.toBeNull();
+    expect(within(row as HTMLTableRowElement).getByText("pending")).toBeInTheDocument();
+  });
+
+  it("renders correctly behind an external prefix and calls the prefixed API", async () => {
+    window.history.pushState({}, "", "/anki/admin/");
+
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "Cards" })).toBeInTheDocument();
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/anki/api/cards?offset=0&limit=20",
+      expect.objectContaining({
+        headers: { Accept: "application/json" },
+      }),
+    );
+  });
+
+  it("keeps cards route working behind an external prefix", async () => {
+    window.history.pushState({}, "", "/anki/admin/cards");
 
     render(<App />);
 

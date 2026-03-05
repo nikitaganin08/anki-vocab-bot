@@ -4,17 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { AdminLayout } from "./components/AdminLayout";
 import { CardsPage } from "./pages/CardsPage";
-
-function resolveBasename(): string | undefined {
-  if (
-    import.meta.env.BASE_URL === "/admin/" &&
-    window.location.pathname.startsWith("/admin")
-  ) {
-    return "/admin";
-  }
-
-  return undefined;
-}
+import { resolveAdminBasename } from "./routing";
 
 export function App(): JSX.Element {
   const [queryClient] = useState(
@@ -31,7 +21,7 @@ export function App(): JSX.Element {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter basename={resolveBasename()}>
+      <BrowserRouter basename={resolveAdminBasename()}>
         <Routes>
           <Route path="/" element={<AdminLayout />}>
             <Route index element={<CardsPage />} />
