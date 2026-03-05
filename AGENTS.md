@@ -66,6 +66,9 @@ The app receives words and stable expressions from Telegram, generates learning 
 
 - Backend and frontend live in one repository
 - Frontend is built into static assets and served by the backend under `/admin/*`
+- Production deploy is triggered by GitHub Actions on push to `master`
+- The deploy workflow lives in `.github/workflows/deploy.yml`
+- GitHub Actions builds and pushes the Docker image, then deploys it on the VPS over SSH
 - Edge nginx is managed outside this repository (separate VPS infra stack)
 - In production, admin access is expected behind nginx Basic Auth
 - Docker uses a multi-stage build:
