@@ -63,16 +63,6 @@ class CardListResponse(BaseModel):
     limit: int
 
 
-class StatsResponse(BaseModel):
-    total_cards: int
-    eligible_for_anki: int
-    anki_pending: int
-    anki_synced: int
-    anki_failed: int
-    by_entry_type: dict[str, int]
-    by_source_language: dict[str, int]
-
-
 class AnkiPendingCardResponse(BaseModel):
     id: int
     canonical_text: str
