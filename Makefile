@@ -1,10 +1,7 @@
-.PHONY: backend-dev bot-dev frontend-dev backend-test frontend-test test build-frontend sync-anki docker-build docker-up docker-down smoke-api
+.PHONY: backend-dev frontend-dev backend-test frontend-test test build-frontend sync-anki docker-build docker-up docker-down smoke-api
 
 backend-dev:
 	cd backend && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-bot-dev:
-	cd backend && uv run python -m app.scripts.run_telegram_bot
 
 frontend-dev:
 	cd frontend && npm run dev
@@ -33,4 +30,4 @@ docker-down:
 	docker compose down
 
 smoke-api:
-	curl --fail --silent http://127.0.0.1:8000/api/health
+	curl --fail --silent http://127.0.0.1/api/health

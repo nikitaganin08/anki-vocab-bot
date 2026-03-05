@@ -173,6 +173,10 @@ Validation rules:
 - `GET /api/cards/{card_id}`
 - `GET /api/stats`
 
+### Telegram Webhook API
+
+- `POST /telegram/webhook`
+
 ### Anki Sync API
 
 - `GET /api/anki/pending?limit=50`
@@ -213,6 +217,8 @@ Mapping:
 Required environment variables:
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_ALLOWED_USER_ID`
+- `TELEGRAM_WEBHOOK_URL`
+- `TELEGRAM_WEBHOOK_SECRET`
 - `OPENROUTER_API_KEY`
 - `ANKI_SYNC_TOKEN`
 - `DATABASE_URL` (default: `sqlite:///backend/data/app.db`)
@@ -238,7 +244,6 @@ Required environment variables:
 
 The repository should maintain a `Makefile` with at least:
 - `make backend-dev`
-- `make bot-dev`
 - `make frontend-dev`
 - `make test`
 - `make build-frontend`
@@ -260,7 +265,7 @@ Focus areas:
 ## Defaults and Constraints
 
 - Single-user only in the first version
-- Telegram runs via long polling
+- Telegram runs in webhook mode
 - Rate limit: no more than 5 requests per minute from the allowed user
 - Default LLM model: `google/gemini-2.5-flash-lite`
 - Cards are rejected when the model is not confident the input is a stable lexical unit

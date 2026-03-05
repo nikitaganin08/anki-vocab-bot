@@ -17,6 +17,8 @@ def default_database_url() -> str:
 class Settings(BaseSettings):
     telegram_bot_token: str | None = Field(default=None, alias="TELEGRAM_BOT_TOKEN")
     telegram_allowed_user_id: int | None = Field(default=None, alias="TELEGRAM_ALLOWED_USER_ID")
+    telegram_webhook_url: str | None = Field(default=None, alias="TELEGRAM_WEBHOOK_URL")
+    telegram_webhook_secret: str | None = Field(default=None, alias="TELEGRAM_WEBHOOK_SECRET")
     openrouter_api_key: str | None = Field(default=None, alias="OPENROUTER_API_KEY")
     anki_sync_token: str | None = Field(default=None, alias="ANKI_SYNC_TOKEN")
     backend_api_base_url: str = Field(
@@ -71,6 +73,16 @@ class Settings(BaseSettings):
         if missing:
             joined = ", ".join(missing)
             raise ValueError(f"Missing required runtime environment variables: {joined}")
+
+    def validate_webhook_config(self) -> None:
+        required_fields = {
+            "TELEGRAM_WEBHOOK_URL": self.telegram_webhook_url,
+            "TELEGRAM_WEBHOOK_SECRET": self.telegram_webhook_secret,
+        }
+        missing = [name for name, value in required_fields.items() if value in (None, "")]
+        if missing:
+            joined = ", ".join(missing)
+            raise ValueError(f"Missing required webhook environment variables: {joined}")
 
 
 @lru_cache(maxsize=1)

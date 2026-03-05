@@ -5,8 +5,11 @@ and sync helpers for the anki-vocab-bot monorepo.
 
 Useful local commands:
 - `uv run uvicorn app.main:app --reload` for API development.
-- `uv run python -m app.scripts.run_telegram_bot` for Telegram long polling.
 - `uv run python -m app.scripts.sync_anki --limit 50` for one sync pass.
+
+Webhook mode:
+- Telegram delivers updates to `POST /telegram/webhook`.
+- Required webhook env vars: `TELEGRAM_WEBHOOK_URL`, `TELEGRAM_WEBHOOK_SECRET`.
 
 ## Sync helper
 
@@ -32,4 +35,4 @@ From repository root:
 - `docker compose up --build`
 
 Smoke check when container is running:
-- `curl --fail --silent http://127.0.0.1:8000/api/health`
+- `curl --fail --silent http://127.0.0.1/api/health`

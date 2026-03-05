@@ -1,7 +1,13 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
+from functools import lru_cache
+
 from aiogram import Bot, Dispatcher, F, Router
 
+import app.models.anki_sync_attempt as anki_sync_attempt_model
+import app.models.card as card_model
 from app.bot.handler import TelegramTextHandler
 from app.bot.rate_limiter import InMemoryRateLimiter
 from app.clients.openrouter import OpenRouterClient
@@ -9,8 +15,17 @@ from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.services.card_service import CardService, CardServiceResult
 
+MODEL_MODULES = (anki_sync_attempt_model, card_model)
 
-def _build_apply_source_text(client: OpenRouterClient):
+
+@dataclass(slots=True)
+class BotRuntime:
+    bot: Bot
+    dispatcher: Dispatcher
+    webhook_secret: str
+
+
+def _build_apply_source_text(client: OpenRouterClient) -> Callable[[str], CardServiceResult]:
     def apply_source_text(source_text: str) -> CardServiceResult:
         with SessionLocal() as session:
             service = CardService(session=session, generator=client)
@@ -29,12 +44,14 @@ def build_bot_router(handler: TelegramTextHandler) -> Router:
     return router
 
 
-async def run_polling_bot() -> None:
+def build_bot_runtime() -> BotRuntime:
     settings = get_settings()
     settings.validate_runtime_config()
+    settings.validate_webhook_config()
     assert settings.telegram_bot_token is not None
     assert settings.openrouter_api_key is not None
     assert settings.telegram_allowed_user_id is not None
+    assert settings.telegram_webhook_secret is not None
 
     bot = Bot(token=settings.telegram_bot_token)
     dispatcher = Dispatcher()
@@ -49,7 +66,13 @@ async def run_polling_bot() -> None:
     )
     dispatcher.include_router(build_bot_router(handler))
 
-    try:
-        await dispatcher.start_polling(bot)
-    finally:
-        await bot.session.close()
+    return BotRuntime(
+        bot=bot,
+        dispatcher=dispatcher,
+        webhook_secret=settings.telegram_webhook_secret,
+    )
+
+
+@lru_cache(maxsize=1)
+def get_bot_runtime() -> BotRuntime:
+    return build_bot_runtime()

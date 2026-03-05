@@ -61,11 +61,11 @@ class TelegramTextHandler:
             return
 
         if result.status == "created":
-            await message.answer(format_created_message(result.card))
+            await message.answer(format_created_message(result.card), parse_mode="HTML")
             return
 
         if result.status in {"duplicate_source", "duplicate_canonical"}:
-            await message.answer(format_duplicate_message(result.card))
+            await message.answer(format_duplicate_message(result.card), parse_mode="HTML")
             return
 
         await message.answer("Unexpected bot response state.")

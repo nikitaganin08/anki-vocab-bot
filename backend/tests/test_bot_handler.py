@@ -20,6 +20,7 @@ class StubMessage:
     text: str
     user_id: int | None
     answers: list[str] = field(default_factory=list)
+    parse_modes: list[str | None] = field(default_factory=list)
 
     @property
     def from_user(self) -> StubUser | None:
@@ -27,8 +28,9 @@ class StubMessage:
             return None
         return StubUser(id=self.user_id)
 
-    async def answer(self, text: str) -> None:
+    async def answer(self, text: str, parse_mode: str | None = None) -> None:
         self.answers.append(text)
+        self.parse_modes.append(parse_mode)
 
 
 @dataclass
@@ -110,7 +112,8 @@ def test_handler_maps_created_result() -> None:
 
     assert stub.calls == ["take off"]
     assert len(message.answers) == 1
-    assert message.answers[0].startswith("Added to dictionary.\n\nWord: take off")
+    assert message.answers[0].startswith("✅ Added to dictionary\n\n🔍 Word: <b>take off</b>")
+    assert message.parse_modes == ["HTML"]
 
 
 def test_handler_maps_duplicate_result() -> None:
@@ -128,7 +131,8 @@ def test_handler_maps_duplicate_result() -> None:
 
     assert stub.calls == ["take off"]
     assert len(message.answers) == 1
-    assert message.answers[0].startswith("Already in dictionary.\n\nWord: take off")
+    assert message.answers[0].startswith("ℹ️ Already in dictionary\n\n🔍 Word: <b>take off</b>")
+    assert message.parse_modes == ["HTML"]
 
 
 def test_handler_returns_rejected_message() -> None:
@@ -151,6 +155,7 @@ def test_handler_returns_rejected_message() -> None:
 
     assert stub.calls == ["this is a sentence"]
     assert message.answers == ["This looks like a free-form sentence."]
+    assert message.parse_modes == [None]
 
 
 def test_handler_surfaces_upstream_error_message() -> None:
@@ -172,6 +177,7 @@ def test_handler_surfaces_upstream_error_message() -> None:
 
     assert stub.calls == ["take off"]
     assert message.answers == ["Model timed out. Please try again."]
+    assert message.parse_modes == [None]
 
 
 def test_handler_enforces_rate_limit() -> None:
@@ -189,3 +195,4 @@ def test_handler_enforces_rate_limit() -> None:
 
     assert stub.calls == ["take off"]
     assert second.answers == ["Rate limit reached: max 5 requests per minute."]
+    assert second.parse_modes == [None]
