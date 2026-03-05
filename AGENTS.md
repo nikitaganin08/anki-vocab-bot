@@ -66,6 +66,8 @@ The app receives words and stable expressions from Telegram, generates learning 
 
 - Backend and frontend live in one repository
 - Frontend is built into static assets and served by the backend under `/admin/*`
+- Edge nginx is managed outside this repository (separate VPS infra stack)
+- In production, admin access is expected behind nginx Basic Auth
 - Docker uses a multi-stage build:
   - frontend build stage
   - backend dependency stage
@@ -191,6 +193,11 @@ The React frontend includes:
 - card deletion action
 
 The UI reads only from backend JSON endpoints.
+
+Production exposure defaults (via external nginx policy):
+- public: Telegram webhook endpoint, Anki sync API endpoints, health check
+- restricted by Basic Auth: admin UI paths and card list/delete API used by admin UI
+- denied externally by default: other backend API paths
 
 ## Anki Integration
 
