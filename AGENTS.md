@@ -170,9 +170,7 @@ Validation rules:
 
 - `GET /api/health`
 - `GET /api/cards`
-- `GET /api/cards/{card_id}`
 - `DELETE /api/cards/{card_id}`
-- `GET /api/stats`
 
 ### Telegram Webhook API
 

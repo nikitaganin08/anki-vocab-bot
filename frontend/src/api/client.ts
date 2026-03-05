@@ -1,9 +1,7 @@
 import type {
-  Card,
   CardListResponse,
   CardsQuery,
   HealthResponse,
-  StatsResponse,
 } from "./types";
 
 type QueryValue = string | number | boolean | null | undefined;
@@ -95,14 +93,6 @@ export function getCards(query: CardsQuery): Promise<CardListResponse> {
     anki_sync_status: query.anki_sync_status,
     eligible_for_anki: query.eligible_for_anki,
   });
-}
-
-export function getCard(cardId: number): Promise<Card> {
-  return getJson<Card>(`/api/cards/${cardId}`);
-}
-
-export function getStats(): Promise<StatsResponse> {
-  return getJson<StatsResponse>("/api/stats");
 }
 
 export function deleteCard(cardId: number): Promise<void> {

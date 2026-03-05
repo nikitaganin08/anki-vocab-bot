@@ -37,16 +37,6 @@ export interface CardListResponse {
   limit: number;
 }
 
-export interface StatsResponse {
-  total_cards: number;
-  eligible_for_anki: number;
-  anki_pending: number;
-  anki_synced: number;
-  anki_failed: number;
-  by_entry_type: Record<string, number>;
-  by_source_language: Record<string, number>;
-}
-
 export interface HealthResponse {
   status: string;
 }

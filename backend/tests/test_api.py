@@ -219,29 +219,6 @@ def test_list_cards_search(client: TestClient, session: Session) -> None:
 
 
 # ---------------------------------------------------------------------------
-# GET /api/cards/{card_id}
-# ---------------------------------------------------------------------------
-
-
-def test_get_card(client: TestClient, session: Session) -> None:
-    card = _make_card()
-    session.add(card)
-    session.commit()
-    session.refresh(card)
-
-    resp = client.get(f"/api/cards/{card.id}")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["id"] == card.id
-    assert data["canonical_text"] == "take off"
-
-
-def test_get_card_not_found(client: TestClient) -> None:
-    resp = client.get("/api/cards/9999")
-    assert resp.status_code == 404
-
-
-# ---------------------------------------------------------------------------
 # DELETE /api/cards/{card_id}
 # ---------------------------------------------------------------------------
 
@@ -261,57 +238,6 @@ def test_delete_card(client: TestClient, session: Session) -> None:
 def test_delete_card_not_found(client: TestClient) -> None:
     resp = client.delete("/api/cards/9999")
     assert resp.status_code == 404
-
-
-# ---------------------------------------------------------------------------
-# GET /api/stats
-# ---------------------------------------------------------------------------
-
-
-def test_stats_empty(client: TestClient) -> None:
-    resp = client.get("/api/stats")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["total_cards"] == 0
-    assert data["eligible_for_anki"] == 0
-    assert data["anki_pending"] == 0
-    assert data["anki_synced"] == 0
-    assert data["anki_failed"] == 0
-    assert data["by_entry_type"]["word"] == 0
-    assert data["by_source_language"]["en"] == 0
-
-
-def test_stats_counts(client: TestClient, session: Session) -> None:
-    session.add(
-        _make_card(
-            eligible_for_anki=True,
-            anki_sync_status=AnkiSyncStatus.SYNCED,
-            canonical_text_normalized="a",
-            entry_type="word",
-            source_language="en",
-        )
-    )
-    session.add(
-        _make_card(
-            eligible_for_anki=False,
-            anki_sync_status=AnkiSyncStatus.PENDING,
-            canonical_text_normalized="b",
-            entry_type="idiom",
-            source_language="ru",
-        )
-    )
-    session.commit()
-
-    resp = client.get("/api/stats")
-    data = resp.json()
-    assert data["total_cards"] == 2
-    assert data["eligible_for_anki"] == 1
-    assert data["anki_synced"] == 1
-    assert data["anki_pending"] == 1
-    assert data["by_entry_type"]["word"] == 1
-    assert data["by_entry_type"]["idiom"] == 1
-    assert data["by_source_language"]["en"] == 1
-    assert data["by_source_language"]["ru"] == 1
 
 
 # ---------------------------------------------------------------------------

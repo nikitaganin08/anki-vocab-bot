@@ -55,14 +55,6 @@ def list_cards(
     )
 
 
-@router.get("/{card_id}", response_model=CardResponse)
-def get_card(card_id: int, session: SessionDep) -> CardResponse:
-    card = session.get(Card, card_id)
-    if card is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
-    return CardResponse.from_card(card)
-
-
 @router.delete("/{card_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_card(card_id: int, session: SessionDep) -> None:
     card = session.get(Card, card_id)
