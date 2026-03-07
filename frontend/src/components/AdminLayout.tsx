@@ -6,10 +6,10 @@ export function AdminLayout(): JSX.Element {
       <header className="app-header">
         <div className="brand-block">
           <p className="eyebrow">anki-vocab-bot</p>
-          <h1>Admin Console</h1>
+          <h1>Telegram Dictionary Panel</h1>
         </div>
 
-        <p className="eyebrow">Cards list and deletion</p>
+        <p className="eyebrow">Manage cards inside Telegram</p>
       </header>
 
       <main className="page-shell">

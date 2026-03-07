@@ -22,14 +22,14 @@ _FRONTEND_INDEX = _FRONTEND_DIST / "index.html"
 
 if _FRONTEND_INDEX.exists():
 
-    @app.get("/admin")
-    @app.get("/admin/")
-    def admin_index() -> FileResponse:
+    @app.get("/telegram/webapp")
+    @app.get("/telegram/webapp/")
+    def telegram_webapp_index() -> FileResponse:
         return FileResponse(_FRONTEND_INDEX)
 
 
-    @app.get("/admin/{path:path}")
-    def admin_spa(path: str) -> FileResponse:
+    @app.get("/telegram/webapp/{path:path}")
+    def telegram_webapp_spa(path: str) -> FileResponse:
         candidate = _FRONTEND_DIST / path
         if candidate.is_file():
             return FileResponse(candidate)

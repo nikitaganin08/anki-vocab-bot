@@ -10,6 +10,8 @@ Useful local commands:
 Webhook mode:
 - Telegram delivers updates to `POST /telegram/webhook`.
 - Required webhook env vars: `TELEGRAM_WEBHOOK_URL`, `TELEGRAM_WEBHOOK_SECRET`.
+- Telegram admin panel is served as a Web App under `/telegram/webapp`.
+- Required runtime env var for the Web App launcher: `TELEGRAM_WEBAPP_URL`.
 
 ## Sync helper
 

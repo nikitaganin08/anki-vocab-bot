@@ -5,6 +5,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+
 from app.bot.formatter import (
     format_created_message,
     format_duplicate_message,
@@ -26,6 +28,9 @@ class TelegramTextHandler:
         if user_id is None or user_id != self.allowed_user_id:
             return
 
+        if self._is_command_text(getattr(message, "text", None)):
+            return
+
         if not self.rate_limiter.allow_request(user_id):
             await message.answer(format_rate_limit_message())
             return
@@ -42,6 +47,12 @@ class TelegramTextHandler:
             return
 
         await self._reply_from_result(message, result)
+
+    @staticmethod
+    def _is_command_text(text: str | None) -> bool:
+        if text is None:
+            return False
+        return text.lstrip().startswith("/")
 
     @staticmethod
     def _extract_user_id(message: Any) -> int | None:
@@ -69,3 +80,28 @@ class TelegramTextHandler:
             return
 
         await message.answer("Unexpected bot response state.")
+
+
+@dataclass(slots=True)
+class TelegramAdminWebAppHandler:
+    allowed_user_id: int
+    webapp_url: str
+
+    async def handle_message(self, message: Any) -> None:
+        user_id = TelegramTextHandler._extract_user_id(message)
+        if user_id is None or user_id != self.allowed_user_id:
+            return
+
+        await message.answer(
+            "Open the dictionary panel inside Telegram.",
+            reply_markup=InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="Open admin panel",
+                            web_app=WebAppInfo(url=self.webapp_url),
+                        )
+                    ]
+                ]
+            ),
+        )

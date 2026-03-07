@@ -32,7 +32,7 @@ describe("CardsPage", () => {
     });
   });
 
-  it("renders batch panel and cards table", async () => {
+  it("renders batch panel and cards list", async () => {
     mockedGetCards.mockResolvedValue({
       items: [
         {
@@ -70,7 +70,7 @@ describe("CardsPage", () => {
     expect((await screen.findAllByText("turn down")).length).toBeGreaterThan(0);
     expect(await screen.findByRole("button", { name: "Delete" })).toBeInTheDocument();
     expect(await screen.findByText("Showing 1-1 of 1")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Batch Import" })).toBeInTheDocument();
+    expect(screen.getByText("Batch Import")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Import" })).toBeInTheDocument();
   });
 
@@ -166,8 +166,8 @@ describe("CardsPage", () => {
     expect(await screen.findByText("Total processed: 3")).toBeInTheDocument();
     expect(screen.getByText("Rejected: 1")).toBeInTheDocument();
     expect(screen.getByText("Invalid input: 1")).toBeInTheDocument();
-    expect(screen.getByText("This does not look like a stable lexical unit.")).toBeInTheDocument();
-    expect(screen.getByText("Please send up to 8 words.")).toBeInTheDocument();
+    expect(screen.getByText(/This does not look like a stable lexical unit\./)).toBeInTheDocument();
+    expect(screen.getByText(/Please send up to 8 words\./)).toBeInTheDocument();
     expect(screen.getAllByText("look up").length).toBeGreaterThan(0);
     expect(screen.getByText("invalid input")).toBeInTheDocument();
   });
@@ -212,5 +212,53 @@ describe("CardsPage", () => {
     expect(screen.getByText("Total processed: 50")).toBeInTheDocument();
     expect(screen.getByText("Created: 50")).toBeInTheDocument();
     expect(screen.getAllByText("item-1").length).toBeGreaterThan(0);
+  });
+
+  it("confirms deletion inside an in-app dialog", async () => {
+    mockedGetCards.mockResolvedValue({
+      items: [
+        {
+          id: 7,
+          source_text: "turn down",
+          source_language: "en",
+          entry_type: "phrasal_verb",
+          canonical_text: "turn down",
+          canonical_text_normalized: "turn down",
+          transcription: "/t3:n daun/",
+          translation_variants: ["отклонять", "убавлять"],
+          explanation: "Refuse or reduce volume.",
+          examples: ["She turned down the offer.", "Turn down the music.", "He turned down help."],
+          frequency: 6,
+          frequency_note: null,
+          eligible_for_anki: true,
+          anki_sync_status: "pending",
+          anki_note_id: null,
+          llm_model: "test-model",
+          created_at: "2026-01-01T00:00:00Z",
+          updated_at: "2026-01-01T00:00:00Z",
+        },
+      ],
+      total: 1,
+      offset: 0,
+      limit: 20,
+    });
+    mockedDeleteCard.mockResolvedValue(undefined);
+
+    renderRouteWithProviders(<CardsPage />, {
+      path: "/cards",
+      route: "/cards",
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Delete turn down?" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete card" }));
+
+    await waitFor(() => {
+      expect(mockedDeleteCard).toHaveBeenCalled();
+    });
+    expect(mockedDeleteCard.mock.calls[0][0]).toBe(7);
   });
 });

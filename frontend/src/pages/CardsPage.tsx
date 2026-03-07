@@ -5,6 +5,7 @@ import { useSearchParams } from "react-router-dom";
 import { ApiError, deleteCard, getCards, importCardsBatch } from "../api/client";
 import type {
   AnkiSyncStatus,
+  Card,
   CardBatchImportItemStatus,
   CardBatchImportResponse,
   CardBatchImportSummary,
@@ -17,6 +18,7 @@ const PAGE_SIZE = 20;
 const BATCH_CHUNK_SIZE = 50;
 
 type EligibleFilter = "all" | "true" | "false";
+
 interface BatchProgress {
   processed: number;
   total: number;
@@ -102,6 +104,31 @@ function mergeBatchResponses(
   };
 }
 
+function formatCardTimestamp(value: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function hasActiveFilters(
+  search: string,
+  sourceLanguage: SourceLanguage | "",
+  entryType: EntryType | "",
+  ankiStatus: AnkiSyncStatus | "",
+  eligible: EligibleFilter,
+): boolean {
+  return (
+    search.length > 0 ||
+    sourceLanguage.length > 0 ||
+    entryType.length > 0 ||
+    ankiStatus.length > 0 ||
+    eligible !== "all"
+  );
+}
+
 export function CardsPage(): JSX.Element {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -118,10 +145,20 @@ export function CardsPage(): JSX.Element {
   const [batchFatalError, setBatchFatalError] = useState<string | null>(null);
   const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
   const [batchResponse, setBatchResponse] = useState<CardBatchImportResponse | null>(null);
+  const [pendingDeleteCard, setPendingDeleteCard] = useState<Card | null>(null);
+  const [filtersExpanded, setFiltersExpanded] = useState(
+    hasActiveFilters(search, sourceLanguage, entryType, ankiStatus, eligible),
+  );
 
   useEffect(() => {
     setSearchDraft(search);
   }, [search]);
+
+  useEffect(() => {
+    if (hasActiveFilters(search, sourceLanguage, entryType, ankiStatus, eligible)) {
+      setFiltersExpanded(true);
+    }
+  }, [search, sourceLanguage, entryType, ankiStatus, eligible]);
 
   const cardsQuery = useQuery({
     queryKey: ["cards", { page, search, sourceLanguage, entryType, ankiStatus, eligible }],
@@ -133,14 +170,14 @@ export function CardsPage(): JSX.Element {
         source_language: sourceLanguage || undefined,
         entry_type: entryType || undefined,
         anki_sync_status: ankiStatus || undefined,
-        eligible_for_anki:
-          eligible === "all" ? undefined : eligible === "true",
+        eligible_for_anki: eligible === "all" ? undefined : eligible === "true",
       }),
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteCard,
     onSuccess: () => {
+      setPendingDeleteCard(null);
       void queryClient.invalidateQueries({ queryKey: ["cards"] });
     },
   });
@@ -218,25 +255,29 @@ export function CardsPage(): JSX.Element {
 
   const total = cardsQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const filtersOpen = hasActiveFilters(search, sourceLanguage, entryType, ankiStatus, eligible);
 
   return (
     <section className="cards-page">
       <header className="page-title-block">
         <h2>Cards</h2>
-        <p>Search and delete generated lexical units.</p>
+        <p>Review saved entries, import new lines, and clean up the queue without leaving Telegram.</p>
       </header>
 
-      <section className="batch-panel">
-        <div className="batch-panel-header">
-          <h3>Batch Import</h3>
-          <p>Paste one English lexical unit per line. Large lists are processed in chunks of 50.</p>
+      <section className="surface-panel batch-panel">
+        <div className="section-heading">
+          <div>
+            <p className="section-label">Batch Import</p>
+            <h3>Paste one lexical unit per line</h3>
+          </div>
+          <span className="info-chip">Chunk size {BATCH_CHUNK_SIZE}</span>
         </div>
 
         <label htmlFor="batch-import-input">Input list</label>
         <textarea
           id="batch-import-input"
           name="batch-import-input"
-          rows={8}
+          rows={7}
           value={batchInput}
           placeholder={"take off\nlook up\nbreak down"}
           onChange={(event) => setBatchInput(event.target.value)}
@@ -264,9 +305,7 @@ export function CardsPage(): JSX.Element {
         ) : null}
 
         {batchFatalError ? (
-          <p className="batch-message batch-message-error">
-            Import stopped: {batchFatalError}
-          </p>
+          <p className="batch-message batch-message-error">Import stopped: {batchFatalError}</p>
         ) : null}
 
         {batchResponse ? (
@@ -282,116 +321,122 @@ export function CardsPage(): JSX.Element {
             </div>
 
             {batchResponse.items.length > 0 ? (
-              <div className="batch-table-wrap">
-                <table className="batch-table">
-                  <thead>
-                    <tr>
-                      <th>Input</th>
-                      <th>Status</th>
-                      <th>Canonical</th>
-                      <th>Message</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {batchResponse.items.map((item, index) => (
-                      <tr key={`${item.source_text}-${index}`}>
-                        <td>{item.source_text}</td>
-                        <td>{prettifyBatchStatus(item.status)}</td>
-                        <td>{item.canonical_text ?? "-"}</td>
-                        <td>{item.message ?? "-"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="batch-results-grid">
+                {batchResponse.items.map((item, index) => (
+                  <article className="batch-result-card" key={`${item.source_text}-${index}`}>
+                    <div className="batch-result-topline">
+                      <strong>{item.source_text}</strong>
+                      <span className="info-chip">{prettifyBatchStatus(item.status)}</span>
+                    </div>
+                    <p>Canonical: {item.canonical_text ?? "-"}</p>
+                    <p>Message: {item.message ?? "-"}</p>
+                  </article>
+                ))}
               </div>
             ) : null}
           </div>
         ) : null}
       </section>
 
-      <div className="filters-panel">
-        <div className="search-row">
-          <label htmlFor="cards-search">Search</label>
-          <input
-            id="cards-search"
-            name="search"
-            type="search"
-            value={searchDraft}
-            placeholder="Canonical text or source text"
-            onChange={(event) => setSearchDraft(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                updateParams({ search: searchDraft.trim() || null });
-              }
-            }}
-          />
-          <button
-            type="button"
-            className="primary-button"
-            onClick={() => updateParams({ search: searchDraft.trim() || null })}
-          >
-            Apply
-          </button>
+      <details
+        className="surface-panel filters-panel"
+        open={filtersExpanded}
+        onToggle={(event) => setFiltersExpanded(event.currentTarget.open)}
+      >
+        <summary>
+          <div className="section-heading">
+            <div>
+              <p className="section-label">Search and Filters</p>
+              <h3>Focus the card list</h3>
+            </div>
+            <span className="info-chip">{filtersOpen ? "Active" : "All cards"}</span>
+          </div>
+        </summary>
+
+        <div className="filters-panel-body">
+          <div className="search-row">
+            <label htmlFor="cards-search">Search</label>
+            <input
+              id="cards-search"
+              name="search"
+              type="search"
+              value={searchDraft}
+              placeholder="Canonical text or source text"
+              onChange={(event) => setSearchDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  updateParams({ search: searchDraft.trim() || null });
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="primary-button"
+              onClick={() => updateParams({ search: searchDraft.trim() || null })}
+            >
+              Apply
+            </button>
+          </div>
+
+          <div className="filter-grid">
+            <label>
+              Source language
+              <select
+                value={sourceLanguage}
+                onChange={(event) => updateParams({ source_language: event.target.value || null })}
+              >
+                <option value="">All</option>
+                <option value="en">EN</option>
+                <option value="ru">RU</option>
+              </select>
+            </label>
+
+            <label>
+              Entry type
+              <select
+                value={entryType}
+                onChange={(event) => updateParams({ entry_type: event.target.value || null })}
+              >
+                <option value="">All</option>
+                <option value="word">word</option>
+                <option value="phrasal_verb">phrasal_verb</option>
+                <option value="collocation">collocation</option>
+                <option value="idiom">idiom</option>
+                <option value="expression">expression</option>
+              </select>
+            </label>
+
+            <label>
+              Anki status
+              <select
+                value={ankiStatus}
+                onChange={(event) => updateParams({ anki_sync_status: event.target.value || null })}
+              >
+                <option value="">All</option>
+                <option value="pending">pending</option>
+                <option value="synced">synced</option>
+                <option value="failed">failed</option>
+              </select>
+            </label>
+
+            <label>
+              Eligible for Anki
+              <select
+                value={eligible}
+                onChange={(event) =>
+                  updateParams({
+                    eligible_for_anki: event.target.value === "all" ? null : event.target.value,
+                  })
+                }
+              >
+                <option value="all">All</option>
+                <option value="true">true</option>
+                <option value="false">false</option>
+              </select>
+            </label>
+          </div>
         </div>
-
-        <div className="filter-grid">
-          <label>
-            Source language
-            <select
-              value={sourceLanguage}
-              onChange={(event) => updateParams({ source_language: event.target.value || null })}
-            >
-              <option value="">All</option>
-              <option value="en">EN</option>
-              <option value="ru">RU</option>
-            </select>
-          </label>
-
-          <label>
-            Entry type
-            <select
-              value={entryType}
-              onChange={(event) => updateParams({ entry_type: event.target.value || null })}
-            >
-              <option value="">All</option>
-              <option value="word">word</option>
-              <option value="phrasal_verb">phrasal_verb</option>
-              <option value="collocation">collocation</option>
-              <option value="idiom">idiom</option>
-              <option value="expression">expression</option>
-            </select>
-          </label>
-
-          <label>
-            Anki status
-            <select
-              value={ankiStatus}
-              onChange={(event) => updateParams({ anki_sync_status: event.target.value || null })}
-            >
-              <option value="">All</option>
-              <option value="pending">pending</option>
-              <option value="synced">synced</option>
-              <option value="failed">failed</option>
-            </select>
-          </label>
-
-          <label>
-            Eligible for Anki
-            <select
-              value={eligible}
-              onChange={(event) =>
-                updateParams({
-                  eligible_for_anki: event.target.value === "all" ? null : event.target.value,
-                })
-              }
-            >
-              <option value="all">All</option>
-              <option value="true">true</option>
-              <option value="false">false</option>
-            </select>
-          </label>
-        </div>
-      </div>
+      </details>
 
       {cardsQuery.isLoading ? (
         <LoadingState title="Loading cards" message="Fetching card list from the API." />
@@ -412,57 +457,94 @@ export function CardsPage(): JSX.Element {
             />
           ) : null}
 
-          <div className="table-meta">
-            <p>
-              Showing {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, total)} of {total}
-            </p>
+          <div className="list-header">
+            <div>
+              <p className="section-label">Card List</p>
+              <h3>Showing {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, total)} of {total}</h3>
+            </div>
+            <span className="info-chip">Page {page} / {totalPages}</span>
           </div>
 
-          <div className="table-wrap">
-            <table className="cards-table">
-              <thead>
-                <tr>
-                  <th>Canonical</th>
-                  <th>Source</th>
-                  <th>Type</th>
-                  <th>Lang</th>
-                  <th>Frequency</th>
-                  <th>Anki</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cardsQuery.data?.items.map((card) => (
-                  <tr key={card.id}>
-                    <td>{card.canonical_text}</td>
-                    <td>{card.source_text}</td>
-                    <td>{prettifyEntryType(card.entry_type)}</td>
-                    <td>{card.source_language.toUpperCase()}</td>
-                    <td>{card.frequency}</td>
-                    <td>
-                      <span className={`status-pill status-${card.anki_sync_status}`}>
-                        {card.anki_sync_status}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="danger-button"
-                        disabled={deleteMutation.isPending}
-                        onClick={() => {
-                          if (!window.confirm(`Delete card "${card.canonical_text}"?`)) {
-                            return;
-                          }
-                          deleteMutation.mutate(card.id);
-                        }}
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="card-list">
+            {cardsQuery.data?.items.map((card) => (
+              <article className="card-item" key={card.id}>
+                <div className="card-item-topline">
+                  <div className="card-heading">
+                    <p className="section-label">Saved card</p>
+                    <h3>{card.canonical_text}</h3>
+                  </div>
+                  <span className={`status-pill status-${card.anki_sync_status}`}>
+                    {card.anki_sync_status}
+                  </span>
+                </div>
+
+                <div className="card-meta-grid">
+                  <p>
+                    <span>Source</span>
+                    <strong>{card.source_text}</strong>
+                  </p>
+                  <p>
+                    <span>Type</span>
+                    <strong>{prettifyEntryType(card.entry_type)}</strong>
+                  </p>
+                  <p>
+                    <span>Language</span>
+                    <strong>{card.source_language.toUpperCase()}</strong>
+                  </p>
+                  <p>
+                    <span>Frequency</span>
+                    <strong>{card.frequency}</strong>
+                  </p>
+                  <p>
+                    <span>Eligible</span>
+                    <strong>{card.eligible_for_anki ? "yes" : "no"}</strong>
+                  </p>
+                  <p>
+                    <span>Created</span>
+                    <strong>{formatCardTimestamp(card.created_at)}</strong>
+                  </p>
+                </div>
+
+                <div className="card-content-grid">
+                  <section className="card-content-panel">
+                    <h4>Translations</h4>
+                    <ul className="translation-list">
+                      {card.translation_variants.map((translation) => (
+                        <li key={translation}>{translation}</li>
+                      ))}
+                    </ul>
+                  </section>
+
+                  <section className="card-content-panel">
+                    <h4>Explanation</h4>
+                    <p>{card.explanation}</p>
+                  </section>
+
+                  <section className="card-content-panel">
+                    <h4>Examples</h4>
+                    <ul className="example-list">
+                      {card.examples.map((example) => (
+                        <li key={example}>{example}</li>
+                      ))}
+                    </ul>
+                  </section>
+                </div>
+
+                <div className="card-actions">
+                  <button
+                    type="button"
+                    className="danger-button"
+                    disabled={deleteMutation.isPending}
+                    onClick={() => {
+                      deleteMutation.reset();
+                      setPendingDeleteCard(card);
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </article>
+            ))}
           </div>
 
           <footer className="pagination-bar">
@@ -474,9 +556,6 @@ export function CardsPage(): JSX.Element {
             >
               Previous
             </button>
-            <p>
-              Page {page} / {totalPages}
-            </p>
             <button
               type="button"
               className="secondary-button"
@@ -488,6 +567,42 @@ export function CardsPage(): JSX.Element {
           </footer>
         </>
       )}
+
+      {pendingDeleteCard ? (
+        <div className="modal-backdrop" role="presentation">
+          <section className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-card-title">
+            <p className="section-label">Confirm deletion</p>
+            <h3 id="delete-card-title">Delete {pendingDeleteCard.canonical_text}?</h3>
+            <p>This removes the stored card from the local dictionary.</p>
+
+            <div className="confirm-dialog-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={deleteMutation.isPending}
+                onClick={() => {
+                  deleteMutation.reset();
+                  setPendingDeleteCard(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="danger-button"
+                disabled={deleteMutation.isPending}
+                onClick={() => {
+                  if (pendingDeleteCard) {
+                    deleteMutation.mutate(pendingDeleteCard.id);
+                  }
+                }}
+              >
+                {deleteMutation.isPending ? "Deleting..." : "Delete card"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }

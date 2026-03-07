@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     telegram_allowed_user_id: int | None = Field(default=None, alias="TELEGRAM_ALLOWED_USER_ID")
     telegram_webhook_url: str | None = Field(default=None, alias="TELEGRAM_WEBHOOK_URL")
     telegram_webhook_secret: str | None = Field(default=None, alias="TELEGRAM_WEBHOOK_SECRET")
+    telegram_webapp_url: str | None = Field(default=None, alias="TELEGRAM_WEBAPP_URL")
     openrouter_api_key: str | None = Field(default=None, alias="OPENROUTER_API_KEY")
     anki_sync_token: str | None = Field(default=None, alias="ANKI_SYNC_TOKEN")
     backend_api_base_url: str = Field(
@@ -66,6 +67,7 @@ class Settings(BaseSettings):
         required_fields = {
             "TELEGRAM_BOT_TOKEN": self.telegram_bot_token,
             "TELEGRAM_ALLOWED_USER_ID": self.telegram_allowed_user_id,
+            "TELEGRAM_WEBAPP_URL": self.telegram_webapp_url,
             "OPENROUTER_API_KEY": self.openrouter_api_key,
             "ANKI_SYNC_TOKEN": self.anki_sync_token,
         }

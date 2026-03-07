@@ -3,7 +3,9 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 
-from app.bot.handler import TelegramTextHandler
+from aiogram.types import InlineKeyboardMarkup
+
+from app.bot.handler import TelegramAdminWebAppHandler, TelegramTextHandler
 from app.bot.rate_limiter import InMemoryRateLimiter
 from app.models.card import Card, EntryType, SourceLanguage
 from app.schemas.llm import RejectedLlmResponse
@@ -21,6 +23,7 @@ class StubMessage:
     user_id: int | None
     answers: list[str] = field(default_factory=list)
     parse_modes: list[str | None] = field(default_factory=list)
+    reply_markups: list[InlineKeyboardMarkup | None] = field(default_factory=list)
 
     @property
     def from_user(self) -> StubUser | None:
@@ -28,9 +31,15 @@ class StubMessage:
             return None
         return StubUser(id=self.user_id)
 
-    async def answer(self, text: str, parse_mode: str | None = None) -> None:
+    async def answer(
+        self,
+        text: str,
+        parse_mode: str | None = None,
+        reply_markup: InlineKeyboardMarkup | None = None,
+    ) -> None:
         self.answers.append(text)
         self.parse_modes.append(parse_mode)
+        self.reply_markups.append(reply_markup)
 
 
 @dataclass
@@ -196,3 +205,48 @@ def test_handler_enforces_rate_limit() -> None:
     assert stub.calls == ["take off"]
     assert second.answers == ["Rate limit reached: max 5 requests per minute."]
     assert second.parse_modes == [None]
+
+
+def test_text_handler_ignores_command_messages() -> None:
+    stub = ApplySourceTextStub(result=CardServiceResult(status="created", card=make_card()))
+    handler = TelegramTextHandler(
+        allowed_user_id=42,
+        apply_source_text=stub,
+        rate_limiter=InMemoryRateLimiter(),
+    )
+    message = StubMessage(text="/admin", user_id=42)
+
+    asyncio.run(handler.handle_message(message))
+
+    assert stub.calls == []
+    assert message.answers == []
+
+
+def test_admin_handler_sends_webapp_button() -> None:
+    handler = TelegramAdminWebAppHandler(
+        allowed_user_id=42,
+        webapp_url="https://bot.example.com/telegram/webapp",
+    )
+    message = StubMessage(text="/admin", user_id=42)
+
+    asyncio.run(handler.handle_message(message))
+
+    assert message.answers == ["Open the dictionary panel inside Telegram."]
+    markup = message.reply_markups[0]
+    assert markup is not None
+    assert markup.inline_keyboard[0][0].text == "Open admin panel"
+    assert markup.inline_keyboard[0][0].web_app is not None
+    assert markup.inline_keyboard[0][0].web_app.url == "https://bot.example.com/telegram/webapp"
+
+
+def test_admin_handler_ignores_other_users() -> None:
+    handler = TelegramAdminWebAppHandler(
+        allowed_user_id=42,
+        webapp_url="https://bot.example.com/telegram/webapp",
+    )
+    message = StubMessage(text="/admin", user_id=7)
+
+    asyncio.run(handler.handle_message(message))
+
+    assert message.answers == []
+    assert message.reply_markups == []

@@ -5,6 +5,7 @@ import type {
   HealthResponse,
 } from "./types";
 import { resolveApiPath } from "../routing";
+import { getTelegramInitData } from "../telegram";
 
 type QueryValue = string | number | boolean | null | undefined;
 type QueryParams = Record<string, QueryValue>;
@@ -37,6 +38,18 @@ function toUrl(path: string, query?: QueryParams): string {
   return queryString ? `${resolvedPath}?${queryString}` : resolvedPath;
 }
 
+function buildHeaders(headers: Record<string, string>): Record<string, string> {
+  const telegramInitData = getTelegramInitData();
+  if (!telegramInitData) {
+    return headers;
+  }
+
+  return {
+    ...headers,
+    "X-Telegram-Init-Data": telegramInitData,
+  };
+}
+
 async function readErrorMessage(response: Response): Promise<string> {
   const contentType = response.headers.get("Content-Type") ?? "";
 
@@ -57,9 +70,9 @@ async function readErrorMessage(response: Response): Promise<string> {
 
 async function getJson<T>(path: string, query?: QueryParams): Promise<T> {
   const response = await fetch(toUrl(path, query), {
-    headers: {
+    headers: buildHeaders({
       Accept: "application/json",
-    },
+    }),
   });
 
   if (!response.ok) {
@@ -72,10 +85,10 @@ async function getJson<T>(path: string, query?: QueryParams): Promise<T> {
 async function postJson<TResponse, TPayload>(path: string, payload: TPayload): Promise<TResponse> {
   const response = await fetch(resolveApiPath(path), {
     method: "POST",
-    headers: {
+    headers: buildHeaders({
       Accept: "application/json",
       "Content-Type": "application/json",
-    },
+    }),
     body: JSON.stringify(payload),
   });
 
@@ -89,9 +102,9 @@ async function postJson<TResponse, TPayload>(path: string, payload: TPayload): P
 async function requestNoContent(path: string, method: "DELETE"): Promise<void> {
   const response = await fetch(resolveApiPath(path), {
     method,
-    headers: {
+    headers: buildHeaders({
       Accept: "application/json",
-    },
+    }),
   });
 
   if (!response.ok) {

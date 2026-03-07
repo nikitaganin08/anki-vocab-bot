@@ -4,7 +4,7 @@
 
 This repository contains a personal vocabulary assistant built as a monorepo with:
 - a Python backend
-- a React admin frontend
+- a React Telegram Web App frontend
 
 The app receives words and stable expressions from Telegram, generates learning cards with an LLM, stores them in a local database, exposes a JSON API for inspection, and queues eligible cards for later sync into Anki.
 
@@ -21,7 +21,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 - Input length limit: 1 to 8 tokens
 - The resulting card always targets an English lexical unit
 - The LLM decides whether the input is a valid lexical unit or just a free-form phrase/sentence
-- Admin UI for listing and deleting cards
+- Telegram Web App for listing, importing, filtering, and deleting cards
 - Local sync helper for Anki via AnkiConnect
 
 ## Architecture
@@ -65,12 +65,12 @@ The app receives words and stable expressions from Telegram, generates learning 
 ### Deployment
 
 - Backend and frontend live in one repository
-- Frontend is built into static assets and served by the backend under `/admin/*`
+- Frontend is built into static assets and served by the backend under `/telegram/webapp/*`
 - Production deploy is triggered by GitHub Actions on push to `master`
 - The deploy workflow lives in `.github/workflows/deploy.yml`
 - GitHub Actions builds and pushes the Docker image, then deploys it on the VPS over SSH
 - Edge nginx is managed outside this repository (separate VPS infra stack)
-- In production, admin access is expected behind nginx Basic Auth
+- In production, admin access is expected through Telegram Web App auth tied to the allowed Telegram user
 - Docker uses a multi-stage build:
   - frontend build stage
   - backend dependency stage
@@ -189,17 +189,18 @@ Validation rules:
 
 The Anki sync API uses bearer token authentication.
 
-## Admin UI
+## Telegram Web App
 
 The React frontend includes:
 - cards list with search and filters
+- batch import
 - card deletion action
 
 The UI reads only from backend JSON endpoints.
 
 Production exposure defaults (via external nginx policy):
 - public: Telegram webhook endpoint, Anki sync API endpoints, health check
-- restricted by Basic Auth: admin UI paths and card list/delete API used by admin UI
+- restricted by Telegram Web App auth: webapp paths and card list/delete/import API used by the webapp
 - denied externally by default: other backend API paths
 
 ## Anki Integration
@@ -227,6 +228,7 @@ Required environment variables:
 - `TELEGRAM_ALLOWED_USER_ID`
 - `TELEGRAM_WEBHOOK_URL`
 - `TELEGRAM_WEBHOOK_SECRET`
+- `TELEGRAM_WEBAPP_URL`
 - `OPENROUTER_API_KEY`
 - `ANKI_SYNC_TOKEN`
 - `DATABASE_URL` (default: `sqlite:///backend/data/app.db`)
@@ -268,7 +270,7 @@ Focus areas:
 - deduplication by source text and canonical form
 - card persistence
 - Anki queue status transitions
-- admin UI rendering of API data
+- Telegram Web App rendering of API data
 
 ## Defaults and Constraints
 

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_card_generator
+from app.api.deps import get_card_generator, require_telegram_webapp_user
 from app.api.schemas import (
     CardBatchImportItemResponse,
     CardBatchImportRequest,
@@ -20,7 +20,11 @@ from app.db.session import get_session
 from app.models.card import AnkiSyncStatus, Card, EntryType, SourceLanguage
 from app.services.card_service import CardGenerator, CardService, CardServiceUpstreamError
 
-router = APIRouter(prefix="/api/cards", tags=["cards"])
+router = APIRouter(
+    prefix="/api/cards",
+    tags=["cards"],
+    dependencies=[Depends(require_telegram_webapp_user)],
+)
 
 SessionDep = Annotated[Session, Depends(get_session)]
 CardGeneratorDep = Annotated[CardGenerator, Depends(get_card_generator)]

@@ -1,7 +1,17 @@
-import { render, screen, within } from "@testing-library/react";
-import { afterEach, beforeEach, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
+
+interface TelegramWindow extends Window {
+  Telegram?: {
+    WebApp?: {
+      initData: string;
+      ready?: () => void;
+      expand?: () => void;
+    };
+  };
+}
 
 function jsonResponse(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
@@ -40,8 +50,23 @@ const cardsPayload = {
   limit: 20,
 };
 
+function setTelegramWebApp(initData = "signed-init-data"): void {
+  const telegramWindow = window as TelegramWindow;
+  telegramWindow.Telegram = {
+    WebApp: {
+      initData,
+      ready: vi.fn(),
+      expand: vi.fn(),
+    },
+  };
+}
+
+function clearTelegramWebApp(): void {
+  delete (window as TelegramWindow).Telegram;
+}
+
 function setupFetchMock(): void {
-  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url =
       typeof input === "string"
         ? input
@@ -62,34 +87,35 @@ function setupFetchMock(): void {
 describe("App", () => {
   beforeEach(() => {
     setupFetchMock();
+    clearTelegramWebApp();
   });
 
   afterEach(() => {
+    clearTelegramWebApp();
     vi.unstubAllGlobals();
     window.history.pushState({}, "", "/");
   });
 
-  it("renders cards list on index route", async () => {
+  it("blocks boot outside Telegram", async () => {
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "Open This Panel From Telegram" })).toBeInTheDocument();
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("renders cards list on the webapp index route", async () => {
+    setTelegramWebApp();
+    window.history.pushState({}, "", "/telegram/webapp/");
+
     render(<App />);
 
     expect(await screen.findByRole("heading", { name: "Cards" })).toBeInTheDocument();
     expect((await screen.findAllByText("take off")).length).toBeGreaterThan(0);
   });
 
-  it("renders cards table on cards route", async () => {
-    window.history.pushState({}, "", "/cards");
-
-    render(<App />);
-
-    expect(await screen.findByRole("heading", { name: "Cards" })).toBeInTheDocument();
-    const [canonicalCell] = await screen.findAllByText("take off");
-    const row = canonicalCell.closest("tr");
-    expect(row).not.toBeNull();
-    expect(within(row as HTMLTableRowElement).getByText("pending")).toBeInTheDocument();
-  });
-
-  it("renders correctly behind an external prefix and calls the prefixed API", async () => {
-    window.history.pushState({}, "", "/anki/admin/");
+  it("keeps cards route working behind an external prefix and sends Telegram auth", async () => {
+    setTelegramWebApp("telegram-init-data");
+    window.history.pushState({}, "", "/anki/telegram/webapp/cards");
 
     render(<App />);
 
@@ -97,20 +123,11 @@ describe("App", () => {
     expect(global.fetch).toHaveBeenCalledWith(
       "/anki/api/cards?offset=0&limit=20",
       expect.objectContaining({
-        headers: { Accept: "application/json" },
+        headers: {
+          Accept: "application/json",
+          "X-Telegram-Init-Data": "telegram-init-data",
+        },
       }),
     );
-  });
-
-  it("keeps cards route working behind an external prefix", async () => {
-    window.history.pushState({}, "", "/anki/admin/cards");
-
-    render(<App />);
-
-    expect(await screen.findByRole("heading", { name: "Cards" })).toBeInTheDocument();
-    const [canonicalCell] = await screen.findAllByText("take off");
-    const row = canonicalCell.closest("tr");
-    expect(row).not.toBeNull();
-    expect(within(row as HTMLTableRowElement).getByText("pending")).toBeInTheDocument();
   });
 });

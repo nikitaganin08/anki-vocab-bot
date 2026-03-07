@@ -17,6 +17,19 @@ from app.db.session import get_session
 from app.main import app
 from app.models.card import AnkiSyncStatus, Card
 from app.schemas.llm import AcceptedLlmResponse, RejectedLlmResponse
+from .telegram_webapp_test_helpers import build_telegram_init_data
+
+TELEGRAM_BOT_TOKEN = "telegram-bot-token"
+TELEGRAM_ALLOWED_USER_ID = 42
+
+
+@dataclass
+class TelegramSettingsStub:
+    telegram_bot_token: str = TELEGRAM_BOT_TOKEN
+    telegram_allowed_user_id: int = TELEGRAM_ALLOWED_USER_ID
+    openrouter_api_key: str | None = "test-openrouter-key"
+    llm_model: str = "test-model"
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -48,9 +61,12 @@ def _session_override(session: Session):  # type: ignore[no-untyped-def]
 @pytest.fixture
 def client(session: Session) -> Generator[TestClient, None, None]:
     app.dependency_overrides[get_session] = _session_override(session)
+    original_get_settings = deps_mod.get_settings
+    deps_mod.get_settings = lambda: TelegramSettingsStub()
     try:
         yield TestClient(app)
     finally:
+        deps_mod.get_settings = original_get_settings
         app.dependency_overrides.clear()
 
 
@@ -59,10 +75,22 @@ def authed_client(session: Session) -> Generator[TestClient, None, None]:
     """Client with both session and anki auth overridden."""
     app.dependency_overrides[get_session] = _session_override(session)
     app.dependency_overrides[require_anki_token] = lambda: None
+    original_get_settings = deps_mod.get_settings
+    deps_mod.get_settings = lambda: TelegramSettingsStub()
     try:
         yield TestClient(app)
     finally:
+        deps_mod.get_settings = original_get_settings
         app.dependency_overrides.clear()
+
+
+def telegram_headers(user_id: int = TELEGRAM_ALLOWED_USER_ID) -> dict[str, str]:
+    return {
+        "X-Telegram-Init-Data": build_telegram_init_data(
+            bot_token=TELEGRAM_BOT_TOKEN,
+            user_id=user_id,
+        )
+    }
 
 
 def _make_card(**overrides: object) -> Card:
@@ -150,7 +178,7 @@ def test_health(client: TestClient) -> None:
 
 
 def test_list_cards_empty(client: TestClient) -> None:
-    resp = client.get("/api/cards")
+    resp = client.get("/api/cards", headers=telegram_headers())
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] == 0
@@ -163,7 +191,7 @@ def test_list_cards_returns_card(client: TestClient, session: Session) -> None:
     session.add(_make_card())
     session.commit()
 
-    resp = client.get("/api/cards")
+    resp = client.get("/api/cards", headers=telegram_headers())
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] == 1
@@ -183,7 +211,7 @@ def test_list_cards_pagination(client: TestClient, session: Session) -> None:
         session.add(_make_card(source_text=f"word{i}", canonical_text_normalized=f"word{i}"))
     session.commit()
 
-    resp = client.get("/api/cards?limit=2&offset=0")
+    resp = client.get("/api/cards?limit=2&offset=0", headers=telegram_headers())
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] == 5
@@ -191,7 +219,7 @@ def test_list_cards_pagination(client: TestClient, session: Session) -> None:
     assert data["offset"] == 0
     assert data["limit"] == 2
 
-    resp2 = client.get("/api/cards?limit=2&offset=2")
+    resp2 = client.get("/api/cards?limit=2&offset=2", headers=telegram_headers())
     assert resp2.json()["offset"] == 2
     assert len(resp2.json()["items"]) == 2
 
@@ -208,7 +236,7 @@ def test_list_cards_filter_source_language(client: TestClient, session: Session)
     )
     session.commit()
 
-    resp = client.get("/api/cards?source_language=ru")
+    resp = client.get("/api/cards?source_language=ru", headers=telegram_headers())
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] == 1
@@ -220,7 +248,7 @@ def test_list_cards_filter_entry_type(client: TestClient, session: Session) -> N
     session.add(_make_card(entry_type="idiom", canonical_text_normalized="idiom1"))
     session.commit()
 
-    resp = client.get("/api/cards?entry_type=idiom")
+    resp = client.get("/api/cards?entry_type=idiom", headers=telegram_headers())
     data = resp.json()
     assert data["total"] == 1
     assert data["items"][0]["entry_type"] == "idiom"
@@ -231,7 +259,7 @@ def test_list_cards_filter_anki_sync_status(client: TestClient, session: Session
     session.add(_make_card(anki_sync_status=AnkiSyncStatus.SYNCED, canonical_text_normalized="b"))
     session.commit()
 
-    resp = client.get("/api/cards?anki_sync_status=synced")
+    resp = client.get("/api/cards?anki_sync_status=synced", headers=telegram_headers())
     data = resp.json()
     assert data["total"] == 1
     assert data["items"][0]["anki_sync_status"] == "synced"
@@ -242,7 +270,7 @@ def test_list_cards_filter_eligible_for_anki(client: TestClient, session: Sessio
     session.add(_make_card(eligible_for_anki=False, canonical_text_normalized="b"))
     session.commit()
 
-    resp = client.get("/api/cards?eligible_for_anki=false")
+    resp = client.get("/api/cards?eligible_for_anki=false", headers=telegram_headers())
     data = resp.json()
     assert data["total"] == 1
     assert data["items"][0]["eligible_for_anki"] is False
@@ -259,7 +287,7 @@ def test_list_cards_search(client: TestClient, session: Session) -> None:
     )
     session.commit()
 
-    resp = client.get("/api/cards?search=take")
+    resp = client.get("/api/cards?search=take", headers=telegram_headers())
     data = resp.json()
     assert data["total"] == 1
     assert data["items"][0]["canonical_text"] == "take off"
@@ -317,6 +345,7 @@ def test_batch_import_mixed_statuses(client: TestClient, session: Session) -> No
                 "one two three four five six seven eight nine",
             ]
         },
+        headers=telegram_headers(),
     )
 
     assert resp.status_code == 200
@@ -353,6 +382,7 @@ def test_batch_import_rejects_more_than_fifty_items(client: TestClient) -> None:
     resp = client.post(
         "/api/cards/batch",
         json={"source_texts": [f"word-{i}" for i in range(51)]},
+        headers=telegram_headers(),
     )
 
     assert resp.status_code == 422
@@ -374,6 +404,7 @@ def test_batch_import_marks_invalid_rows_without_llm_call(client: TestClient) ->
                 "one two three four five six seven eight nine",
             ]
         },
+        headers=telegram_headers(),
     )
 
     assert resp.status_code == 200
@@ -400,6 +431,7 @@ def test_batch_import_continues_after_upstream_error(client: TestClient) -> None
     resp = client.post(
         "/api/cards/batch",
         json={"source_texts": ["look up", "break down"]},
+        headers=telegram_headers(),
     )
 
     assert resp.status_code == 200
@@ -416,12 +448,18 @@ def test_batch_import_returns_503_when_llm_not_configured(
 ) -> None:
     @dataclass
     class SettingsStub:
+        telegram_bot_token: str = TELEGRAM_BOT_TOKEN
+        telegram_allowed_user_id: int = TELEGRAM_ALLOWED_USER_ID
         openrouter_api_key: str | None = None
         llm_model: str = "test-model"
 
     monkeypatch.setattr(deps_mod, "get_settings", lambda: SettingsStub())
 
-    resp = client.post("/api/cards/batch", json={"source_texts": ["look up"]})
+    resp = client.post(
+        "/api/cards/batch",
+        json={"source_texts": ["look up"]},
+        headers=telegram_headers(),
+    )
 
     assert resp.status_code == 503
     assert resp.json()["detail"] == "LLM is not configured"
@@ -438,14 +476,14 @@ def test_delete_card(client: TestClient, session: Session) -> None:
     session.commit()
     session.refresh(card)
 
-    resp = client.delete(f"/api/cards/{card.id}")
+    resp = client.delete(f"/api/cards/{card.id}", headers=telegram_headers())
     assert resp.status_code == 204
 
     assert session.get(Card, card.id) is None
 
 
 def test_delete_card_not_found(client: TestClient) -> None:
-    resp = client.delete("/api/cards/9999")
+    resp = client.delete("/api/cards/9999", headers=telegram_headers())
     assert resp.status_code == 404
 
 
