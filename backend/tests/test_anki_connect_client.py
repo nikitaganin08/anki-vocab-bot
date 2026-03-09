@@ -122,3 +122,35 @@ def test_find_notes_by_tag_raises_protocol_error_for_non_int_list() -> None:
 
     with pytest.raises(AnkiConnectProtocolError):
         client.find_notes_by_tag("avb-card-7")
+
+
+def test_store_media_file_success() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = request.read().decode("utf-8")
+        assert '"action":"storeMediaFile"' in payload
+        assert '"filename":"avb-pronunciation-7.mp3"' in payload
+        assert '"data":"YXVkaW8="' in payload
+        return httpx.Response(200, json={"result": "avb-pronunciation-7.mp3", "error": None})
+
+    client = AnkiConnectClient(http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+    client.store_media_file("avb-pronunciation-7.mp3", b"audio")
+
+
+def test_store_media_file_accepts_null_result() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"result": None, "error": None})
+
+    client = AnkiConnectClient(http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+    client.store_media_file("avb-pronunciation-7.mp3", b"audio")
+
+
+def test_store_media_file_raises_protocol_error_for_unexpected_result() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"result": "unexpected", "error": None})
+
+    client = AnkiConnectClient(http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+    with pytest.raises(AnkiConnectProtocolError):
+        client.store_media_file("avb-pronunciation-7.mp3", b"audio")

@@ -6,6 +6,7 @@ from app.clients.anki_connect import AnkiConnectClient, AnkiConnectError
 from app.clients.backend_sync_api import BackendSyncApiClient, BackendSyncApiError
 from app.core.config import get_settings
 from app.services.anki_sync import sync_pending_cards
+from app.services.pronunciation import EdgeTtsPronunciationGenerator
 
 
 def parse_args() -> argparse.Namespace:
@@ -36,11 +37,16 @@ def main() -> None:
         endpoint=settings.anki_connect_url,
         timeout_seconds=settings.anki_sync_http_timeout_seconds,
     )
+    pronunciation_generator = EdgeTtsPronunciationGenerator(
+        voice=settings.anki_pronunciation_voice,
+        audio_format=settings.anki_pronunciation_format,
+    )
 
     try:
         summary = sync_pending_cards(
             backend_client=backend_client,
             anki_client=anki_client,
+            pronunciation_generator=pronunciation_generator,
             limit=limit,
         )
     except (BackendSyncApiError, AnkiConnectError, RuntimeError) as exc:

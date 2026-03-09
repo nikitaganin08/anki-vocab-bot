@@ -530,6 +530,14 @@ def test_anki_pending_empty(authed_client: TestClient) -> None:
 
 def test_anki_pending_returns_eligible_cards(authed_client: TestClient, session: Session) -> None:
     session.add(_make_card(eligible_for_anki=True, anki_sync_status=AnkiSyncStatus.PENDING))
+    session.add(
+        _make_card(
+            eligible_for_anki=True,
+            anki_sync_status=AnkiSyncStatus.FAILED,
+            canonical_text="failed word",
+            canonical_text_normalized="failed word",
+        )
+    )
     # not eligible — should be excluded
     session.add(
         _make_card(
@@ -551,11 +559,34 @@ def test_anki_pending_returns_eligible_cards(authed_client: TestClient, session:
     resp = authed_client.get("/api/anki/pending")
     assert resp.status_code == 200
     data = resp.json()
-    assert len(data) == 1
+    assert len(data) == 2
     assert data[0]["canonical_text"] == "take off"
     assert data[0]["canonical_text_normalized"] == "take off"
+    assert data[1]["canonical_text"] == "failed word"
     # Only Anki-relevant fields are exposed — no source_text
     assert "source_text" not in data[0]
+
+
+def test_anki_pending_includes_failed_cards_for_retry(
+    authed_client: TestClient,
+    session: Session,
+) -> None:
+    session.add(
+        _make_card(
+            eligible_for_anki=True,
+            anki_sync_status=AnkiSyncStatus.FAILED,
+            canonical_text="retry me",
+            canonical_text_normalized="retry me",
+        )
+    )
+    session.commit()
+
+    resp = authed_client.get("/api/anki/pending")
+    assert resp.status_code == 200
+    data = resp.json()
+
+    assert len(data) == 1
+    assert data[0]["canonical_text"] == "retry me"
 
 
 def test_anki_pending_limit(authed_client: TestClient, session: Session) -> None:

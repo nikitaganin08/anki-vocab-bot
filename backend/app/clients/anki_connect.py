@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable
@@ -74,6 +75,22 @@ class AnkiConnectClient:
                 user_message="AnkiConnect returned invalid findNotes response.",
             )
         return result
+
+    def store_media_file(self, filename: str, data: bytes) -> None:
+        encoded_data = base64.b64encode(data).decode("ascii")
+        result = self._request_with_retry(
+            "storeMediaFile",
+            {
+                "filename": filename,
+                "data": encoded_data,
+            },
+        )
+        if result not in (None, filename):
+            raise AnkiConnectProtocolError(
+                "AnkiConnect storeMediaFile returned unexpected result",
+                code="anki_connect_invalid_store_media_result",
+                user_message="AnkiConnect returned an invalid media upload response.",
+            )
 
     def _request_with_retry(self, action: str, params: dict[str, Any]) -> Any:
         attempt = 0

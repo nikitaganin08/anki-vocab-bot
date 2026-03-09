@@ -24,11 +24,15 @@ Required environment variables for sync:
 - `ANKI_CONNECT_URL` (default: `http://127.0.0.1:8765`)
 - `ANKI_SYNC_BATCH_LIMIT` (default: `50`)
 - `ANKI_SYNC_HTTP_TIMEOUT_SECONDS` (default: `15`)
+- `ANKI_PRONUNCIATION_VOICE` (default: `en-US-EmmaNeural`)
+- `ANKI_PRONUNCIATION_FORMAT` (default: `mp3`)
 
 Idempotency policy:
 - each card is tagged in Anki as `avb-card-<card_id>`
 - sync checks `findNotes` by tag before creating a note
 - if found, sync acknowledges the existing note id instead of creating duplicate
+- pronunciation audio is generated locally during sync and uploaded to Anki media as
+  `avb-pronunciation-<card_id>.mp3`
 
 ## Docker
 

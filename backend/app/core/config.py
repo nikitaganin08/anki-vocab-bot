@@ -35,6 +35,14 @@ class Settings(BaseSettings):
         default=15.0,
         alias="ANKI_SYNC_HTTP_TIMEOUT_SECONDS",
     )
+    anki_pronunciation_voice: str = Field(
+        default="en-US-EmmaNeural",
+        alias="ANKI_PRONUNCIATION_VOICE",
+    )
+    anki_pronunciation_format: str = Field(
+        default="mp3",
+        alias="ANKI_PRONUNCIATION_FORMAT",
+    )
     database_url: str = Field(default_factory=default_database_url, alias="DATABASE_URL")
     llm_model: str = Field(default="google/gemini-2.5-flash-lite", alias="LLM_MODEL")
 

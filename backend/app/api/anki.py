@@ -26,11 +26,12 @@ def get_pending(
     session: SessionDep,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
 ) -> list[AnkiPendingCardResponse]:
+    retryable_statuses = (AnkiSyncStatus.PENDING, AnkiSyncStatus.FAILED)
     cards = (
         session.execute(
             select(Card)
             .where(Card.eligible_for_anki == True)  # noqa: E712
-            .where(Card.anki_sync_status == AnkiSyncStatus.PENDING)
+            .where(Card.anki_sync_status.in_(retryable_statuses))
             .order_by(Card.created_at.asc())
             .limit(limit)
         )

@@ -210,6 +210,7 @@ Production exposure defaults (via external nginx policy):
 - Fields:
   - `Word`
   - `Transcription`
+  - `PronunciationAudio`
   - `Translation`
   - `Explanation`
   - `Example`
@@ -217,6 +218,7 @@ Production exposure defaults (via external nginx policy):
 Mapping:
 - `Word` -> `canonical_text`
 - `Transcription` -> `transcription`
+- `PronunciationAudio` -> `[sound:avb-pronunciation-<card_id>.mp3]` generated locally during `sync_anki`
 - `Translation` -> comma-joined translations
 - `Explanation` -> `explanation`
 - `Example` -> first two English examples joined with a newline
@@ -231,6 +233,8 @@ Required environment variables:
 - `TELEGRAM_WEBAPP_URL`
 - `OPENROUTER_API_KEY`
 - `ANKI_SYNC_TOKEN`
+- `ANKI_PRONUNCIATION_VOICE` (default: `en-US-EmmaNeural`)
+- `ANKI_PRONUNCIATION_FORMAT` (default: `mp3`)
 - `DATABASE_URL` (default: `sqlite:///backend/data/app.db`)
 - `LLM_MODEL` (default: `google/gemini-2.5-flash-lite`)
 
