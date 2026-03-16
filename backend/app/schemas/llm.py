@@ -42,6 +42,8 @@ class AcceptedLlmResponse(BaseModel):
     canonical_text: str
     canonical_text_normalized: str
     transcription: str | None = None
+    # Contract semantics: index 0 is the primary Russian translation,
+    # remaining items are Russian synonyms/near-synonymous variants.
     translation_variants: list[str] = Field(min_length=2, max_length=3)
     explanation: str
     examples: list[str] = Field(min_length=3, max_length=3)
@@ -77,7 +79,14 @@ class AcceptedLlmResponse(BaseModel):
     @field_validator("translation_variants")
     @classmethod
     def validate_translation_variants(cls, value: list[str]) -> list[str]:
-        return [_ensure_contains_cyrillic(item) for item in value]
+        normalized_items = [_ensure_contains_cyrillic(item) for item in value]
+        seen: set[str] = set()
+        for item in normalized_items:
+            key = item.casefold()
+            if key in seen:
+                raise ValueError("translation variants must be unique")
+            seen.add(key)
+        return normalized_items
 
     @field_validator("transcription", "frequency_note")
     @classmethod

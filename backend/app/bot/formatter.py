@@ -4,7 +4,9 @@ from app.models.card import Card
 
 
 def format_card_payload(card: Card) -> str:
-    translations = "; ".join(card.translation_variants_json)
+    translations = card.translation_variants_json
+    primary_translation = translations[0] if translations else "—"
+    synonyms = "; ".join(translations[1:]) if len(translations) > 1 else "—"
     numbered_labels = ("1️⃣", "2️⃣", "3️⃣")
     examples = "\n".join(
         f"{numbered_labels[idx]} {example}" for idx, example in enumerate(card.examples_json[:3])
@@ -15,7 +17,8 @@ def format_card_payload(card: Card) -> str:
     return (
         f"🔍 Word: <b>{card.canonical_text}</b>\n"
         f"🗣 Transcription: {transcription}\n"
-        f"🌍 Translations: <b>{translations}</b>\n\n"
+        f"🌍 Primary translation: <b>{primary_translation}</b>\n"
+        f"🧩 Synonyms: <b>{synonyms}</b>\n\n"
         "📝 Explanation\n"
         f"{card.explanation}\n\n"
         "🪧 Examples\n"
