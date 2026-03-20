@@ -114,6 +114,27 @@ def test_find_notes_by_tag_success() -> None:
     assert client.find_notes_by_tag("avb-card-7") == [777]
 
 
+def test_get_version_success() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = request.read().decode("utf-8")
+        assert '"action":"version"' in payload
+        return httpx.Response(200, json={"result": 6, "error": None})
+
+    client = AnkiConnectClient(http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+    assert client.get_version() == 6
+
+
+def test_get_version_raises_protocol_error_for_invalid_result() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"result": "6", "error": None})
+
+    client = AnkiConnectClient(http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+    with pytest.raises(AnkiConnectProtocolError):
+        client.get_version()
+
+
 def test_find_notes_by_tag_raises_protocol_error_for_non_int_list() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"result": ["not-int"], "error": None})

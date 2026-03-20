@@ -16,7 +16,8 @@ Webhook mode:
 ## Sync helper
 
 `app.scripts.sync_anki` pulls pending cards from backend API and pushes them to
-AnkiConnect.
+AnkiConnect. If AnkiConnect is unavailable, the script tries to launch the Anki
+desktop app locally first and waits for AnkiConnect to come up.
 
 Required environment variables for sync:
 - `ANKI_SYNC_TOKEN`
@@ -26,6 +27,10 @@ Required environment variables for sync:
 - `ANKI_SYNC_HTTP_TIMEOUT_SECONDS` (default: `15`)
 - `ANKI_PRONUNCIATION_VOICE` (default: `en-US-EmmaNeural`)
 - `ANKI_PRONUNCIATION_FORMAT` (default: `mp3`)
+
+Optional local desktop launch variables:
+- `ANKI_DESKTOP_LAUNCH_COMMAND` to override the command used to launch Anki
+- `ANKI_DESKTOP_STARTUP_TIMEOUT_SECONDS` (default: `20`)
 
 Idempotency policy:
 - each card is tagged in Anki as `avb-card-<card_id>`

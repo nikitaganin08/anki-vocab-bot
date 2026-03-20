@@ -48,6 +48,16 @@ class AnkiConnectClient:
     http_client: httpx.Client | None = None
     sleeper: Callable[[float], None] = time.sleep
 
+    def get_version(self) -> int:
+        result = self._request_with_retry("version", {})
+        if not isinstance(result, int):
+            raise AnkiConnectProtocolError(
+                "AnkiConnect version result is not an integer",
+                code="anki_connect_invalid_version",
+                user_message="AnkiConnect returned an invalid version response.",
+            )
+        return result
+
     def add_note(self, payload: AnkiNotePayload) -> int:
         params = {
             "note": {
