@@ -5,9 +5,18 @@ from dataclasses import dataclass, field
 
 from aiogram.types import InlineKeyboardMarkup
 
-from app.bot.handler import TelegramAdminWebAppHandler, TelegramTextHandler
+import app.models.anki_sync_attempt as anki_sync_attempt_model  # noqa: F401
+from app.bot.handler import (
+    TelegramAdminWebAppHandler,
+    TelegramDescriptionLookupHandler,
+    TelegramTextHandler,
+)
 from app.bot.rate_limiter import InMemoryRateLimiter
 from app.models.card import Card, EntryType, SourceLanguage
+from app.schemas.description_lookup import (
+    FoundDescriptionLookupResponse,
+    RejectedDescriptionLookupResponse,
+)
 from app.schemas.llm import RejectedLlmResponse
 from app.services.card_service import CardServiceResult, CardServiceUpstreamError
 
@@ -50,6 +59,20 @@ class ApplySourceTextStub:
 
     def __call__(self, source_text: str) -> CardServiceResult:
         self.calls.append(source_text)
+        if self.error is not None:
+            raise self.error
+        assert self.result is not None
+        return self.result
+
+
+@dataclass
+class LookupSourceTextStub:
+    result: object | None = None
+    error: Exception | None = None
+    calls: list[str] = field(default_factory=list)
+
+    def __call__(self, description: str) -> object:
+        self.calls.append(description)
         if self.error is not None:
             raise self.error
         assert self.result is not None
@@ -250,3 +273,74 @@ def test_admin_handler_ignores_other_users() -> None:
 
     assert message.answers == []
     assert message.reply_markups == []
+
+
+def test_description_lookup_handler_maps_created_result() -> None:
+    lookup_stub = LookupSourceTextStub(
+        result=FoundDescriptionLookupResponse.model_validate(
+            {"found": True, "source_text": "shovel away"}
+        )
+    )
+    apply_stub = ApplySourceTextStub(result=CardServiceResult(status="created", card=make_card()))
+    handler = TelegramDescriptionLookupHandler(
+        allowed_user_id=42,
+        lookup_source_text_from_description=lookup_stub,
+        apply_source_text=apply_stub,
+        rate_limiter=InMemoryRateLimiter(),
+    )
+    message = StubMessage(text="/find to move snow away with a shovel", user_id=42)
+
+    asyncio.run(handler.handle_message(message))
+
+    assert lookup_stub.calls == ["to move snow away with a shovel"]
+    assert apply_stub.calls == ["shovel away"]
+    assert message.answers[0].startswith("✅ Added to dictionary")
+    assert message.parse_modes == ["HTML"]
+
+
+def test_description_lookup_handler_returns_lookup_rejection() -> None:
+    rejection = RejectedDescriptionLookupResponse.model_validate(
+        {
+            "found": False,
+            "message_for_user": "I could not infer one clear lexical unit from that description.",
+        }
+    )
+    lookup_stub = LookupSourceTextStub(result=rejection)
+    apply_stub = ApplySourceTextStub(result=CardServiceResult(status="created", card=make_card()))
+    handler = TelegramDescriptionLookupHandler(
+        allowed_user_id=42,
+        lookup_source_text_from_description=lookup_stub,
+        apply_source_text=apply_stub,
+        rate_limiter=InMemoryRateLimiter(),
+    )
+    message = StubMessage(text="/find something vague and ambiguous", user_id=42)
+
+    asyncio.run(handler.handle_message(message))
+
+    assert lookup_stub.calls == ["something vague and ambiguous"]
+    assert apply_stub.calls == []
+    assert message.answers == ["I could not infer one clear lexical unit from that description."]
+    assert message.parse_modes == [None]
+
+
+def test_description_lookup_handler_requires_description_argument() -> None:
+    lookup_stub = LookupSourceTextStub(
+        result=FoundDescriptionLookupResponse.model_validate(
+            {"found": True, "source_text": "shovel away"}
+        )
+    )
+    apply_stub = ApplySourceTextStub(result=CardServiceResult(status="created", card=make_card()))
+    handler = TelegramDescriptionLookupHandler(
+        allowed_user_id=42,
+        lookup_source_text_from_description=lookup_stub,
+        apply_source_text=apply_stub,
+        rate_limiter=InMemoryRateLimiter(),
+    )
+    message = StubMessage(text="/find", user_id=42)
+
+    asyncio.run(handler.handle_message(message))
+
+    assert lookup_stub.calls == []
+    assert apply_stub.calls == []
+    assert message.answers == ["Use /find followed by a short description."]
+    assert message.parse_modes == [None]

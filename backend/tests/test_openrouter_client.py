@@ -11,6 +11,7 @@ from app.clients.openrouter import (
     OpenRouterTimeoutError,
     OpenRouterTransportError,
 )
+from app.schemas.description_lookup import FoundDescriptionLookupResponse
 
 VALID_COMPLETION_CONTENT = json.dumps(
     {
@@ -33,6 +34,7 @@ VALID_COMPLETION_CONTENT = json.dumps(
         "llm_model": "test-model",
     }
 )
+VALID_DESCRIPTION_LOOKUP_CONTENT = json.dumps({"found": True, "source_text": "shovel away"})
 
 
 def test_openrouter_client_parses_valid_response() -> None:
@@ -96,3 +98,23 @@ def test_openrouter_client_raises_timeout_error() -> None:
 
     with pytest.raises(OpenRouterTimeoutError):
         client.generate_card("take off")
+
+
+def test_openrouter_client_parses_description_lookup_response() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = request.read().decode("utf-8")
+        assert "description: to move snow away with a shovel" in payload
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": VALID_DESCRIPTION_LOOKUP_CONTENT}}]},
+        )
+
+    client = OpenRouterClient(
+        api_key="secret",
+        model="test-model",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    result = client.lookup_source_text_from_description("to move snow away with a shovel")
+
+    assert isinstance(result, FoundDescriptionLookupResponse)
+    assert result.source_text == "shovel away"
