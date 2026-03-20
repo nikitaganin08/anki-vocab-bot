@@ -35,12 +35,19 @@ Rules:
 - Use the same accepted contract for both source_language values ("ru" and "en").
 - source_language describes the language of input only and must not change the response shape.
 - canonical_text, explanation, and examples must be English.
+- canonical_text for verbs and phrasal verbs must be lemma-like English form without
+  the infinitive marker "to " (use "shovel away", not "to shovel away").
+- transcription must be the English pronunciation of canonical_text (IPA-style or null).
+- Never provide transcription for the Russian source term;
+  transcription is always for canonical_text.
 - translation_variants must contain 2 or 3 Russian items.
 - translation_variants[0] must be the primary Russian translation of canonical_text.
 - translation_variants[1..] must be Russian synonyms or near-synonymous variants
   of the primary translation.
 - Preserve translation_variants ordering: primary translation first, then synonyms/variants.
 - examples must contain exactly 3 items.
+- examples must illustrate the same meaning of canonical_text.
+- At least 2 of 3 examples must explicitly include canonical_text or its inflected form.
 - frequency must be an integer from 0 to 10.
 - canonical_text_normalized must be lowercase and whitespace-normalized.
 - If you cannot provide one primary Russian translation

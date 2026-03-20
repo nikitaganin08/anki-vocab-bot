@@ -4,12 +4,26 @@ import json
 import re
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
 
 from app.models.card import EntryType, SourceLanguage
 
 CYRILLIC_PATTERN = re.compile(r"[А-Яа-яЁё]")
 WHITESPACE_PATTERN = re.compile(r"\s+")
+ENGLISH_WORD_PATTERN = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)?")
+CANONICAL_STOPWORDS = {
+    "a",
+    "an",
+    "and",
+    "for",
+    "in",
+    "of",
+    "on",
+    "or",
+    "the",
+    "to",
+    "with",
+}
 
 
 def _normalize_whitespace(value: str) -> str:
@@ -32,6 +46,34 @@ def _ensure_contains_cyrillic(value: str) -> str:
     if not CYRILLIC_PATTERN.search(normalized):
         raise ValueError("translation variants must contain Russian text")
     return normalized
+
+
+def _extract_english_tokens(value: str) -> set[str]:
+    return {match.group(0).casefold() for match in ENGLISH_WORD_PATTERN.finditer(value)}
+
+
+def _tokens_related(lhs: str, rhs: str) -> bool:
+    if lhs == rhs:
+        return True
+
+    common_prefix_len = 0
+    while (
+        common_prefix_len < len(lhs)
+        and common_prefix_len < len(rhs)
+        and lhs[common_prefix_len] == rhs[common_prefix_len]
+    ):
+        common_prefix_len += 1
+
+    return common_prefix_len >= 4
+
+
+def _example_references_canonical(example: str, canonical_tokens: set[str]) -> bool:
+    example_tokens = _extract_english_tokens(example)
+    return any(
+        _tokens_related(example_token, canonical_token)
+        for example_token in example_tokens
+        for canonical_token in canonical_tokens
+    )
 
 
 class AcceptedLlmResponse(BaseModel):
@@ -95,6 +137,39 @@ class AcceptedLlmResponse(BaseModel):
             return None
         normalized = _normalize_whitespace(value)
         return normalized or None
+
+    @model_validator(mode="after")
+    def validate_contract_semantics(self) -> "AcceptedLlmResponse":
+        canonical_text_casefolded = self.canonical_text.casefold()
+        if (
+            self.entry_type in {EntryType.WORD, EntryType.PHRASAL_VERB}
+            and canonical_text_casefolded.startswith("to ")
+        ):
+            raise ValueError(
+                "canonical_text for words and phrasal verbs must not start with 'to '"
+            )
+
+        raw_canonical_tokens = _extract_english_tokens(self.canonical_text)
+        if len(raw_canonical_tokens) < 2:
+            return self
+
+        canonical_tokens = {
+            token
+            for token in raw_canonical_tokens
+            if token not in CANONICAL_STOPWORDS
+        }
+        if not canonical_tokens:
+            return self
+
+        aligned_examples_count = sum(
+            1
+            for example in self.examples
+            if _example_references_canonical(example, canonical_tokens)
+        )
+        if aligned_examples_count < 2:
+            raise ValueError("at least two examples must reference canonical_text")
+
+        return self
 
 
 class RejectedLlmResponse(BaseModel):
