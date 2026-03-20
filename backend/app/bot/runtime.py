@@ -9,12 +9,20 @@ from aiogram.filters import Command
 
 import app.models.anki_sync_attempt as anki_sync_attempt_model
 import app.models.card as card_model
-from app.bot.handler import TelegramAdminWebAppHandler, TelegramTextHandler
+from app.bot.handler import (
+    TelegramAdminWebAppHandler,
+    TelegramDescriptionLookupHandler,
+    TelegramTextHandler,
+)
 from app.bot.rate_limiter import InMemoryRateLimiter
-from app.clients.openrouter import OpenRouterClient
+from app.clients.openrouter import (
+    OpenRouterClient,
+    OpenRouterError,
+)
 from app.core.config import get_settings
 from app.db.session import SessionLocal
-from app.services.card_service import CardService, CardServiceResult
+from app.schemas.description_lookup import DescriptionLookupResponse
+from app.services.card_service import CardService, CardServiceResult, CardServiceUpstreamError
 
 MODEL_MODULES = (anki_sync_attempt_model, card_model)
 
@@ -35,8 +43,25 @@ def _build_apply_source_text(client: OpenRouterClient) -> Callable[[str], CardSe
     return apply_source_text
 
 
+def _build_lookup_candidates_from_description(
+    client: OpenRouterClient,
+) -> Callable[[str], DescriptionLookupResponse]:
+    def lookup_candidates_from_description(description: str) -> DescriptionLookupResponse:
+        try:
+            return client.lookup_candidates_from_description(description)
+        except OpenRouterError as exc:
+            raise CardServiceUpstreamError(
+                "LLM lookup failed",
+                code=exc.code,
+                user_message=exc.user_message,
+            ) from exc
+
+    return lookup_candidates_from_description
+
+
 def build_bot_router(
     text_handler: TelegramTextHandler,
+    description_lookup_handler: TelegramDescriptionLookupHandler,
     admin_handler: TelegramAdminWebAppHandler,
 ) -> Router:
     router = Router()
@@ -44,6 +69,10 @@ def build_bot_router(
     @router.message(Command("admin"))
     async def handle_admin_command(message) -> None:
         await admin_handler.handle_message(message)
+
+    @router.message(Command("find"))
+    async def handle_find_command(message) -> None:
+        await description_lookup_handler.handle_message(message)
 
     @router.message(F.text)
     async def handle_text_message(message) -> None:
@@ -68,16 +97,26 @@ def build_bot_runtime() -> BotRuntime:
         api_key=settings.openrouter_api_key,
         model=settings.llm_model,
     )
+    rate_limiter = InMemoryRateLimiter(limit=5, window_seconds=60.0)
     text_handler = TelegramTextHandler(
         allowed_user_id=settings.telegram_allowed_user_id,
         apply_source_text=_build_apply_source_text(openrouter_client),
-        rate_limiter=InMemoryRateLimiter(limit=5, window_seconds=60.0),
+        rate_limiter=rate_limiter,
+    )
+    description_lookup_handler = TelegramDescriptionLookupHandler(
+        allowed_user_id=settings.telegram_allowed_user_id,
+        lookup_candidates_from_description=_build_lookup_candidates_from_description(
+            openrouter_client
+        ),
+        rate_limiter=rate_limiter,
     )
     admin_handler = TelegramAdminWebAppHandler(
         allowed_user_id=settings.telegram_allowed_user_id,
         webapp_url=settings.telegram_webapp_url,
     )
-    dispatcher.include_router(build_bot_router(text_handler, admin_handler))
+    dispatcher.include_router(
+        build_bot_router(text_handler, description_lookup_handler, admin_handler)
+    )
 
     return BotRuntime(
         bot=bot,

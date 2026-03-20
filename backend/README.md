@@ -12,6 +12,8 @@ Webhook mode:
 - Required webhook env vars: `TELEGRAM_WEBHOOK_URL`, `TELEGRAM_WEBHOOK_SECRET`.
 - Telegram admin panel is served as a Web App under `/telegram/webapp`.
 - Required runtime env var for the Web App launcher: `TELEGRAM_WEBAPP_URL`.
+- Bot command `/find <description>` asks the LLM for 3 to 5 likely English lexical units
+  from a clue and returns them without creating a card.
 
 ## Sync helper
 

@@ -7,7 +7,12 @@ from typing import Any
 
 import httpx
 
+from app.schemas.description_lookup import (
+    DescriptionLookupResponse,
+    parse_description_lookup_response,
+)
 from app.schemas.llm import LlmResponse, parse_llm_response
+from app.services.description_lookup_prompt import build_description_lookup_messages
 from app.services.llm_prompt import build_llm_messages
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -42,9 +47,36 @@ class OpenRouterClient:
     http_client: httpx.Client | None = None
 
     def generate_card(self, source_text: str) -> LlmResponse:
+        return self._request_json_completion(
+            messages=build_llm_messages(source_text),
+            response_parser=parse_llm_response,
+            invalid_contract_user_message=(
+                "The language model returned an invalid card response. Please try again."
+            ),
+        )
+
+    def lookup_candidates_from_description(
+        self,
+        description: str,
+    ) -> DescriptionLookupResponse:
+        return self._request_json_completion(
+            messages=build_description_lookup_messages(description),
+            response_parser=parse_description_lookup_response,
+            invalid_contract_user_message=(
+                "The language model returned an invalid lookup response. Please try again."
+            ),
+        )
+
+    def _request_json_completion(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        response_parser: Any,
+        invalid_contract_user_message: str,
+    ) -> Any:
         payload = {
             "model": self.model,
-            "messages": build_llm_messages(source_text),
+            "messages": messages,
             "response_format": {"type": "json_object"},
         }
         headers = {
@@ -57,11 +89,19 @@ class OpenRouterClient:
 
         if self.http_client is not None:
             response = self._send_request(self.http_client, url, payload, headers)
-            return self._parse_response(response)
+            return self._parse_response(
+                response,
+                response_parser=response_parser,
+                invalid_contract_user_message=invalid_contract_user_message,
+            )
 
         with httpx.Client(timeout=self.timeout_seconds) as client:
             response = self._send_request(client, url, payload, headers)
-            return self._parse_response(response)
+            return self._parse_response(
+                response,
+                response_parser=response_parser,
+                invalid_contract_user_message=invalid_contract_user_message,
+            )
 
     def _send_request(
         self,
@@ -88,7 +128,13 @@ class OpenRouterClient:
 
         return response
 
-    def _parse_response(self, response: httpx.Response) -> LlmResponse:
+    def _parse_response(
+        self,
+        response: httpx.Response,
+        *,
+        response_parser: Any,
+        invalid_contract_user_message: str,
+    ) -> Any:
         try:
             payload = response.json()
         except json.JSONDecodeError as exc:
@@ -112,14 +158,12 @@ class OpenRouterClient:
             ) from exc
 
         try:
-            return parse_llm_response(self._extract_content(content))
+            return response_parser(self._extract_content(content))
         except ValueError as exc:
             raise OpenRouterProtocolError(
                 "OpenRouter payload did not contain valid contract JSON",
                 code="openrouter_invalid_contract",
-                user_message=(
-                    "The language model returned an invalid card response. Please try again."
-                ),
+                user_message=invalid_contract_user_message,
             ) from exc
 
     @staticmethod

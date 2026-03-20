@@ -35,5 +35,16 @@ def format_duplicate_message(card: Card) -> str:
     return "ℹ️ Already in dictionary\n\n" + format_card_payload(card)
 
 
+def format_description_lookup_candidates(candidates: list[str]) -> str:
+    numbered_candidates = "\n".join(
+        f"{idx}. {candidate}" for idx, candidate in enumerate(candidates, start=1)
+    )
+    return (
+        "Possible matches:\n"
+        f"{numbered_candidates}\n\n"
+        "Send one of these back if you want to add a card."
+    )
+
+
 def format_rate_limit_message() -> str:
     return "Rate limit reached: max 5 requests per minute."

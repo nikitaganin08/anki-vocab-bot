@@ -9,11 +9,13 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
 from app.bot.formatter import (
     format_created_message,
+    format_description_lookup_candidates,
     format_duplicate_message,
     format_rate_limit_message,
 )
-from app.bot.input_validation import validate_source_input
+from app.bot.input_validation import validate_description_input, validate_source_input
 from app.bot.rate_limiter import InMemoryRateLimiter
+from app.schemas.description_lookup import DescriptionLookupResponse, FoundDescriptionLookupResponse
 from app.services.card_service import CardServiceResult, CardServiceUpstreamError
 
 
@@ -80,6 +82,55 @@ class TelegramTextHandler:
             return
 
         await message.answer("Unexpected bot response state.")
+
+
+@dataclass
+class TelegramDescriptionLookupHandler:
+    allowed_user_id: int
+    lookup_candidates_from_description: Callable[[str], DescriptionLookupResponse]
+    rate_limiter: InMemoryRateLimiter
+
+    async def handle_message(self, message: Any) -> None:
+        user_id = TelegramTextHandler._extract_user_id(message)
+        if user_id is None or user_id != self.allowed_user_id:
+            return
+
+        if not self.rate_limiter.allow_request(user_id):
+            await message.answer(format_rate_limit_message())
+            return
+
+        description = self._extract_description_argument(getattr(message, "text", None))
+        validation = validate_description_input(description)
+        if not validation.ok or validation.normalized_text is None:
+            await message.answer(validation.error_message or "Invalid input.")
+            return
+
+        try:
+            lookup_result = await asyncio.to_thread(
+                self.lookup_candidates_from_description,
+                validation.normalized_text,
+            )
+        except CardServiceUpstreamError as exc:
+            await message.answer(exc.user_message)
+            return
+
+        if not isinstance(lookup_result, FoundDescriptionLookupResponse):
+            await message.answer(lookup_result.message_for_user)
+            return
+
+        await message.answer(format_description_lookup_candidates(lookup_result.candidates))
+
+    @staticmethod
+    def _extract_description_argument(text: str | None) -> str:
+        if text is None:
+            return ""
+
+        normalized = text.strip()
+        if not normalized:
+            return ""
+
+        _, _, argument = normalized.partition(" ")
+        return argument
 
 
 @dataclass(slots=True)

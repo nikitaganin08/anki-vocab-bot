@@ -6,9 +6,12 @@ from app.services.card_service import normalize_source_text, tokenize_source_tex
 
 MIN_TOKENS = 1
 MAX_TOKENS = 8
+MAX_DESCRIPTION_TOKENS = 24
 
 EMPTY_INPUT_MESSAGE = "Please send a single word or a stable expression."
 TOO_LONG_INPUT_MESSAGE = "Please send up to 8 words."
+EMPTY_DESCRIPTION_MESSAGE = "Use /find followed by a short description."
+TOO_LONG_DESCRIPTION_MESSAGE = "Please keep /find descriptions under 24 words."
 
 
 @dataclass(slots=True)
@@ -43,6 +46,41 @@ def validate_source_input(raw_text: str) -> InputValidationResult:
             ok=False,
             normalized_text=None,
             error_message=TOO_LONG_INPUT_MESSAGE,
+            token_count=token_count,
+        )
+
+    return InputValidationResult(
+        ok=True,
+        normalized_text=normalized,
+        error_message=None,
+        token_count=token_count,
+    )
+
+
+def validate_description_input(raw_text: str) -> InputValidationResult:
+    try:
+        normalized = normalize_source_text(raw_text)
+    except ValueError:
+        return InputValidationResult(
+            ok=False,
+            normalized_text=None,
+            error_message=EMPTY_DESCRIPTION_MESSAGE,
+            token_count=0,
+        )
+
+    token_count = len(tokenize_source_text(normalized))
+    if token_count < MIN_TOKENS:
+        return InputValidationResult(
+            ok=False,
+            normalized_text=None,
+            error_message=EMPTY_DESCRIPTION_MESSAGE,
+            token_count=token_count,
+        )
+    if token_count > MAX_DESCRIPTION_TOKENS:
+        return InputValidationResult(
+            ok=False,
+            normalized_text=None,
+            error_message=TOO_LONG_DESCRIPTION_MESSAGE,
             token_count=token_count,
         )
 
