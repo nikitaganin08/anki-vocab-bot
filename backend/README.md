@@ -29,7 +29,6 @@ Required environment variables for sync:
 - `ANKI_PRONUNCIATION_FORMAT` (default: `mp3`)
 
 Optional local desktop launch variables:
-- `ANKI_DESKTOP_LAUNCH_COMMAND` to override the command used to launch Anki
 - `ANKI_DESKTOP_STARTUP_TIMEOUT_SECONDS` (default: `20`)
 
 Idempotency policy:

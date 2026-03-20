@@ -31,7 +31,6 @@ def test_ensure_anki_connect_available_skips_launch_when_already_running() -> No
 
     ensure_anki_connect_available(
         anki_client=client,
-        configured_launch_command=None,
         startup_timeout_seconds=5.0,
         system_name="Darwin",
         launch_process=lambda command: launches.append(list(command)),
@@ -63,7 +62,6 @@ def test_ensure_anki_connect_available_launches_and_waits_until_ready() -> None:
 
     ensure_anki_connect_available(
         anki_client=client,
-        configured_launch_command=None,
         startup_timeout_seconds=5.0,
         system_name="Darwin",
         launch_process=lambda command: launches.append(list(command)),
@@ -90,16 +88,12 @@ def test_ensure_anki_connect_available_raises_without_launch_command() -> None:
     with pytest.raises(RuntimeError, match="no default Anki launch command"):
         ensure_anki_connect_available(
             anki_client=client,
-            configured_launch_command=None,
             startup_timeout_seconds=5.0,
             system_name="Plan9",
         )
 
 
-def test_resolve_anki_desktop_launch_command_uses_override() -> None:
-    command = resolve_anki_desktop_launch_command(
-        'open -a "Anki Custom"',
-        system_name="Darwin",
-    )
+def test_resolve_anki_desktop_launch_command_uses_platform_default() -> None:
+    command = resolve_anki_desktop_launch_command(system_name="Darwin")
 
-    assert command == ["open", "-a", "Anki Custom"]
+    assert command == ["open", "-a", "Anki"]

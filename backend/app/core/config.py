@@ -43,10 +43,6 @@ class Settings(BaseSettings):
         default="mp3",
         alias="ANKI_PRONUNCIATION_FORMAT",
     )
-    anki_desktop_launch_command: str | None = Field(
-        default=None,
-        alias="ANKI_DESKTOP_LAUNCH_COMMAND",
-    )
     anki_desktop_startup_timeout_seconds: float = Field(
         default=20.0,
         alias="ANKI_DESKTOP_STARTUP_TIMEOUT_SECONDS",

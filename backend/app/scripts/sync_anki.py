@@ -35,7 +35,6 @@ def parse_args() -> argparse.Namespace:
 def ensure_anki_connect_available(
     *,
     anki_client: AnkiConnectClient,
-    configured_launch_command: str | None,
     startup_timeout_seconds: float,
     system_name: str | None = None,
     launch_process: Callable[[Sequence[str]], None] | None = None,
@@ -47,14 +46,11 @@ def ensure_anki_connect_available(
     if startup_timeout_seconds <= 0:
         raise RuntimeError("ANKI_DESKTOP_STARTUP_TIMEOUT_SECONDS must be greater than zero")
 
-    launch_command = resolve_anki_desktop_launch_command(
-        configured_launch_command,
-        system_name=system_name,
-    )
+    launch_command = resolve_anki_desktop_launch_command(system_name=system_name)
     if launch_command is None:
         raise RuntimeError(
-            "AnkiConnect is not reachable and no default Anki launch command is available "
-            "for this platform. Set ANKI_DESKTOP_LAUNCH_COMMAND."
+            "AnkiConnect is not reachable and no default Anki launch command is "
+            "available for this platform."
         )
 
     launcher = launch_process or launch_anki_desktop
@@ -69,16 +65,9 @@ def ensure_anki_connect_available(
 
 
 def resolve_anki_desktop_launch_command(
-    configured_launch_command: str | None,
     *,
     system_name: str | None = None,
 ) -> list[str] | None:
-    if configured_launch_command is not None:
-        command = shlex.split(configured_launch_command)
-        if not command:
-            raise RuntimeError("ANKI_DESKTOP_LAUNCH_COMMAND must not be empty")
-        return command
-
     detected_system = system_name or platform.system()
     if detected_system == "Darwin":
         return ["open", "-a", "Anki"]
@@ -152,7 +141,6 @@ def main() -> None:
     )
     ensure_anki_connect_available(
         anki_client=anki_client,
-        configured_launch_command=settings.anki_desktop_launch_command,
         startup_timeout_seconds=settings.anki_desktop_startup_timeout_seconds,
     )
     pronunciation_generator = EdgeTtsPronunciationGenerator(
