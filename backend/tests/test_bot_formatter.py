@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import app.models.anki_sync_attempt as anki_sync_attempt_model  # noqa: F401
 from app.bot.formatter import format_card_payload
 from app.models.card import Card, EntryType, SourceLanguage
 
@@ -42,3 +43,23 @@ def test_format_card_payload_handles_missing_synonyms_fallback() -> None:
 
     assert "🌍 Primary translation: <b>взлетать</b>" in payload
     assert "🧩 Synonyms: <b>—</b>" in payload
+
+
+def test_format_card_payload_escapes_html_sensitive_fields() -> None:
+    card = _make_card(["меньше < больше", "A & B"])
+    card.canonical_text = "look <up> & go"
+    card.transcription = "/lʊk & ɡoʊ/"
+    card.explanation = "Use < and & literally."
+    card.examples_json = ["A < B & C.", "Keep > away.", "Plain example."]
+    card.frequency_note = "Common & useful."
+
+    payload = format_card_payload(card)
+
+    assert "Word: <b>look &lt;up&gt; &amp; go</b>" in payload
+    assert "Transcription: /lʊk &amp; ɡoʊ/" in payload
+    assert "Primary translation: <b>меньше &lt; больше</b>" in payload
+    assert "Synonyms: <b>A &amp; B</b>" in payload
+    assert "Use &lt; and &amp; literally." in payload
+    assert "A &lt; B &amp; C." in payload
+    assert "Keep &gt; away." in payload
+    assert "Common &amp; useful." in payload

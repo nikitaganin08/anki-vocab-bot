@@ -23,7 +23,12 @@ def _pending_card() -> PendingCard:
 class FakePronunciationGenerator:
     file_extension = "mp3"
 
-    def __init__(self, *, audio: bytes = b"audio", error: PronunciationAudioError | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        audio: bytes = b"audio",
+        error: PronunciationAudioError | None = None,
+    ) -> None:
         self.audio = audio
         self.error = error
         self.calls: list[str] = []

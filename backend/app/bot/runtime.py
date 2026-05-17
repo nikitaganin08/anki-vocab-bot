@@ -89,7 +89,7 @@ def build_bot_runtime() -> BotRuntime:
     assert settings.openrouter_api_key is not None
     assert settings.telegram_allowed_user_id is not None
     assert settings.telegram_webhook_secret is not None
-    assert settings.telegram_webapp_url is not None
+    assert settings.resolved_telegram_webapp_url is not None
 
     bot = Bot(token=settings.telegram_bot_token)
     dispatcher = Dispatcher()
@@ -112,7 +112,7 @@ def build_bot_runtime() -> BotRuntime:
     )
     admin_handler = TelegramAdminWebAppHandler(
         allowed_user_id=settings.telegram_allowed_user_id,
-        webapp_url=settings.telegram_webapp_url,
+        webapp_url=settings.resolved_telegram_webapp_url,
     )
     dispatcher.include_router(
         build_bot_router(text_handler, description_lookup_handler, admin_handler)

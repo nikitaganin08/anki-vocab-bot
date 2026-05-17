@@ -3,13 +3,14 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
-from app.api import anki, cards, telegram_webhook
+from app.api import anki, cards, telegram_webhook, vocab
 
 app = FastAPI(title="anki-vocab-bot")
 
 app.include_router(cards.router)
 app.include_router(anki.router)
 app.include_router(telegram_webhook.router)
+app.include_router(vocab.router)
 
 
 @app.get("/api/health")
@@ -26,7 +27,6 @@ if _FRONTEND_INDEX.exists():
     @app.get("/telegram/webapp/")
     def telegram_webapp_index() -> FileResponse:
         return FileResponse(_FRONTEND_INDEX)
-
 
     @app.get("/telegram/webapp/{path:path}")
     def telegram_webapp_spa(path: str) -> FileResponse:

@@ -8,9 +8,8 @@ from typing import Any
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
 from app.bot.formatter import (
-    format_created_message,
+    format_card_service_result,
     format_description_lookup_candidates,
-    format_duplicate_message,
     format_rate_limit_message,
 )
 from app.bot.input_validation import validate_description_input, validate_source_input
@@ -65,23 +64,8 @@ class TelegramTextHandler:
 
     @staticmethod
     async def _reply_from_result(message: Any, result: CardServiceResult) -> None:
-        if result.status == "rejected" and result.rejection is not None:
-            await message.answer(result.rejection.message_for_user)
-            return
-
-        if result.card is None:
-            await message.answer("Unexpected bot response state.")
-            return
-
-        if result.status == "created":
-            await message.answer(format_created_message(result.card), parse_mode="HTML")
-            return
-
-        if result.status in {"duplicate_source", "duplicate_canonical"}:
-            await message.answer(format_duplicate_message(result.card), parse_mode="HTML")
-            return
-
-        await message.answer("Unexpected bot response state.")
+        text, parse_mode = format_card_service_result(result)
+        await message.answer(text, parse_mode=parse_mode)
 
 
 @dataclass

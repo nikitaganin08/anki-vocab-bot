@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from app.api.telegram_webapp_auth import parse_and_validate_init_data
 from app.main import app
+
 from .telegram_webapp_test_helpers import build_telegram_init_data
 
 BOT_TOKEN = "telegram-bot-token"

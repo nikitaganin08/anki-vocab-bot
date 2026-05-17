@@ -58,6 +58,20 @@ class Settings(BaseSettings):
     )
 
     @property
+    def resolved_telegram_webapp_url(self) -> str | None:
+        if self.telegram_webapp_url:
+            return self.telegram_webapp_url
+
+        if not self.telegram_webhook_url:
+            return None
+
+        webhook_url = self.telegram_webhook_url.rstrip("/")
+        if not webhook_url.endswith("/webhook"):
+            return None
+
+        return f"{webhook_url[: -len('/webhook')]}/webapp"
+
+    @property
     def normalized_database_url(self) -> str:
         if not self.database_url.startswith("sqlite:///"):
             return self.database_url
@@ -79,7 +93,7 @@ class Settings(BaseSettings):
         required_fields = {
             "TELEGRAM_BOT_TOKEN": self.telegram_bot_token,
             "TELEGRAM_ALLOWED_USER_ID": self.telegram_allowed_user_id,
-            "TELEGRAM_WEBAPP_URL": self.telegram_webapp_url,
+            "TELEGRAM_WEBAPP_URL": self.resolved_telegram_webapp_url,
             "OPENROUTER_API_KEY": self.openrouter_api_key,
             "ANKI_SYNC_TOKEN": self.anki_sync_token,
         }

@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Anki Vocab</string>
+    <string name="process_text_label">Vocab</string>
+</resources>

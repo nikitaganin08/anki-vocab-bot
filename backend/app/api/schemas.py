@@ -73,6 +73,15 @@ BatchImportItemStatus = Literal[
     "upstream_error",
 ]
 
+MobileLookupStatus = Literal[
+    "created",
+    "duplicate_source",
+    "duplicate_canonical",
+    "rejected",
+    "invalid_input",
+    "upstream_error",
+]
+
 
 class CardBatchImportRequest(BaseModel):
     source_texts: list[str] = Field(min_length=1, max_length=50)
@@ -99,6 +108,48 @@ class CardBatchImportSummaryResponse(BaseModel):
 class CardBatchImportResponse(BaseModel):
     items: list[CardBatchImportItemResponse]
     summary: CardBatchImportSummaryResponse
+
+
+class MobileLookupRequest(BaseModel):
+    text: str
+    send_to_telegram: bool = False
+    return_preview: bool = True
+
+
+class MobileCardPreview(BaseModel):
+    card_id: int
+    canonical_text: str
+    transcription: str | None
+    translation_variants: list[str]
+    explanation: str
+    examples: list[str]
+    frequency: int
+    frequency_note: str | None
+    eligible_for_anki: bool
+
+    @classmethod
+    def from_card(cls, card: object) -> "MobileCardPreview":
+        from app.models.card import Card
+
+        c: Card = card  # type: ignore[assignment]
+        return cls(
+            card_id=c.id,
+            canonical_text=c.canonical_text,
+            transcription=c.transcription,
+            translation_variants=c.translation_variants_json,
+            explanation=c.explanation,
+            examples=c.examples_json[:3],
+            frequency=c.frequency,
+            frequency_note=c.frequency_note,
+            eligible_for_anki=c.eligible_for_anki,
+        )
+
+
+class MobileLookupResponse(BaseModel):
+    status: MobileLookupStatus
+    message: str
+    preview: MobileCardPreview | None
+    telegram_sent: bool
 
 
 class AnkiPendingCardResponse(BaseModel):
