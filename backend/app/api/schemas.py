@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.models.card import AnkiSyncStatus, EntryType, SourceLanguage
+from app.models.card import AnkiSyncStatus, Card, EntryType, SourceLanguage
 
 
 class CardResponse(BaseModel):
@@ -28,13 +28,8 @@ class CardResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    model_config = {"from_attributes": True}
-
     @classmethod
-    def from_card(cls, card: object) -> "CardResponse":
-        from app.models.card import Card
-
-        c: Card = card  # type: ignore[assignment]
+    def from_card(cls, c: Card) -> "CardResponse":
         return cls(
             id=c.id,
             source_text=c.source_text,
@@ -73,14 +68,7 @@ BatchImportItemStatus = Literal[
     "upstream_error",
 ]
 
-MobileLookupStatus = Literal[
-    "created",
-    "duplicate_source",
-    "duplicate_canonical",
-    "rejected",
-    "invalid_input",
-    "upstream_error",
-]
+MobileLookupStatus = BatchImportItemStatus
 
 
 class CardBatchImportRequest(BaseModel):
@@ -128,10 +116,7 @@ class MobileCardPreview(BaseModel):
     eligible_for_anki: bool
 
     @classmethod
-    def from_card(cls, card: object) -> "MobileCardPreview":
-        from app.models.card import Card
-
-        c: Card = card  # type: ignore[assignment]
+    def from_card(cls, c: Card) -> "MobileCardPreview":
         return cls(
             card_id=c.id,
             canonical_text=c.canonical_text,
@@ -161,13 +146,8 @@ class AnkiPendingCardResponse(BaseModel):
     explanation: str
     examples: list[str]
 
-    model_config = {"from_attributes": True}
-
     @classmethod
-    def from_card(cls, card: object) -> "AnkiPendingCardResponse":
-        from app.models.card import Card
-
-        c: Card = card  # type: ignore[assignment]
+    def from_card(cls, c: Card) -> "AnkiPendingCardResponse":
         return cls(
             id=c.id,
             canonical_text=c.canonical_text,

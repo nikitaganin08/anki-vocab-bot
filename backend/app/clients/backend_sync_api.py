@@ -4,10 +4,10 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
+from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
 
 
-@dataclass(slots=True)
-class PendingCard:
+class PendingCard(BaseModel):
     id: int
     canonical_text: str
     canonical_text_normalized: str
@@ -15,6 +15,11 @@ class PendingCard:
     translation_variants: list[str]
     explanation: str
     examples: list[str]
+
+    model_config = ConfigDict(strict=True)
+
+
+PENDING_CARDS_ADAPTER = TypeAdapter(list[PendingCard])
 
 
 class BackendSyncApiError(RuntimeError):
@@ -45,14 +50,14 @@ class BackendSyncApiClient:
 
     def get_pending(self, limit: int = 50) -> list[PendingCard]:
         payload = self._request("GET", "/api/anki/pending", params={"limit": limit})
-        if not isinstance(payload, list):
+        try:
+            return PENDING_CARDS_ADAPTER.validate_python(payload)
+        except ValidationError as exc:
             raise BackendSyncApiProtocolError(
-                "Pending response must be a list",
+                "Pending response does not match the expected schema",
                 code="backend_sync_invalid_pending",
                 user_message="Backend pending payload is invalid.",
-            )
-
-        return [self._parse_pending_item(item) for item in payload]
+            ) from exc
 
     def ack(self, card_id: int, anki_note_id: int) -> None:
         self._request(
@@ -151,63 +156,3 @@ class BackendSyncApiClient:
                 code="backend_sync_non_json",
                 user_message="Backend sync API returned unreadable payload.",
             ) from exc
-
-    @staticmethod
-    def _parse_pending_item(item: Any) -> PendingCard:
-        if not isinstance(item, dict):
-            raise BackendSyncApiProtocolError(
-                "Pending item must be an object",
-                code="backend_sync_pending_item_type",
-                user_message="Backend pending payload is invalid.",
-            )
-
-        required_keys = {
-            "id",
-            "canonical_text",
-            "canonical_text_normalized",
-            "transcription",
-            "translation_variants",
-            "explanation",
-            "examples",
-        }
-        if not required_keys.issubset(item.keys()):
-            raise BackendSyncApiProtocolError(
-                "Pending item is missing required keys",
-                code="backend_sync_pending_item_missing_keys",
-                user_message="Backend pending payload is missing required fields.",
-            )
-
-        card_id = item["id"]
-        canonical_text = item["canonical_text"]
-        canonical_text_normalized = item["canonical_text_normalized"]
-        transcription = item["transcription"]
-        translation_variants = item["translation_variants"]
-        explanation = item["explanation"]
-        examples = item["examples"]
-
-        if (
-            not isinstance(card_id, int)
-            or not isinstance(canonical_text, str)
-            or not isinstance(canonical_text_normalized, str)
-            or not (transcription is None or isinstance(transcription, str))
-            or not isinstance(translation_variants, list)
-            or not all(isinstance(v, str) for v in translation_variants)
-            or not isinstance(explanation, str)
-            or not isinstance(examples, list)
-            or not all(isinstance(v, str) for v in examples)
-        ):
-            raise BackendSyncApiProtocolError(
-                "Pending item has invalid field types",
-                code="backend_sync_pending_item_invalid_types",
-                user_message="Backend pending payload has invalid field types.",
-            )
-
-        return PendingCard(
-            id=card_id,
-            canonical_text=canonical_text,
-            canonical_text_normalized=canonical_text_normalized,
-            transcription=transcription,
-            translation_variants=translation_variants,
-            explanation=explanation,
-            examples=examples,
-        )

@@ -138,7 +138,6 @@ def _make_accepted_llm_response(
             "source_language": "en",
             "entry_type": entry_type,
             "canonical_text": canonical,
-            "canonical_text_normalized": canonical.lower(),
             "transcription": "/test/",
             "translation_variants": ["пример один", "пример два"],
             "explanation": "A stable lexical unit used in English.",

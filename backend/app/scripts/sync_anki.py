@@ -145,7 +145,6 @@ def main() -> None:
     )
     pronunciation_generator = EdgeTtsPronunciationGenerator(
         voice=settings.anki_pronunciation_voice,
-        audio_format=settings.anki_pronunciation_format,
     )
 
     try:

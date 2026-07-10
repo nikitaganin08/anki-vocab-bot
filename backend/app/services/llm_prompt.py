@@ -12,7 +12,6 @@ Accepted contract:
   "source_language": "ru" | "en",
   "entry_type": "word" | "phrasal_verb" | "collocation" | "idiom" | "expression",
   "canonical_text": "...",
-  "canonical_text_normalized": "...",
   "transcription": "...",
   "translation_variants": ["...", "..."],
   "explanation": "...",
@@ -49,7 +48,6 @@ Rules:
 - examples must illustrate the same meaning of canonical_text.
 - At least 2 of 3 examples must explicitly include canonical_text or its inflected form.
 - frequency must be an integer from 0 to 10.
-- canonical_text_normalized must be lowercase and whitespace-normalized.
 - If you cannot provide one primary Russian translation
   and at least one Russian synonym/variant, reject.
 - If unsure whether the input is a stable lexical unit, reject it."""

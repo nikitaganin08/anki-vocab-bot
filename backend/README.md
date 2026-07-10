@@ -28,7 +28,6 @@ Required environment variables for sync:
 - `ANKI_SYNC_BATCH_LIMIT` (default: `50`)
 - `ANKI_SYNC_HTTP_TIMEOUT_SECONDS` (default: `15`)
 - `ANKI_PRONUNCIATION_VOICE` (default: `en-US-EmmaNeural`)
-- `ANKI_PRONUNCIATION_FORMAT` (default: `mp3`)
 
 Optional local desktop launch variables:
 - `ANKI_DESKTOP_STARTUP_TIMEOUT_SECONDS` (default: `20`)

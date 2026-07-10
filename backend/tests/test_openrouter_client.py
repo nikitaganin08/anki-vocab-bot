@@ -20,7 +20,6 @@ VALID_COMPLETION_CONTENT = json.dumps(
         "source_language": "en",
         "entry_type": "phrasal_verb",
         "canonical_text": "take off",
-        "canonical_text_normalized": "take off",
         "transcription": "teik of",
         "translation_variants": ["взлетать", "снимать"],
         "explanation": "To leave the ground.",

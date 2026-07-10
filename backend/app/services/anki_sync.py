@@ -40,9 +40,6 @@ class AnkiGateway(Protocol):
 
 
 class PronunciationGateway(Protocol):
-    @property
-    def file_extension(self) -> str: ...
-
     def generate_audio(self, text: str) -> bytes: ...
 
 
@@ -87,13 +84,12 @@ def sync_pending_cards(
             continue
 
         try:
-            file_extension = pronunciation_generator.file_extension
-            filename = build_pronunciation_filename(card.id, file_extension)
+            filename = build_pronunciation_filename(card.id)
             audio_bytes = pronunciation_generator.generate_audio(card.canonical_text)
             anki_client.store_media_file(filename, audio_bytes)
             payload = map_card_to_anki_payload(
                 card,
-                pronunciation_field=build_pronunciation_sound_field(card.id, file_extension),
+                pronunciation_field=build_pronunciation_sound_field(card.id),
             )
             anki_note_id = anki_client.add_note(payload)
         except PronunciationAudioError as exc:

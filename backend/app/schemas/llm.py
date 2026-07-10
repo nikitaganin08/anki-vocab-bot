@@ -82,7 +82,6 @@ class AcceptedLlmResponse(BaseModel):
     source_language: SourceLanguage
     entry_type: EntryType
     canonical_text: str
-    canonical_text_normalized: str
     transcription: str | None = None
     # Contract semantics: index 0 is the primary Russian translation,
     # remaining items are Russian synonyms/near-synonymous variants.
@@ -95,7 +94,7 @@ class AcceptedLlmResponse(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    @field_validator("source_text", "canonical_text_normalized", "llm_model")
+    @field_validator("source_text", "llm_model")
     @classmethod
     def validate_non_empty_text(cls, value: str) -> str:
         normalized = _normalize_whitespace(value)

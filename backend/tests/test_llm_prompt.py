@@ -3,6 +3,10 @@ from __future__ import annotations
 from app.services.llm_prompt import SYSTEM_PROMPT, build_llm_messages
 
 
+def test_system_prompt_excludes_backend_derived_fields() -> None:
+    assert "canonical_text_normalized" not in SYSTEM_PROMPT
+
+
 def test_system_prompt_requires_same_contract_for_ru_and_en() -> None:
     assert (
         'Use the same accepted contract for both source_language values ("ru" and "en").'

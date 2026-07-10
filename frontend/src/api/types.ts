@@ -37,10 +37,6 @@ export interface CardListResponse {
   limit: number;
 }
 
-export interface HealthResponse {
-  status: string;
-}
-
 export interface CardsQuery {
   offset?: number;
   limit?: number;
@@ -58,10 +54,6 @@ export type CardBatchImportItemStatus =
   | "rejected"
   | "invalid_input"
   | "upstream_error";
-
-export interface CardBatchImportRequest {
-  source_texts: string[];
-}
 
 export interface CardBatchImportItem {
   source_text: string;

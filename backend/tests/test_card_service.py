@@ -18,7 +18,6 @@ from app.services.card_service import (
     CardService,
     CardServiceUpstreamError,
     normalize_source_text,
-    tokenize_source_text,
 )
 
 
@@ -55,7 +54,6 @@ def make_accepted_response(**overrides: object) -> AcceptedLlmResponse:
         "source_language": "en",
         "entry_type": "phrasal_verb",
         "canonical_text": "take off",
-        "canonical_text_normalized": "take off",
         "transcription": "teik of",
         "translation_variants": ["взлетать", "снимать", "резко начинаться"],
         "explanation": "To leave the ground or to remove clothing.",
@@ -72,13 +70,12 @@ def make_accepted_response(**overrides: object) -> AcceptedLlmResponse:
     return AcceptedLlmResponse.model_validate(payload)
 
 
-def test_normalize_and_tokenize_source_text() -> None:
+def test_normalize_source_text() -> None:
     assert normalize_source_text("  take   off  ") == "take off"
-    assert tokenize_source_text("  take   off  ") == ["take", "off"]
 
 
 def test_card_service_creates_new_card(session: Session) -> None:
-    generator = FakeGenerator(result=make_accepted_response())
+    generator = FakeGenerator(result=make_accepted_response(canonical_text="  Take   OFF  "))
     service = CardService(session=session, generator=generator)
 
     result = service.apply_source_text("  take   off  ")
@@ -87,7 +84,19 @@ def test_card_service_creates_new_card(session: Session) -> None:
     assert result.card is not None
     assert result.card.eligible_for_anki is True
     assert result.card.canonical_text_normalized == "take off"
+    assert result.card.llm_model == "test-model"
     assert generator.call_count == 1
+
+
+def test_card_service_rejects_mismatched_llm_source_text(session: Session) -> None:
+    generator = FakeGenerator(result=make_accepted_response(source_text="take away"))
+    service = CardService(session=session, generator=generator)
+
+    with pytest.raises(CardServiceUpstreamError) as exc_info:
+        service.apply_source_text("take off")
+
+    assert exc_info.value.code == "openrouter_source_text_mismatch"
+    assert session.scalar(select(Card)) is None
 
 
 def test_card_service_returns_duplicate_source_without_llm_call(session: Session) -> None:
@@ -145,7 +154,6 @@ def test_card_service_returns_duplicate_canonical_after_llm_call(session: Sessio
         result=make_accepted_response(
             source_text="take the shoes off",
             canonical_text="take off",
-            canonical_text_normalized="take off",
         )
     )
     service = CardService(session=session, generator=generator)

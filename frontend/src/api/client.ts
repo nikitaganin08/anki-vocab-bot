@@ -2,7 +2,6 @@ import type {
   CardBatchImportResponse,
   CardListResponse,
   CardsQuery,
-  HealthResponse,
 } from "./types";
 import { resolveApiPath } from "../routing";
 import { getTelegramInitData } from "../telegram";
@@ -110,10 +109,6 @@ async function requestNoContent(path: string, method: "DELETE"): Promise<void> {
   if (!response.ok) {
     throw new ApiError(response.status, await readErrorMessage(response));
   }
-}
-
-export function getHealth(): Promise<HealthResponse> {
-  return getJson<HealthResponse>("/api/health");
 }
 
 export function getCards(query: CardsQuery): Promise<CardListResponse> {

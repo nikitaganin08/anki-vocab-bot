@@ -107,7 +107,6 @@ Accepted result:
 - `source_language`
 - `entry_type`
 - `canonical_text`
-- `canonical_text_normalized`
 - `transcription`
 - `translation_variants`
 - `explanation`
@@ -234,7 +233,6 @@ Required environment variables:
 - `OPENROUTER_API_KEY`
 - `ANKI_SYNC_TOKEN`
 - `ANKI_PRONUNCIATION_VOICE` (default: `en-US-EmmaNeural`)
-- `ANKI_PRONUNCIATION_FORMAT` (default: `mp3`)
 - `DATABASE_URL` (default: `sqlite:///backend/data/app.db`)
 - `LLM_MODEL` (default: `google/gemini-2.5-flash-lite`)
 

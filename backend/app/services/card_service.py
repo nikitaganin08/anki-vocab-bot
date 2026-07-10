@@ -26,10 +26,6 @@ def normalize_source_text(value: str) -> str:
     return normalized
 
 
-def tokenize_source_text(value: str) -> list[str]:
-    return normalize_source_text(value).split(" ")
-
-
 def normalize_canonical_text(value: str) -> str:
     return WHITESPACE_PATTERN.sub(" ", value.strip().lower())
 

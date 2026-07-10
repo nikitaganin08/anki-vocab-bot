@@ -2,6 +2,7 @@ package com.nganin.ankivocab
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.json.JSONObject
 
 class MobileLookupSupportTest {
     @Test
@@ -19,6 +20,13 @@ class MobileLookupSupportTest {
     }
 
     @Test
+    fun buildsTelegramResolveUrlWithRfc3986Encoding() {
+        val result = MobileLookupSupport.telegramResolveUrl("my_vocab_bot", "café + *~")
+
+        assertEquals("tg://resolve?domain=my_vocab_bot&text=caf%C3%A9%20%2B%20%2A~", result)
+    }
+
+    @Test
     fun buildsMobileLookupUrlFromBackendBaseUrl() {
         val result = MobileLookupSupport.mobileLookupUrl("https://example.test/")
 
@@ -27,12 +35,13 @@ class MobileLookupSupportTest {
 
     @Test
     fun buildsMobileLookupBodyWithEscapedTextAndPreviewFlag() {
-        val result = MobileLookupSupport.mobileLookupBody("say \"hi\"\nnow", sendToTelegram = true)
-
-        assertEquals(
-            "{\"text\":\"say \\\"hi\\\"\\nnow\",\"send_to_telegram\":true,\"return_preview\":true}",
-            result,
+        val result = JSONObject(
+            MobileLookupSupport.mobileLookupBody("say \"hi\"\nnow", sendToTelegram = true),
         )
+
+        assertEquals("say \"hi\"\nnow", result.getString("text"))
+        assertEquals(true, result.getBoolean("send_to_telegram"))
+        assertEquals(true, result.getBoolean("return_preview"))
     }
 
     @Test
@@ -71,6 +80,40 @@ class MobileLookupSupportTest {
             Frequency: 4/10
 
             Sent to Telegram.
+            """.trimIndent(),
+            result,
+        )
+    }
+
+    @Test
+    fun omitsNullTranscriptionFromPreviewDialog() {
+        val result = MobileLookupSupport.formatMobileLookupResponse(
+            """
+            {
+              "message": "Added",
+              "preview": {
+                "canonical_text": "take off",
+                "transcription": null,
+                "translation_variants": ["взлетать"],
+                "explanation": "To leave the ground.",
+                "examples": [],
+                "frequency": 4
+              },
+              "telegram_sent": false
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            """
+            Added
+
+            Word: take off
+            Translation: взлетать
+
+            To leave the ground.
+
+            Frequency: 4/10
             """.trimIndent(),
             result,
         )
