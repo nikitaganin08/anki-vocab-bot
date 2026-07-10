@@ -3,31 +3,12 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-from dataclasses import dataclass
 from time import time
 from urllib.parse import parse_qsl
 
 from fastapi import HTTPException, status
 
 AUTH_MAX_AGE_SECONDS = 3600
-
-
-@dataclass(frozen=True, slots=True)
-class TelegramWebAppUser:
-    id: int
-
-
-def _build_data_check_string(init_data: str) -> tuple[str, str]:
-    items = dict(parse_qsl(init_data, strict_parsing=True))
-    received_hash = items.pop("hash", None)
-    if not received_hash:
-        raise ValueError("Missing hash")
-
-    data_check_string = "\n".join(
-        f"{key}={value}"
-        for key, value in sorted(items.items())
-    )
-    return data_check_string, received_hash
 
 
 def _build_hash(data_check_string: str, bot_token: str) -> str:
@@ -45,16 +26,19 @@ def parse_and_validate_init_data(
     bot_token: str,
     allowed_user_id: int,
     now: int | None = None,
-) -> TelegramWebAppUser:
+) -> int:
     try:
-        data_check_string, received_hash = _build_data_check_string(init_data)
         parsed_data = dict(parse_qsl(init_data, strict_parsing=True))
+        received_hash = parsed_data.pop("hash", None)
+        if not received_hash:
+            raise ValueError("Missing hash")
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid Telegram init data",
         ) from exc
 
+    data_check_string = "\n".join(f"{key}={value}" for key, value in sorted(parsed_data.items()))
     expected_hash = _build_hash(data_check_string, bot_token)
     if not hmac.compare_digest(received_hash, expected_hash):
         raise HTTPException(
@@ -106,4 +90,4 @@ def parse_and_validate_init_data(
             detail="Telegram user is not allowed",
         )
 
-    return TelegramWebAppUser(id=user_id)
+    return user_id

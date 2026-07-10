@@ -1,14 +1,11 @@
-import type { ReactNode } from "react";
-
 interface LoadingStateProps {
-  title?: string;
-  message?: string;
+  title: string;
+  message: string;
 }
 
 interface EmptyStateProps {
   title: string;
   message: string;
-  action?: ReactNode;
 }
 
 interface ErrorStateProps {
@@ -25,10 +22,7 @@ function getErrorMessage(error: unknown): string {
   return "Unexpected error";
 }
 
-export function LoadingState({
-  title = "Loading",
-  message = "Fetching the latest data.",
-}: LoadingStateProps): JSX.Element {
+export function LoadingState({ title, message }: LoadingStateProps): JSX.Element {
   return (
     <section className="page-state" role="status" aria-live="polite">
       <div className="pulse-dot" aria-hidden="true" />
@@ -38,12 +32,11 @@ export function LoadingState({
   );
 }
 
-export function EmptyState({ title, message, action }: EmptyStateProps): JSX.Element {
+export function EmptyState({ title, message }: EmptyStateProps): JSX.Element {
   return (
     <section className="page-state">
       <h2>{title}</h2>
       <p>{message}</p>
-      {action ? <div className="state-action">{action}</div> : null}
     </section>
   );
 }

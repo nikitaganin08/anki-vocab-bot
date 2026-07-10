@@ -12,13 +12,14 @@ from app.bot.handler import (
     TelegramTextHandler,
 )
 from app.bot.rate_limiter import InMemoryRateLimiter
+from app.clients.openrouter import OpenRouterError
 from app.models.card import Card, EntryType, SourceLanguage
 from app.schemas.description_lookup import (
     FoundDescriptionLookupResponse,
     RejectedDescriptionLookupResponse,
 )
 from app.schemas.llm import RejectedLlmResponse
-from app.services.card_service import CardServiceResult, CardServiceUpstreamError
+from app.services.card_service import CardServiceResult
 
 
 @dataclass
@@ -171,7 +172,6 @@ def test_handler_returns_rejected_message() -> None:
     rejection = RejectedLlmResponse.model_validate(
         {
             "accepted": False,
-            "reason": "not_lexical_unit",
             "message_for_user": "This looks like a free-form sentence.",
         }
     )
@@ -192,7 +192,7 @@ def test_handler_returns_rejected_message() -> None:
 
 def test_handler_surfaces_upstream_error_message() -> None:
     stub = ApplySourceTextStub(
-        error=CardServiceUpstreamError(
+        error=OpenRouterError(
             "failed",
             code="openrouter_timeout",
             user_message="Model timed out. Please try again.",

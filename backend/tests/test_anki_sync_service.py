@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from app.clients.anki_connect import AnkiConnectTransportError, AnkiNotePayload
-from app.clients.backend_sync_api import BackendSyncApiTransportError, PendingCard
+from app.clients.backend_sync_api import BackendSyncApiError, PendingCard
 from app.services.anki_sync import map_card_to_anki_payload, sync_pending_cards
 from app.services.pronunciation import PronunciationAudioError
 
@@ -161,7 +161,7 @@ def test_sync_pending_cards_raises_if_fail_reporting_breaks() -> None:
             raise AssertionError(f"Did not expect ack() for card={card_id}, note={anki_note_id}")
 
         def fail(self, card_id: int, error_message: str) -> None:
-            raise BackendSyncApiTransportError(
+            raise BackendSyncApiError(
                 "backend down",
                 code="backend_sync_transport",
                 user_message="backend down",

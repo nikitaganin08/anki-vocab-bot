@@ -1,8 +1,9 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { deleteCard, getCards, importCardsBatch } from "../api/client";
-import { renderRouteWithProviders } from "../test/renderWithProviders";
 import { CardsPage } from "./CardsPage";
 
 vi.mock("../api/client", async (importOriginal) => {
@@ -18,6 +19,20 @@ vi.mock("../api/client", async (importOriginal) => {
 const mockedGetCards = vi.mocked(getCards);
 const mockedDeleteCard = vi.mocked(deleteCard);
 const mockedImportCardsBatch = vi.mocked(importCardsBatch);
+
+function renderCardsPage(): ReturnType<typeof render> {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={["/cards"]}>
+        <CardsPage />
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
 
 describe("CardsPage", () => {
   beforeEach(() => {
@@ -61,10 +76,7 @@ describe("CardsPage", () => {
       limit: 20,
     });
 
-    renderRouteWithProviders(<CardsPage />, {
-      path: "/cards",
-      route: "/cards",
-    });
+    renderCardsPage();
 
     expect(await screen.findByRole("heading", { name: "Cards" })).toBeInTheDocument();
     expect((await screen.findAllByText("turn down")).length).toBeGreaterThan(0);
@@ -94,10 +106,7 @@ describe("CardsPage", () => {
       },
     }));
 
-    renderRouteWithProviders(<CardsPage />, {
-      path: "/cards",
-      route: "/cards",
-    });
+    renderCardsPage();
 
     await screen.findByRole("heading", { name: "Cards" });
 
@@ -152,10 +161,7 @@ describe("CardsPage", () => {
       },
     });
 
-    renderRouteWithProviders(<CardsPage />, {
-      path: "/cards",
-      route: "/cards",
-    });
+    renderCardsPage();
 
     await screen.findByRole("heading", { name: "Cards" });
     fireEvent.change(screen.getByLabelText("Input list"), {
@@ -194,10 +200,7 @@ describe("CardsPage", () => {
       })
       .mockRejectedValueOnce(new Error("network"));
 
-    renderRouteWithProviders(<CardsPage />, {
-      path: "/cards",
-      route: "/cards",
-    });
+    renderCardsPage();
 
     await screen.findByRole("heading", { name: "Cards" });
     const lines = Array.from({ length: 55 }, (_, index) => `item-${index + 1}`).join("\n");
@@ -244,10 +247,7 @@ describe("CardsPage", () => {
     });
     mockedDeleteCard.mockResolvedValue(undefined);
 
-    renderRouteWithProviders(<CardsPage />, {
-      path: "/cards",
-      route: "/cards",
-    });
+    renderCardsPage();
 
     fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
 

@@ -15,10 +15,8 @@ TOO_LONG_DESCRIPTION_MESSAGE = "Please keep /find descriptions under 24 words."
 
 @dataclass(slots=True)
 class InputValidationResult:
-    ok: bool
     normalized_text: str | None
     error_message: str | None
-    token_count: int
 
 
 def validate_source_input(raw_text: str) -> InputValidationResult:
@@ -26,26 +24,19 @@ def validate_source_input(raw_text: str) -> InputValidationResult:
         normalized = normalize_source_text(raw_text)
     except ValueError:
         return InputValidationResult(
-            ok=False,
             normalized_text=None,
             error_message=EMPTY_INPUT_MESSAGE,
-            token_count=0,
         )
 
-    token_count = len(normalized.split())
-    if token_count > MAX_TOKENS:
+    if len(normalized.split()) > MAX_TOKENS:
         return InputValidationResult(
-            ok=False,
             normalized_text=None,
             error_message=TOO_LONG_INPUT_MESSAGE,
-            token_count=token_count,
         )
 
     return InputValidationResult(
-        ok=True,
         normalized_text=normalized,
         error_message=None,
-        token_count=token_count,
     )
 
 
@@ -54,24 +45,17 @@ def validate_description_input(raw_text: str) -> InputValidationResult:
         normalized = normalize_source_text(raw_text)
     except ValueError:
         return InputValidationResult(
-            ok=False,
             normalized_text=None,
             error_message=EMPTY_DESCRIPTION_MESSAGE,
-            token_count=0,
         )
 
-    token_count = len(normalized.split())
-    if token_count > MAX_DESCRIPTION_TOKENS:
+    if len(normalized.split()) > MAX_DESCRIPTION_TOKENS:
         return InputValidationResult(
-            ok=False,
             normalized_text=None,
             error_message=TOO_LONG_DESCRIPTION_MESSAGE,
-            token_count=token_count,
         )
 
     return InputValidationResult(
-        ok=True,
         normalized_text=normalized,
         error_message=None,
-        token_count=token_count,
     )

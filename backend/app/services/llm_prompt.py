@@ -8,7 +8,6 @@ The JSON must exactly match one of two contracts.
 Accepted contract:
 {
   "accepted": true,
-  "source_text": "...",
   "source_language": "ru" | "en",
   "entry_type": "word" | "phrasal_verb" | "collocation" | "idiom" | "expression",
   "canonical_text": "...",
@@ -17,14 +16,12 @@ Accepted contract:
   "explanation": "...",
   "examples": ["...", "...", "..."],
   "frequency": 0..10,
-  "frequency_note": "...",
-  "llm_model": "..."
+  "frequency_note": "..."
 }
 
 Rejected contract:
 {
   "accepted": false,
-  "reason": "...",
   "message_for_user": "..."
 }
 

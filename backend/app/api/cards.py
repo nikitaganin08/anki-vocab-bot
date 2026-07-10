@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_card_generator, require_telegram_webapp_user
+from app.api.deps import get_openrouter_client, require_telegram_webapp_user
 from app.api.schemas import (
     CardBatchImportItemResponse,
     CardBatchImportRequest,
@@ -16,9 +16,10 @@ from app.api.schemas import (
     CardResponse,
 )
 from app.bot.input_validation import validate_source_input
+from app.clients.openrouter import OpenRouterClient, OpenRouterError
 from app.db.session import get_session
 from app.models.card import AnkiSyncStatus, Card, EntryType, SourceLanguage
-from app.services.card_service import CardGenerator, CardService, CardServiceUpstreamError
+from app.services.card_service import apply_source_text
 
 router = APIRouter(
     prefix="/api/cards",
@@ -27,7 +28,7 @@ router = APIRouter(
 )
 
 SessionDep = Annotated[Session, Depends(get_session)]
-CardGeneratorDep = Annotated[CardGenerator, Depends(get_card_generator)]
+OpenRouterClientDep = Annotated[OpenRouterClient, Depends(get_openrouter_client)]
 
 
 @router.get("", response_model=CardListResponse)
@@ -74,9 +75,8 @@ def list_cards(
 def batch_import_cards(
     payload: CardBatchImportRequest,
     session: SessionDep,
-    generator: CardGeneratorDep,
+    openrouter_client: OpenRouterClientDep,
 ) -> CardBatchImportResponse:
-    service = CardService(session=session, generator=generator)
     items: list[CardBatchImportItemResponse] = []
     summary_counts: dict[str, int] = {
         "created": 0,
@@ -89,7 +89,7 @@ def batch_import_cards(
 
     for source_text in payload.source_texts:
         validation = validate_source_input(source_text)
-        if not validation.ok or validation.normalized_text is None:
+        if validation.normalized_text is None:
             summary_counts["invalid_input"] += 1
             items.append(
                 CardBatchImportItemResponse(
@@ -101,8 +101,8 @@ def batch_import_cards(
             continue
 
         try:
-            result = service.apply_source_text(validation.normalized_text)
-        except CardServiceUpstreamError as exc:
+            result = apply_source_text(session, openrouter_client, validation.normalized_text)
+        except OpenRouterError as exc:
             summary_counts["upstream_error"] += 1
             items.append(
                 CardBatchImportItemResponse(

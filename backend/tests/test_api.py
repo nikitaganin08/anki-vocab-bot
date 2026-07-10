@@ -10,8 +10,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 import app.api.deps as deps_mod
-from app.api.deps import get_card_generator, get_telegram_sender, require_anki_token
-from app.clients.openrouter import OpenRouterTimeoutError
+from app.api.deps import get_openrouter_client, get_telegram_sender, require_anki_token
+from app.clients.openrouter import OpenRouterError
 from app.db.base import Base
 from app.db.session import get_session
 from app.main import app
@@ -134,7 +134,6 @@ def _make_accepted_llm_response(
     return AcceptedLlmResponse.model_validate(
         {
             "accepted": True,
-            "source_text": source_text,
             "source_language": "en",
             "entry_type": entry_type,
             "canonical_text": canonical,
@@ -148,7 +147,6 @@ def _make_accepted_llm_response(
             ],
             "frequency": 4,
             "frequency_note": "Common enough.",
-            "llm_model": "test-model",
         }
     )
 
@@ -157,6 +155,7 @@ def _make_accepted_llm_response(
 class FakeBatchGenerator:
     outcomes: dict[str, AcceptedLlmResponse | RejectedLlmResponse | Exception]
     calls: list[str] = field(default_factory=list)
+    model: str = "test-model"
 
     def generate_card(self, source_text: str) -> AcceptedLlmResponse | RejectedLlmResponse:
         self.calls.append(source_text)
@@ -339,13 +338,12 @@ def test_batch_import_mixed_statuses(client: TestClient, session: Session) -> No
             "very random sentence": RejectedLlmResponse.model_validate(
                 {
                     "accepted": False,
-                    "reason": "not_lexical_unit",
                     "message_for_user": "This does not look like a stable lexical unit.",
                 }
             ),
         }
     )
-    app.dependency_overrides[get_card_generator] = lambda: fake_generator
+    app.dependency_overrides[get_openrouter_client] = lambda: fake_generator
 
     resp = client.post(
         "/api/cards/batch",
@@ -390,7 +388,7 @@ def test_batch_import_mixed_statuses(client: TestClient, session: Session) -> No
 
 def test_batch_import_rejects_more_than_fifty_items(client: TestClient) -> None:
     fake_generator = FakeBatchGenerator(outcomes={})
-    app.dependency_overrides[get_card_generator] = lambda: fake_generator
+    app.dependency_overrides[get_openrouter_client] = lambda: fake_generator
 
     resp = client.post(
         "/api/cards/batch",
@@ -407,7 +405,7 @@ def test_batch_import_marks_invalid_rows_without_llm_call(client: TestClient) ->
             "take off": _make_accepted_llm_response("take off"),
         }
     )
-    app.dependency_overrides[get_card_generator] = lambda: fake_generator
+    app.dependency_overrides[get_openrouter_client] = lambda: fake_generator
 
     resp = client.post(
         "/api/cards/batch",
@@ -431,7 +429,7 @@ def test_batch_import_marks_invalid_rows_without_llm_call(client: TestClient) ->
 def test_batch_import_continues_after_upstream_error(client: TestClient) -> None:
     fake_generator = FakeBatchGenerator(
         outcomes={
-            "look up": OpenRouterTimeoutError(
+            "look up": OpenRouterError(
                 "timeout",
                 code="openrouter_timeout",
                 user_message="The language model timed out. Please try again.",
@@ -439,7 +437,7 @@ def test_batch_import_continues_after_upstream_error(client: TestClient) -> None
             "break down": _make_accepted_llm_response("break down", entry_type="expression"),
         }
     )
-    app.dependency_overrides[get_card_generator] = lambda: fake_generator
+    app.dependency_overrides[get_openrouter_client] = lambda: fake_generator
 
     resp = client.post(
         "/api/cards/batch",
@@ -491,12 +489,12 @@ def test_mobile_lookup_created_returns_preview_and_sends_telegram(
         outcomes={"look up": _make_accepted_llm_response("look up")}
     )
     fake_sender = FakeTelegramSender()
-    app.dependency_overrides[get_card_generator] = lambda: fake_generator
+    app.dependency_overrides[get_openrouter_client] = lambda: fake_generator
     app.dependency_overrides[get_telegram_sender] = lambda: fake_sender
 
     resp = client.post(
         "/api/vocab/mobile-lookup",
-        json={"text": "  look   up ", "send_to_telegram": True, "return_preview": True},
+        json={"text": "  look   up ", "send_to_telegram": True},
         headers=mobile_headers(),
     )
 
@@ -519,12 +517,12 @@ def test_mobile_lookup_preview_does_not_send_telegram(client: TestClient) -> Non
         outcomes={"look up": _make_accepted_llm_response("look up")}
     )
     fake_sender = FakeTelegramSender()
-    app.dependency_overrides[get_card_generator] = lambda: fake_generator
+    app.dependency_overrides[get_openrouter_client] = lambda: fake_generator
     app.dependency_overrides[get_telegram_sender] = lambda: fake_sender
 
     resp = client.post(
         "/api/vocab/mobile-lookup",
-        json={"text": "look up", "send_to_telegram": False, "return_preview": True},
+        json={"text": "look up", "send_to_telegram": False},
         headers=mobile_headers(),
     )
 
@@ -539,7 +537,7 @@ def test_mobile_lookup_preview_does_not_send_telegram(client: TestClient) -> Non
 def test_mobile_lookup_invalid_input_skips_llm_and_telegram(client: TestClient) -> None:
     fake_generator = FakeBatchGenerator(outcomes={})
     fake_sender = FakeTelegramSender()
-    app.dependency_overrides[get_card_generator] = lambda: fake_generator
+    app.dependency_overrides[get_openrouter_client] = lambda: fake_generator
     app.dependency_overrides[get_telegram_sender] = lambda: fake_sender
 
     resp = client.post(
@@ -547,7 +545,6 @@ def test_mobile_lookup_invalid_input_skips_llm_and_telegram(client: TestClient) 
         json={
             "text": "one two three four five six seven eight nine",
             "send_to_telegram": True,
-            "return_preview": True,
         },
         headers=mobile_headers(),
     )
@@ -569,19 +566,18 @@ def test_mobile_lookup_rejected_returns_user_message(client: TestClient) -> None
             "random sentence": RejectedLlmResponse.model_validate(
                 {
                     "accepted": False,
-                    "reason": "not_lexical_unit",
                     "message_for_user": "This does not look like a stable lexical unit.",
                 }
             )
         }
     )
     fake_sender = FakeTelegramSender()
-    app.dependency_overrides[get_card_generator] = lambda: fake_generator
+    app.dependency_overrides[get_openrouter_client] = lambda: fake_generator
     app.dependency_overrides[get_telegram_sender] = lambda: fake_sender
 
     resp = client.post(
         "/api/vocab/mobile-lookup",
-        json={"text": "random sentence", "send_to_telegram": True, "return_preview": True},
+        json={"text": "random sentence", "send_to_telegram": True},
         headers=mobile_headers(),
     )
 
@@ -599,7 +595,7 @@ def test_mobile_lookup_rejected_returns_user_message(client: TestClient) -> None
 def test_mobile_lookup_requires_bearer_token(client: TestClient) -> None:
     resp = client.post(
         "/api/vocab/mobile-lookup",
-        json={"text": "look up", "send_to_telegram": False, "return_preview": True},
+        json={"text": "look up", "send_to_telegram": False},
     )
 
     assert resp.status_code == 401

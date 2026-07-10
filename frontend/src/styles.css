@@ -500,10 +500,6 @@ textarea:focus {
   border-color: rgba(164, 70, 57, 0.22);
 }
 
-.state-action {
-  padding-top: 0.45rem;
-}
-
 .pulse-dot {
   width: 0.8rem;
   height: 0.8rem;

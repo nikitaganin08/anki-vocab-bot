@@ -6,19 +6,11 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
-from app.clients.openrouter import (
-    OpenRouterProtocolError,
-    OpenRouterTimeoutError,
-    OpenRouterTransportError,
-)
+from app.clients.openrouter import OpenRouterError
 from app.db.base import Base
 from app.models.card import Card
 from app.schemas.llm import AcceptedLlmResponse, RejectedLlmResponse
-from app.services.card_service import (
-    CardService,
-    CardServiceUpstreamError,
-    normalize_source_text,
-)
+from app.services.card_service import apply_source_text, normalize_source_text
 
 
 @dataclass
@@ -26,6 +18,7 @@ class FakeGenerator:
     result: AcceptedLlmResponse | RejectedLlmResponse | None = None
     error: Exception | None = None
     call_count: int = 0
+    model: str = "test-model"
 
     def generate_card(self, source_text: str) -> AcceptedLlmResponse | RejectedLlmResponse:
         self.call_count += 1
@@ -50,7 +43,6 @@ def session() -> Session:
 def make_accepted_response(**overrides: object) -> AcceptedLlmResponse:
     payload = {
         "accepted": True,
-        "source_text": "take off",
         "source_language": "en",
         "entry_type": "phrasal_verb",
         "canonical_text": "take off",
@@ -64,7 +56,6 @@ def make_accepted_response(**overrides: object) -> AcceptedLlmResponse:
         ],
         "frequency": 4,
         "frequency_note": "Common in everyday English.",
-        "llm_model": "test-model",
     }
     payload.update(overrides)
     return AcceptedLlmResponse.model_validate(payload)
@@ -76,27 +67,15 @@ def test_normalize_source_text() -> None:
 
 def test_card_service_creates_new_card(session: Session) -> None:
     generator = FakeGenerator(result=make_accepted_response(canonical_text="  Take   OFF  "))
-    service = CardService(session=session, generator=generator)
-
-    result = service.apply_source_text("  take   off  ")
+    result = apply_source_text(session, generator, "  take   off  ")
 
     assert result.status == "created"
     assert result.card is not None
     assert result.card.eligible_for_anki is True
+    assert result.card.source_text == "take off"
     assert result.card.canonical_text_normalized == "take off"
     assert result.card.llm_model == "test-model"
     assert generator.call_count == 1
-
-
-def test_card_service_rejects_mismatched_llm_source_text(session: Session) -> None:
-    generator = FakeGenerator(result=make_accepted_response(source_text="take away"))
-    service = CardService(session=session, generator=generator)
-
-    with pytest.raises(CardServiceUpstreamError) as exc_info:
-        service.apply_source_text("take off")
-
-    assert exc_info.value.code == "openrouter_source_text_mismatch"
-    assert session.scalar(select(Card)) is None
 
 
 def test_card_service_returns_duplicate_source_without_llm_call(session: Session) -> None:
@@ -120,9 +99,7 @@ def test_card_service_returns_duplicate_source_without_llm_call(session: Session
     session.refresh(existing)
 
     generator = FakeGenerator(result=make_accepted_response())
-    service = CardService(session=session, generator=generator)
-
-    result = service.apply_source_text("take off")
+    result = apply_source_text(session, generator, "take off")
 
     assert result.status == "duplicate_source"
     assert result.card is not None
@@ -150,15 +127,8 @@ def test_card_service_returns_duplicate_canonical_after_llm_call(session: Sessio
     session.commit()
     session.refresh(existing)
 
-    generator = FakeGenerator(
-        result=make_accepted_response(
-            source_text="take the shoes off",
-            canonical_text="take off",
-        )
-    )
-    service = CardService(session=session, generator=generator)
-
-    result = service.apply_source_text("take the shoes off")
+    generator = FakeGenerator(result=make_accepted_response(canonical_text="take off"))
+    result = apply_source_text(session, generator, "take the shoes off")
 
     assert result.status == "duplicate_canonical"
     assert result.card is not None
@@ -171,62 +141,28 @@ def test_card_service_returns_rejected_without_persisting(session: Session) -> N
         result=RejectedLlmResponse.model_validate(
             {
                 "accepted": False,
-                "reason": "not_lexical_unit",
                 "message_for_user": (
                     "This looks like a free-form phrase, not a stable lexical unit."
                 ),
             }
         )
     )
-    service = CardService(session=session, generator=generator)
-
-    result = service.apply_source_text("this is a sentence")
+    result = apply_source_text(session, generator, "this is a sentence")
 
     assert result.status == "rejected"
     assert result.rejection is not None
     assert session.scalar(select(Card)) is None
 
 
-@pytest.mark.parametrize(
-    ("error", "expected_code"),
-    [
-        (
-            OpenRouterTimeoutError(
-                "timeout",
-                code="openrouter_timeout",
-                user_message="The language model timed out. Please try again.",
-            ),
-            "openrouter_timeout",
-        ),
-        (
-            OpenRouterTransportError(
-                "transport",
-                code="openrouter_transport_error",
-                user_message="The language model is temporarily unavailable. Please try again.",
-            ),
-            "openrouter_transport_error",
-        ),
-        (
-            OpenRouterProtocolError(
-                "protocol",
-                code="openrouter_invalid_contract",
-                user_message=(
-                    "The language model returned an invalid card response. Please try again."
-                ),
-            ),
-            "openrouter_invalid_contract",
-        ),
-    ],
-)
-def test_card_service_surfaces_upstream_errors(
-    session: Session,
-    error: Exception,
-    expected_code: str,
-) -> None:
-    generator = FakeGenerator(error=error)
-    service = CardService(session=session, generator=generator)
+def test_card_service_surfaces_upstream_error(session: Session) -> None:
+    generator = FakeGenerator(
+        error=OpenRouterError(
+            "timeout",
+            code="openrouter_timeout",
+            user_message="The language model timed out. Please try again.",
+        )
+    )
+    with pytest.raises(OpenRouterError) as exc_info:
+        apply_source_text(session, generator, "take off")
 
-    with pytest.raises(CardServiceUpstreamError) as exc_info:
-        service.apply_source_text("take off")
-
-    assert exc_info.value.code == expected_code
+    assert exc_info.value.code == "openrouter_timeout"

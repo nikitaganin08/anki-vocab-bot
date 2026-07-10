@@ -6,14 +6,15 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_card_generator, get_telegram_sender, require_anki_token
+from app.api.deps import get_openrouter_client, get_telegram_sender, require_anki_token
 from app.api.schemas import MobileCardPreview, MobileLookupRequest, MobileLookupResponse
 from app.bot.formatter import format_card_service_result, format_rate_limit_message
 from app.bot.input_validation import validate_source_input
 from app.bot.rate_limiter import InMemoryRateLimiter
+from app.clients.openrouter import OpenRouterClient, OpenRouterError
 from app.clients.telegram import TelegramBotSender, TelegramSendError
 from app.db.session import get_session
-from app.services.card_service import CardGenerator, CardService, CardServiceUpstreamError
+from app.services.card_service import apply_source_text
 
 logger = logging.getLogger(__name__)
 
@@ -24,28 +25,27 @@ router = APIRouter(
 )
 
 SessionDep = Annotated[Session, Depends(get_session)]
-CardGeneratorDep = Annotated[CardGenerator, Depends(get_card_generator)]
+OpenRouterClientDep = Annotated[OpenRouterClient, Depends(get_openrouter_client)]
 TelegramSenderDep = Annotated[TelegramBotSender, Depends(get_telegram_sender)]
 
 _mobile_rate_limiter = InMemoryRateLimiter(limit=5, window_seconds=60.0)
-_MOBILE_RATE_LIMIT_KEY = 0
 
 
 @router.post("/mobile-lookup", response_model=MobileLookupResponse)
 def mobile_lookup(
     payload: MobileLookupRequest,
     session: SessionDep,
-    generator: CardGeneratorDep,
+    openrouter_client: OpenRouterClientDep,
     telegram_sender: TelegramSenderDep,
 ) -> MobileLookupResponse:
-    if not _mobile_rate_limiter.allow_request(_MOBILE_RATE_LIMIT_KEY):
+    if not _mobile_rate_limiter.allow_request():
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=format_rate_limit_message(),
         )
 
     validation = validate_source_input(payload.text)
-    if not validation.ok or validation.normalized_text is None:
+    if validation.normalized_text is None:
         message = validation.error_message or "Invalid input."
         logger.info("mobile lookup rejected invalid input")
         return MobileLookupResponse(
@@ -55,10 +55,9 @@ def mobile_lookup(
             telegram_sent=False,
         )
 
-    service = CardService(session=session, generator=generator)
     try:
-        result = service.apply_source_text(validation.normalized_text)
-    except CardServiceUpstreamError as exc:
+        result = apply_source_text(session, openrouter_client, validation.normalized_text)
+    except OpenRouterError as exc:
         logger.warning("mobile lookup upstream error: %s", exc.code)
         return MobileLookupResponse(
             status="upstream_error",
@@ -90,10 +89,9 @@ def mobile_lookup(
         telegram_sent = True
 
     logger.info("mobile lookup finished: %s", result.status)
-    preview = MobileCardPreview.from_card(result.card) if payload.return_preview else None
     return MobileLookupResponse(
         status=result.status,
         message=message,
-        preview=preview,
+        preview=MobileCardPreview.from_card(result.card),
         telegram_sent=telegram_sent,
     )

@@ -6,36 +6,7 @@ import type {
 import { resolveApiPath } from "../routing";
 import { getTelegramInitData } from "../telegram";
 
-type QueryValue = string | number | boolean | null | undefined;
-type QueryParams = Record<string, QueryValue>;
-
-export class ApiError extends Error {
-  status: number;
-
-  constructor(status: number, message: string) {
-    super(message);
-    this.name = "ApiError";
-    this.status = status;
-  }
-}
-
-function toUrl(path: string, query?: QueryParams): string {
-  const resolvedPath = resolveApiPath(path);
-  if (!query) {
-    return resolvedPath;
-  }
-
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(query)) {
-    if (value === undefined || value === null || value === "") {
-      continue;
-    }
-    params.set(key, String(value));
-  }
-
-  const queryString = params.toString();
-  return queryString ? `${resolvedPath}?${queryString}` : resolvedPath;
-}
+export class ApiError extends Error {}
 
 function buildHeaders(headers: Record<string, string>): Record<string, string> {
   const telegramInitData = getTelegramInitData();
@@ -67,52 +38,9 @@ async function readErrorMessage(response: Response): Promise<string> {
   return `Request failed with status ${response.status}`;
 }
 
-async function getJson<T>(path: string, query?: QueryParams): Promise<T> {
-  const response = await fetch(toUrl(path, query), {
-    headers: buildHeaders({
-      Accept: "application/json",
-    }),
-  });
-
-  if (!response.ok) {
-    throw new ApiError(response.status, await readErrorMessage(response));
-  }
-
-  return (await response.json()) as T;
-}
-
-async function postJson<TResponse, TPayload>(path: string, payload: TPayload): Promise<TResponse> {
-  const response = await fetch(resolveApiPath(path), {
-    method: "POST",
-    headers: buildHeaders({
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    }),
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    throw new ApiError(response.status, await readErrorMessage(response));
-  }
-
-  return (await response.json()) as TResponse;
-}
-
-async function requestNoContent(path: string, method: "DELETE"): Promise<void> {
-  const response = await fetch(resolveApiPath(path), {
-    method,
-    headers: buildHeaders({
-      Accept: "application/json",
-    }),
-  });
-
-  if (!response.ok) {
-    throw new ApiError(response.status, await readErrorMessage(response));
-  }
-}
-
-export function getCards(query: CardsQuery): Promise<CardListResponse> {
-  return getJson<CardListResponse>("/api/cards", {
+export async function getCards(query: CardsQuery): Promise<CardListResponse> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries({
     offset: query.offset,
     limit: query.limit,
     search: query.search,
@@ -120,16 +48,53 @@ export function getCards(query: CardsQuery): Promise<CardListResponse> {
     entry_type: query.entry_type,
     anki_sync_status: query.anki_sync_status,
     eligible_for_anki: query.eligible_for_anki,
+  })) {
+    if (value !== undefined && value !== null && value !== "") {
+      params.set(key, String(value));
+    }
+  }
+
+  const response = await fetch(`${resolveApiPath("/api/cards")}?${params}`, {
+    headers: buildHeaders({
+      Accept: "application/json",
+    }),
   });
+
+  if (!response.ok) {
+    throw new ApiError(await readErrorMessage(response));
+  }
+
+  return (await response.json()) as CardListResponse;
 }
 
-export function deleteCard(cardId: number): Promise<void> {
-  return requestNoContent(`/api/cards/${cardId}`, "DELETE");
+export async function importCardsBatch(
+  source_texts: string[],
+): Promise<CardBatchImportResponse> {
+  const response = await fetch(resolveApiPath("/api/cards/batch"), {
+    method: "POST",
+    headers: buildHeaders({
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify({ source_texts }),
+  });
+
+  if (!response.ok) {
+    throw new ApiError(await readErrorMessage(response));
+  }
+
+  return (await response.json()) as CardBatchImportResponse;
 }
 
-export function importCardsBatch(source_texts: string[]): Promise<CardBatchImportResponse> {
-  return postJson<CardBatchImportResponse, { source_texts: string[] }>(
-    "/api/cards/batch",
-    { source_texts },
-  );
+export async function deleteCard(cardId: number): Promise<void> {
+  const response = await fetch(resolveApiPath(`/api/cards/${cardId}`), {
+    method: "DELETE",
+    headers: buildHeaders({
+      Accept: "application/json",
+    }),
+  });
+
+  if (!response.ok) {
+    throw new ApiError(await readErrorMessage(response));
+  }
 }

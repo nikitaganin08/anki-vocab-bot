@@ -7,16 +7,13 @@ import pytest
 
 from app.clients.openrouter import (
     OpenRouterClient,
-    OpenRouterProtocolError,
-    OpenRouterTimeoutError,
-    OpenRouterTransportError,
+    OpenRouterError,
 )
 from app.schemas.description_lookup import FoundDescriptionLookupResponse
 
 VALID_COMPLETION_CONTENT = json.dumps(
     {
         "accepted": True,
-        "source_text": "take off",
         "source_language": "en",
         "entry_type": "phrasal_verb",
         "canonical_text": "take off",
@@ -30,7 +27,6 @@ VALID_COMPLETION_CONTENT = json.dumps(
         ],
         "frequency": 5,
         "frequency_note": "Common in spoken English.",
-        "llm_model": "test-model",
     }
 )
 VALID_DESCRIPTION_LOOKUP_CONTENT = json.dumps(
@@ -67,13 +63,15 @@ def test_openrouter_client_raises_transport_error_for_http_failure() -> None:
         http_client=httpx.Client(transport=httpx.MockTransport(handler)),
     )
 
-    with pytest.raises(OpenRouterTransportError):
+    with pytest.raises(OpenRouterError) as exc_info:
         client.generate_card("take off")
+
+    assert exc_info.value.code == "openrouter_transport_error"
 
 
 def test_openrouter_client_raises_protocol_error_for_invalid_contract() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
-        invalid_content = json.dumps({"accepted": True, "source_text": "take off"})
+        invalid_content = json.dumps({"accepted": True})
         return httpx.Response(200, json={"choices": [{"message": {"content": invalid_content}}]})
 
     client = OpenRouterClient(
@@ -82,8 +80,10 @@ def test_openrouter_client_raises_protocol_error_for_invalid_contract() -> None:
         http_client=httpx.Client(transport=httpx.MockTransport(handler)),
     )
 
-    with pytest.raises(OpenRouterProtocolError):
+    with pytest.raises(OpenRouterError) as exc_info:
         client.generate_card("take off")
+
+    assert exc_info.value.code == "openrouter_invalid_contract"
 
 
 def test_openrouter_client_raises_timeout_error() -> None:
@@ -97,8 +97,10 @@ def test_openrouter_client_raises_timeout_error() -> None:
         http_client=TimeoutClient(),  # type: ignore[arg-type]
     )
 
-    with pytest.raises(OpenRouterTimeoutError):
+    with pytest.raises(OpenRouterError) as exc_info:
         client.generate_card("take off")
+
+    assert exc_info.value.code == "openrouter_timeout"
 
 
 def test_openrouter_client_parses_description_lookup_response() -> None:

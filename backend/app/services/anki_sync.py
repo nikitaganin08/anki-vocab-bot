@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
 
-from app.clients.anki_connect import AnkiConnectError, AnkiNotePayload
-from app.clients.backend_sync_api import BackendSyncApiError, PendingCard
+from app.clients.anki_connect import AnkiConnectClient, AnkiConnectError, AnkiNotePayload
+from app.clients.backend_sync_api import BackendSyncApiClient, BackendSyncApiError, PendingCard
 from app.services.pronunciation import (
+    EdgeTtsPronunciationGenerator,
     PronunciationAudioError,
     build_pronunciation_filename,
     build_pronunciation_sound_field,
@@ -21,26 +21,6 @@ class SyncSummary:
     total: int = 0
     synced: int = 0
     failed: int = 0
-
-
-class BackendSyncGateway(Protocol):
-    def get_pending(self, limit: int = 50) -> list[PendingCard]: ...
-
-    def ack(self, card_id: int, anki_note_id: int) -> None: ...
-
-    def fail(self, card_id: int, error_message: str) -> None: ...
-
-
-class AnkiGateway(Protocol):
-    def find_notes_by_tag(self, tag: str) -> list[int]: ...
-
-    def store_media_file(self, filename: str, data: bytes) -> None: ...
-
-    def add_note(self, payload: AnkiNotePayload) -> int: ...
-
-
-class PronunciationGateway(Protocol):
-    def generate_audio(self, text: str) -> bytes: ...
 
 
 def build_card_tag(card_id: int) -> str:
@@ -68,9 +48,9 @@ def map_card_to_anki_payload(card: PendingCard, *, pronunciation_field: str) -> 
 
 def sync_pending_cards(
     *,
-    backend_client: BackendSyncGateway,
-    anki_client: AnkiGateway,
-    pronunciation_generator: PronunciationGateway,
+    backend_client: BackendSyncApiClient,
+    anki_client: AnkiConnectClient,
+    pronunciation_generator: EdgeTtsPronunciationGenerator,
     limit: int = 50,
 ) -> SyncSummary:
     pending_cards = backend_client.get_pending(limit=limit)
@@ -107,7 +87,7 @@ def sync_pending_cards(
     return summary
 
 
-def _report_failure(backend_client: BackendSyncGateway, card_id: int, message: str) -> None:
+def _report_failure(backend_client: BackendSyncApiClient, card_id: int, message: str) -> None:
     try:
         backend_client.fail(card_id, message)
     except BackendSyncApiError as exc:

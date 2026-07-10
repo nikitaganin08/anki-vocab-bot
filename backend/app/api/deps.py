@@ -5,11 +5,10 @@ from typing import Annotated
 from fastapi import Header, HTTPException, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.api.telegram_webapp_auth import TelegramWebAppUser, parse_and_validate_init_data
+from app.api.telegram_webapp_auth import parse_and_validate_init_data
 from app.clients.openrouter import OpenRouterClient
 from app.clients.telegram import TelegramBotSender
 from app.core.config import get_settings
-from app.services.card_service import CardGenerator
 
 _bearer = HTTPBearer()
 
@@ -22,7 +21,7 @@ def require_anki_token(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid token")
 
 
-def get_card_generator() -> CardGenerator:
+def get_openrouter_client() -> OpenRouterClient:
     settings = get_settings()
     if not settings.openrouter_api_key:
         raise HTTPException(
@@ -55,7 +54,7 @@ def require_telegram_webapp_user(
         str | None,
         Header(alias="X-Telegram-Init-Data"),
     ] = None,
-) -> TelegramWebAppUser:
+) -> int:
     if not telegram_init_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

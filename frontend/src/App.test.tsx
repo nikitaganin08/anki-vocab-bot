@@ -113,9 +113,9 @@ describe("App", () => {
     expect((await screen.findAllByText("take off")).length).toBeGreaterThan(0);
   });
 
-  it("keeps cards route working behind an external prefix and sends Telegram auth", async () => {
+  it("renders the cards page at any path behind an external prefix and sends Telegram auth", async () => {
     setTelegramWebApp("telegram-init-data");
-    window.history.pushState({}, "", "/anki/telegram/webapp/cards");
+    window.history.pushState({}, "", "/anki/telegram/webapp/anything");
 
     render(<App />);
 

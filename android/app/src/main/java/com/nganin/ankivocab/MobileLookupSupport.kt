@@ -24,7 +24,6 @@ object MobileLookupSupport {
         return JSONObject()
             .put("text", text)
             .put("send_to_telegram", sendToTelegram)
-            .put("return_preview", true)
             .toString()
     }
 

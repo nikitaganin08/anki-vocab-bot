@@ -25,18 +25,6 @@ class OpenRouterError(RuntimeError):
         self.user_message = user_message
 
 
-class OpenRouterTransportError(OpenRouterError):
-    pass
-
-
-class OpenRouterTimeoutError(OpenRouterError):
-    pass
-
-
-class OpenRouterProtocolError(OpenRouterError):
-    pass
-
-
 @dataclass(slots=True)
 class OpenRouterClient:
     api_key: str
@@ -114,13 +102,13 @@ class OpenRouterClient:
             response = client.post(url, json=payload, headers=headers)
             response.raise_for_status()
         except httpx.TimeoutException as exc:
-            raise OpenRouterTimeoutError(
+            raise OpenRouterError(
                 "OpenRouter request timed out",
                 code="openrouter_timeout",
                 user_message="The language model timed out. Please try again.",
             ) from exc
         except httpx.HTTPError as exc:
-            raise OpenRouterTransportError(
+            raise OpenRouterError(
                 "OpenRouter request failed",
                 code="openrouter_transport_error",
                 user_message="The language model is temporarily unavailable. Please try again.",
@@ -138,7 +126,7 @@ class OpenRouterClient:
         try:
             payload = response.json()
         except json.JSONDecodeError as exc:
-            raise OpenRouterProtocolError(
+            raise OpenRouterError(
                 "OpenRouter returned non-JSON response",
                 code="openrouter_non_json",
                 user_message=(
@@ -149,7 +137,7 @@ class OpenRouterClient:
         try:
             content = payload["choices"][0]["message"]["content"]
         except (IndexError, KeyError, TypeError) as exc:
-            raise OpenRouterProtocolError(
+            raise OpenRouterError(
                 "OpenRouter payload is missing message content",
                 code="openrouter_missing_content",
                 user_message=(
@@ -160,7 +148,7 @@ class OpenRouterClient:
         try:
             return response_parser(self._extract_content(content))
         except ValueError as exc:
-            raise OpenRouterProtocolError(
+            raise OpenRouterError(
                 "OpenRouter payload did not contain valid contract JSON",
                 code="openrouter_invalid_contract",
                 user_message=invalid_contract_user_message,

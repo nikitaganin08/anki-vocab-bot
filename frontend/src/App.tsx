@@ -1,8 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter } from "react-router-dom";
 
-import { AdminLayout } from "./components/AdminLayout";
 import { EmptyState } from "./components/PageState";
 import { CardsPage } from "./pages/CardsPage";
 import { resolveWebAppBasename } from "./routing";
@@ -40,13 +39,20 @@ export function App(): JSX.Element {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter basename={resolveWebAppBasename()}>
-        <Routes>
-          <Route path="/" element={<AdminLayout />}>
-            <Route index element={<CardsPage />} />
-            <Route path="cards" element={<CardsPage />} />
-          </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <div className="admin-shell">
+          <header className="app-header">
+            <div className="brand-block">
+              <p className="eyebrow">anki-vocab-bot</p>
+              <h1>Telegram Dictionary Panel</h1>
+            </div>
+
+            <p className="eyebrow">Manage cards inside Telegram</p>
+          </header>
+
+          <main className="page-shell">
+            <CardsPage />
+          </main>
+        </div>
       </BrowserRouter>
     </QueryClientProvider>
   );

@@ -15,14 +15,10 @@ from app.bot.handler import (
     TelegramTextHandler,
 )
 from app.bot.rate_limiter import InMemoryRateLimiter
-from app.clients.openrouter import (
-    OpenRouterClient,
-    OpenRouterError,
-)
+from app.clients.openrouter import OpenRouterClient
 from app.core.config import get_settings
 from app.db.session import SessionLocal
-from app.schemas.description_lookup import DescriptionLookupResponse
-from app.services.card_service import CardService, CardServiceResult, CardServiceUpstreamError
+from app.services.card_service import CardServiceResult, apply_source_text
 
 MODEL_MODULES = (anki_sync_attempt_model, card_model)
 
@@ -35,28 +31,11 @@ class BotRuntime:
 
 
 def _build_apply_source_text(client: OpenRouterClient) -> Callable[[str], CardServiceResult]:
-    def apply_source_text(source_text: str) -> CardServiceResult:
+    def process_source_text(source_text: str) -> CardServiceResult:
         with SessionLocal() as session:
-            service = CardService(session=session, generator=client)
-            return service.apply_source_text(source_text)
+            return apply_source_text(session, client, source_text)
 
-    return apply_source_text
-
-
-def _build_lookup_candidates_from_description(
-    client: OpenRouterClient,
-) -> Callable[[str], DescriptionLookupResponse]:
-    def lookup_candidates_from_description(description: str) -> DescriptionLookupResponse:
-        try:
-            return client.lookup_candidates_from_description(description)
-        except OpenRouterError as exc:
-            raise CardServiceUpstreamError(
-                "LLM lookup failed",
-                code=exc.code,
-                user_message=exc.user_message,
-            ) from exc
-
-    return lookup_candidates_from_description
+    return process_source_text
 
 
 def build_bot_router(
@@ -105,9 +84,7 @@ def build_bot_runtime() -> BotRuntime:
     )
     description_lookup_handler = TelegramDescriptionLookupHandler(
         allowed_user_id=settings.telegram_allowed_user_id,
-        lookup_candidates_from_description=_build_lookup_candidates_from_description(
-            openrouter_client
-        ),
+        lookup_candidates_from_description=openrouter_client.lookup_candidates_from_description,
         rate_limiter=rate_limiter,
     )
     admin_handler = TelegramAdminWebAppHandler(

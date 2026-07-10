@@ -29,18 +29,6 @@ class BackendSyncApiError(RuntimeError):
         self.user_message = user_message
 
 
-class BackendSyncApiTransportError(BackendSyncApiError):
-    pass
-
-
-class BackendSyncApiTimeoutError(BackendSyncApiError):
-    pass
-
-
-class BackendSyncApiProtocolError(BackendSyncApiError):
-    pass
-
-
 @dataclass(slots=True)
 class BackendSyncApiClient:
     base_url: str
@@ -53,7 +41,7 @@ class BackendSyncApiClient:
         try:
             return PENDING_CARDS_ADAPTER.validate_python(payload)
         except ValidationError as exc:
-            raise BackendSyncApiProtocolError(
+            raise BackendSyncApiError(
                 "Pending response does not match the expected schema",
                 code="backend_sync_invalid_pending",
                 user_message="Backend pending payload is invalid.",
@@ -126,20 +114,20 @@ class BackendSyncApiClient:
         try:
             response = client.request(method, url, headers=headers, params=params, json=json)
         except httpx.TimeoutException as exc:
-            raise BackendSyncApiTimeoutError(
+            raise BackendSyncApiError(
                 "Backend sync API request timed out",
                 code="backend_sync_timeout",
                 user_message="Backend sync API timed out.",
             ) from exc
         except httpx.HTTPError as exc:
-            raise BackendSyncApiTransportError(
+            raise BackendSyncApiError(
                 "Backend sync API request failed",
                 code="backend_sync_transport",
                 user_message="Backend sync API is unavailable.",
             ) from exc
 
         if response.status_code >= 400:
-            raise BackendSyncApiTransportError(
+            raise BackendSyncApiError(
                 f"Backend sync API returned status {response.status_code}",
                 code="backend_sync_http_error",
                 user_message=f"Backend sync API rejected the request with {response.status_code}.",
@@ -151,7 +139,7 @@ class BackendSyncApiClient:
         try:
             return response.json()
         except ValueError as exc:
-            raise BackendSyncApiProtocolError(
+            raise BackendSyncApiError(
                 "Backend sync API returned non-JSON payload",
                 code="backend_sync_non_json",
                 user_message="Backend sync API returned unreadable payload.",

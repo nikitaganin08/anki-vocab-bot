@@ -11,18 +11,17 @@ class InMemoryRateLimiter:
     limit: int = 5
     window_seconds: float = 60.0
     clock: Callable[[], float] = monotonic
-    _hits: dict[int, deque[float]] = field(default_factory=dict)
+    _hits: deque[float] = field(default_factory=deque)
 
-    def allow_request(self, user_id: int) -> bool:
+    def allow_request(self) -> bool:
         now = self.clock()
-        hits = self._hits.setdefault(user_id, deque())
         threshold = now - self.window_seconds
 
-        while hits and hits[0] <= threshold:
-            hits.popleft()
+        while self._hits and self._hits[0] <= threshold:
+            self._hits.popleft()
 
-        if len(hits) >= self.limit:
+        if len(self._hits) >= self.limit:
             return False
 
-        hits.append(now)
+        self._hits.append(now)
         return True

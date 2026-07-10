@@ -20,14 +20,14 @@ def test_parse_and_validate_init_data_accepts_allowed_user() -> None:
         query_id="AAEAAAE",
     )
 
-    user = parse_and_validate_init_data(
+    user_id = parse_and_validate_init_data(
         init_data,
         bot_token=BOT_TOKEN,
         allowed_user_id=ALLOWED_USER_ID,
         now=1_700_000_100,
     )
 
-    assert user.id == ALLOWED_USER_ID
+    assert user_id == ALLOWED_USER_ID
 
 
 def test_parse_and_validate_init_data_rejects_bad_signature() -> None:

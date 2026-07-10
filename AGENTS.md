@@ -100,10 +100,11 @@ The app receives words and stable expressions from Telegram, generates learning 
 ## LLM Contract
 
 The backend expects a structured JSON response from OpenRouter.
+The backend stores the original request as `source_text` and the configured client model as
+`llm_model`; the LLM does not echo either field.
 
 Accepted result:
 - `accepted = true`
-- `source_text`
 - `source_language`
 - `entry_type`
 - `canonical_text`
@@ -113,11 +114,9 @@ Accepted result:
 - `examples`
 - `frequency`
 - `frequency_note`
-- `llm_model`
 
 Rejected result:
 - `accepted = false`
-- `reason`
 - `message_for_user`
 
 Validation rules:

@@ -78,7 +78,6 @@ def _example_references_canonical(example: str, canonical_tokens: set[str]) -> b
 
 class AcceptedLlmResponse(BaseModel):
     accepted: Literal[True]
-    source_text: str
     source_language: SourceLanguage
     entry_type: EntryType
     canonical_text: str
@@ -90,17 +89,8 @@ class AcceptedLlmResponse(BaseModel):
     examples: list[str] = Field(min_length=3, max_length=3)
     frequency: int = Field(ge=0, le=10)
     frequency_note: str | None = None
-    llm_model: str
 
     model_config = ConfigDict(extra="forbid")
-
-    @field_validator("source_text", "llm_model")
-    @classmethod
-    def validate_non_empty_text(cls, value: str) -> str:
-        normalized = _normalize_whitespace(value)
-        if not normalized:
-            raise ValueError("value must not be empty")
-        return normalized
 
     @field_validator("canonical_text")
     @classmethod
@@ -140,22 +130,18 @@ class AcceptedLlmResponse(BaseModel):
     @model_validator(mode="after")
     def validate_contract_semantics(self) -> "AcceptedLlmResponse":
         canonical_text_casefolded = self.canonical_text.casefold()
-        if (
-            self.entry_type in {EntryType.WORD, EntryType.PHRASAL_VERB}
-            and canonical_text_casefolded.startswith("to ")
-        ):
-            raise ValueError(
-                "canonical_text for words and phrasal verbs must not start with 'to '"
-            )
+        if self.entry_type in {
+            EntryType.WORD,
+            EntryType.PHRASAL_VERB,
+        } and canonical_text_casefolded.startswith("to "):
+            raise ValueError("canonical_text for words and phrasal verbs must not start with 'to '")
 
         raw_canonical_tokens = _extract_english_tokens(self.canonical_text)
         if len(raw_canonical_tokens) < 2:
             return self
 
         canonical_tokens = {
-            token
-            for token in raw_canonical_tokens
-            if token not in CANONICAL_STOPWORDS
+            token for token in raw_canonical_tokens if token not in CANONICAL_STOPWORDS
         }
         if not canonical_tokens:
             return self
@@ -173,12 +159,11 @@ class AcceptedLlmResponse(BaseModel):
 
 class RejectedLlmResponse(BaseModel):
     accepted: Literal[False]
-    reason: str
     message_for_user: str
 
     model_config = ConfigDict(extra="forbid")
 
-    @field_validator("reason", "message_for_user")
+    @field_validator("message_for_user")
     @classmethod
     def validate_non_empty_text(cls, value: str) -> str:
         normalized = _normalize_whitespace(value)

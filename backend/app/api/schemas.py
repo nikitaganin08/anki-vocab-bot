@@ -101,7 +101,6 @@ class CardBatchImportResponse(BaseModel):
 class MobileLookupRequest(BaseModel):
     text: str
     send_to_telegram: bool = False
-    return_preview: bool = True
 
 
 class MobileCardPreview(BaseModel):

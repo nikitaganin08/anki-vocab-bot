@@ -9,7 +9,6 @@ def test_parse_llm_response_accepts_valid_payload() -> None:
     result = parse_llm_response(
         {
             "accepted": True,
-            "source_text": "take off",
             "source_language": "en",
             "entry_type": "phrasal_verb",
             "canonical_text": "take off",
@@ -23,7 +22,6 @@ def test_parse_llm_response_accepts_valid_payload() -> None:
             ],
             "frequency": 5,
             "frequency_note": "Common in spoken English.",
-            "llm_model": "test-model",
         }
     )
 
@@ -35,7 +33,6 @@ def test_parse_llm_response_accepts_russian_source_with_same_contract() -> None:
     result = parse_llm_response(
         {
             "accepted": True,
-            "source_text": "взлетать",
             "source_language": "ru",
             "entry_type": "word",
             "canonical_text": "take off",
@@ -49,7 +46,6 @@ def test_parse_llm_response_accepts_russian_source_with_same_contract() -> None:
             ],
             "frequency": 5,
             "frequency_note": "Common in aviation contexts.",
-            "llm_model": "test-model",
         }
     )
 
@@ -63,7 +59,6 @@ def test_parse_llm_response_rejects_invalid_translation_count() -> None:
         parse_llm_response(
             {
                 "accepted": True,
-                "source_text": "take off",
                 "source_language": "en",
                 "entry_type": "phrasal_verb",
                 "canonical_text": "take off",
@@ -77,7 +72,6 @@ def test_parse_llm_response_rejects_invalid_translation_count() -> None:
                 ],
                 "frequency": 5,
                 "frequency_note": "Common in spoken English.",
-                "llm_model": "test-model",
             }
         )
 
@@ -87,7 +81,6 @@ def test_parse_llm_response_rejects_duplicate_translation_variants() -> None:
         parse_llm_response(
             {
                 "accepted": True,
-                "source_text": "take off",
                 "source_language": "en",
                 "entry_type": "phrasal_verb",
                 "canonical_text": "take off",
@@ -101,7 +94,6 @@ def test_parse_llm_response_rejects_duplicate_translation_variants() -> None:
                 ],
                 "frequency": 5,
                 "frequency_note": "Common in spoken English.",
-                "llm_model": "test-model",
             }
         )
 
@@ -111,7 +103,6 @@ def test_parse_llm_response_rejects_infinitive_marker_in_phrasal_verb_canonical(
         parse_llm_response(
             {
                 "accepted": True,
-                "source_text": "разгребать",
                 "source_language": "ru",
                 "entry_type": "phrasal_verb",
                 "canonical_text": "to shovel away",
@@ -125,7 +116,6 @@ def test_parse_llm_response_rejects_infinitive_marker_in_phrasal_verb_canonical(
                 ],
                 "frequency": 5,
                 "frequency_note": "Common in literal contexts.",
-                "llm_model": "test-model",
             }
         )
 
@@ -135,7 +125,6 @@ def test_parse_llm_response_rejects_examples_not_aligned_with_canonical_text() -
         parse_llm_response(
             {
                 "accepted": True,
-                "source_text": "разгребать",
                 "source_language": "ru",
                 "entry_type": "phrasal_verb",
                 "canonical_text": "shovel away",
@@ -149,7 +138,6 @@ def test_parse_llm_response_rejects_examples_not_aligned_with_canonical_text() -
                 ],
                 "frequency": 6,
                 "frequency_note": "Used in literal and figurative contexts.",
-                "llm_model": "test-model",
             }
         )
 
@@ -158,7 +146,6 @@ def test_parse_llm_response_accepts_single_word_with_irregular_inflections_in_ex
     result = parse_llm_response(
         {
             "accepted": True,
-            "source_text": "идти",
             "source_language": "ru",
             "entry_type": "word",
             "canonical_text": "go",
@@ -172,7 +159,6 @@ def test_parse_llm_response_accepts_single_word_with_irregular_inflections_in_ex
             ],
             "frequency": 9,
             "frequency_note": "Very common.",
-            "llm_model": "test-model",
         }
     )
 
@@ -185,7 +171,6 @@ def test_parse_llm_response_rejects_cyrillic_in_english_fields() -> None:
         parse_llm_response(
             {
                 "accepted": True,
-                "source_text": "take off",
                 "source_language": "en",
                 "entry_type": "phrasal_verb",
                 "canonical_text": "взлетать",
@@ -199,7 +184,6 @@ def test_parse_llm_response_rejects_cyrillic_in_english_fields() -> None:
                 ],
                 "frequency": 5,
                 "frequency_note": "Common in spoken English.",
-                "llm_model": "test-model",
             }
         )
 

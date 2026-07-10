@@ -34,14 +34,14 @@ class MobileLookupSupportTest {
     }
 
     @Test
-    fun buildsMobileLookupBodyWithEscapedTextAndPreviewFlag() {
+    fun buildsMobileLookupBodyWithEscapedText() {
         val result = JSONObject(
             MobileLookupSupport.mobileLookupBody("say \"hi\"\nnow", sendToTelegram = true),
         )
 
         assertEquals("say \"hi\"\nnow", result.getString("text"))
         assertEquals(true, result.getBoolean("send_to_telegram"))
-        assertEquals(true, result.getBoolean("return_preview"))
+        assertEquals(2, result.length())
     }
 
     @Test

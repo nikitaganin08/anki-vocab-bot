@@ -449,11 +449,7 @@ export function CardsPage(): JSX.Element {
           {deleteMutation.isError ? (
             <ErrorState
               title="Delete failed"
-              error={
-                deleteMutation.error instanceof ApiError
-                  ? new Error(deleteMutation.error.message)
-                  : (deleteMutation.error as Error)
-              }
+              error={deleteMutation.error}
             />
           ) : null}
 

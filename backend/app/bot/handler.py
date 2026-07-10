@@ -14,8 +14,9 @@ from app.bot.formatter import (
 )
 from app.bot.input_validation import validate_description_input, validate_source_input
 from app.bot.rate_limiter import InMemoryRateLimiter
+from app.clients.openrouter import OpenRouterError
 from app.schemas.description_lookup import DescriptionLookupResponse, FoundDescriptionLookupResponse
-from app.services.card_service import CardServiceResult, CardServiceUpstreamError
+from app.services.card_service import CardServiceResult
 
 
 @dataclass(slots=True)
@@ -32,22 +33,23 @@ class TelegramTextHandler:
         if self._is_command_text(getattr(message, "text", None)):
             return
 
-        if not self.rate_limiter.allow_request(user_id):
+        if not self.rate_limiter.allow_request():
             await message.answer(format_rate_limit_message())
             return
 
         validation = validate_source_input(message.text or "")
-        if not validation.ok or validation.normalized_text is None:
+        if validation.normalized_text is None:
             await message.answer(validation.error_message or "Invalid input.")
             return
 
         try:
             result = await asyncio.to_thread(self.apply_source_text, validation.normalized_text)
-        except CardServiceUpstreamError as exc:
+        except OpenRouterError as exc:
             await message.answer(exc.user_message)
             return
 
-        await self._reply_from_result(message, result)
+        text, parse_mode = format_card_service_result(result)
+        await message.answer(text, parse_mode=parse_mode)
 
     @staticmethod
     def _is_command_text(text: str | None) -> bool:
@@ -62,11 +64,6 @@ class TelegramTextHandler:
             return None
         return getattr(from_user, "id", None)
 
-    @staticmethod
-    async def _reply_from_result(message: Any, result: CardServiceResult) -> None:
-        text, parse_mode = format_card_service_result(result)
-        await message.answer(text, parse_mode=parse_mode)
-
 
 @dataclass
 class TelegramDescriptionLookupHandler:
@@ -79,13 +76,13 @@ class TelegramDescriptionLookupHandler:
         if user_id is None or user_id != self.allowed_user_id:
             return
 
-        if not self.rate_limiter.allow_request(user_id):
+        if not self.rate_limiter.allow_request():
             await message.answer(format_rate_limit_message())
             return
 
         description = self._extract_description_argument(getattr(message, "text", None))
         validation = validate_description_input(description)
-        if not validation.ok or validation.normalized_text is None:
+        if validation.normalized_text is None:
             await message.answer(validation.error_message or "Invalid input.")
             return
 
@@ -94,7 +91,7 @@ class TelegramDescriptionLookupHandler:
                 self.lookup_candidates_from_description,
                 validation.normalized_text,
             )
-        except CardServiceUpstreamError as exc:
+        except OpenRouterError as exc:
             await message.answer(exc.user_message)
             return
 
