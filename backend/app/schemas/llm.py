@@ -103,7 +103,7 @@ class AcceptedLlmResponse(BaseModel):
     # Contract semantics: index 0 is the primary Russian translation,
     # remaining items are Russian synonyms/near-synonymous variants.
     translation_variants: list[str] = Field(min_length=2, max_length=3)
-    word_family: list[WordFamilyItem] = Field(default_factory=list, max_length=5)
+    word_family: list[WordFamilyItem] = Field(default_factory=list, max_length=3)
     explanation: str
     examples: list[str] = Field(min_length=3, max_length=3)
     frequency: int = Field(ge=0, le=10)

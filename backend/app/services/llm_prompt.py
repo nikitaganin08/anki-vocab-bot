@@ -48,7 +48,7 @@ Rules:
 - translation_variants[1..] must be Russian synonyms or near-synonymous variants
   of the primary translation.
 - Preserve translation_variants ordering: primary translation first, then synonyms/variants.
-- word_family must contain 0 to 5 established English derivational forms related to canonical_text.
+- word_family must contain 0 to 3 established English derivational forms related to canonical_text.
 - Each word_family item must include the English word, its part of speech, and
   a Russian translation.
 - Do not include canonical_text itself, ordinary tense/plural forms, invented
