@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from typing import Any
 
 import httpx
-from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
+
+from app.schemas.llm import WordFamilyItem
 
 
 class PendingCard(BaseModel):
@@ -13,6 +15,7 @@ class PendingCard(BaseModel):
     canonical_text_normalized: str
     transcription: str | None
     translation_variants: list[str]
+    word_family: list[WordFamilyItem] = Field(default_factory=list)
     explanation: str
     examples: list[str]
 
@@ -38,13 +41,25 @@ class BackendSyncApiClient:
 
     def get_pending(self, limit: int = 50) -> list[PendingCard]:
         payload = self._request("GET", "/api/anki/pending", params={"limit": limit})
+        return self._parse_cards(payload, "pending")
+
+    def get_eligible(self, *, limit: int = 50, offset: int = 0) -> list[PendingCard]:
+        payload = self._request(
+            "GET",
+            "/api/anki/cards",
+            params={"limit": limit, "offset": offset},
+        )
+        return self._parse_cards(payload, "eligible")
+
+    @staticmethod
+    def _parse_cards(payload: Any, payload_name: str) -> list[PendingCard]:
         try:
             return PENDING_CARDS_ADAPTER.validate_python(payload)
         except ValidationError as exc:
             raise BackendSyncApiError(
-                "Pending response does not match the expected schema",
-                code="backend_sync_invalid_pending",
-                user_message="Backend pending payload is invalid.",
+                f"{payload_name.capitalize()} response does not match the expected schema",
+                code=f"backend_sync_invalid_{payload_name}",
+                user_message=f"Backend {payload_name} payload is invalid.",
             ) from exc
 
     def ack(self, card_id: int, anki_note_id: int) -> None:

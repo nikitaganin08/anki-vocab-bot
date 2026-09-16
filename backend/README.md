@@ -8,6 +8,8 @@ Useful local commands:
 - `uv run python -m app.scripts.sync_anki --limit 50` for one sync pass.
 - `uv run python -m app.scripts.backfill_word_family --limit 10` to fill missing
   word-family forms for existing cards.
+- `uv run python -m app.scripts.rebuild_anki_examples --limit 50` to update
+  existing Anki notes after the word-family backfill.
 
 Webhook mode:
 - Telegram delivers updates to `POST /telegram/webhook`.
@@ -40,6 +42,11 @@ Idempotency policy:
 - if found, sync acknowledges the existing note id instead of creating duplicate
 - pronunciation audio is generated locally during sync and uploaded to Anki media as
   `avb-pronunciation-<card_id>.mp3`
+
+The rebuild command is separate from the regular sync: it finds existing notes by
+their `avb-card-<card_id>` tag and updates only the `Example` field. It does not
+call the LLM, so rebuilding Anki notes has no additional model cost. Run it locally
+with Anki and AnkiConnect available after the backend word-family backfill.
 
 ## Docker
 

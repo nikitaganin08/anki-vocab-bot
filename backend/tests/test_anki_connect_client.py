@@ -114,6 +114,19 @@ def test_find_notes_by_tag_success() -> None:
     assert client.find_notes_by_tag("avb-card-7") == [777]
 
 
+def test_update_note_fields_success() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = request.read().decode("utf-8")
+        assert '"action":"updateNoteFields"' in payload
+        assert '"id":777' in payload
+        assert '"Example":"Updated example"' in payload
+        return httpx.Response(200, json={"result": None, "error": None})
+
+    client = AnkiConnectClient(http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+    client.update_note_fields(777, {"Example": "Updated example"})
+
+
 def test_get_version_success() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         payload = request.read().decode("utf-8")

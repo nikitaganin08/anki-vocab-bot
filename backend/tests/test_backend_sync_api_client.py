@@ -66,6 +66,44 @@ def test_get_pending_raises_protocol_error_for_invalid_payload() -> None:
     assert exc_info.value.code == "backend_sync_invalid_pending"
 
 
+def test_get_eligible_parses_cards_with_offset() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/anki/cards"
+        assert request.url.params["limit"] == "5"
+        assert request.url.params["offset"] == "10"
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "id": 1,
+                    "canonical_text": "Accommodate",
+                    "canonical_text_normalized": "accommodate",
+                    "transcription": None,
+                    "translation_variants": ["размещать", "приспосабливать"],
+                    "word_family": [
+                        {
+                            "word": "accommodation",
+                            "part_of_speech": "noun",
+                            "translation": "размещение",
+                        }
+                    ],
+                    "explanation": "To provide space for someone.",
+                    "examples": ["The room accommodates two people."],
+                }
+            ],
+        )
+
+    client = BackendSyncApiClient(
+        base_url="http://localhost:8000",
+        token="sync-token",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    cards = client.get_eligible(limit=5, offset=10)
+
+    assert cards[0].word_family[0].word == "accommodation"
+
+
 def test_ack_posts_payload() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/api/anki/ack"

@@ -86,6 +86,17 @@ class AnkiConnectClient:
             )
         return result
 
+    def update_note_fields(self, note_id: int, fields: dict[str, str]) -> None:
+        self._request_with_retry(
+            "updateNoteFields",
+            {
+                "note": {
+                    "id": note_id,
+                    "fields": fields,
+                }
+            },
+        )
+
     def store_media_file(self, filename: str, data: bytes) -> None:
         encoded_data = base64.b64encode(data).decode("ascii")
         result = self._request_with_retry(

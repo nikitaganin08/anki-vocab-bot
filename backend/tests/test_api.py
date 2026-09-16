@@ -741,6 +741,41 @@ def test_anki_pending_limit(authed_client: TestClient, session: Session) -> None
     assert len(resp.json()) == 3
 
 
+def test_anki_cards_includes_synced_eligible_cards(
+    authed_client: TestClient,
+    session: Session,
+) -> None:
+    session.add(
+        _make_card(
+            eligible_for_anki=True,
+            anki_sync_status=AnkiSyncStatus.SYNCED,
+            canonical_text_normalized="synced word",
+        )
+    )
+    session.add(
+        _make_card(
+            eligible_for_anki=True,
+            anki_sync_status=AnkiSyncStatus.PENDING,
+            canonical_text_normalized="pending word",
+        )
+    )
+    session.add(
+        _make_card(
+            eligible_for_anki=False,
+            canonical_text_normalized="not eligible",
+        )
+    )
+    session.commit()
+
+    resp = authed_client.get("/api/anki/cards")
+
+    assert resp.status_code == 200
+    assert [item["canonical_text_normalized"] for item in resp.json()] == [
+        "synced word",
+        "pending word",
+    ]
+
+
 # ---------------------------------------------------------------------------
 # POST /api/anki/ack
 # ---------------------------------------------------------------------------

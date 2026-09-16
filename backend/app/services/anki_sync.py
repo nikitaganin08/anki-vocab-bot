@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from app.clients.anki_connect import AnkiConnectClient, AnkiConnectError, AnkiNotePayload
 from app.clients.backend_sync_api import BackendSyncApiClient, BackendSyncApiError, PendingCard
+from app.schemas.llm import WordFamilyItem
 from app.services.pronunciation import (
     EdgeTtsPronunciationGenerator,
     PronunciationAudioError,
@@ -27,16 +28,27 @@ def build_card_tag(card_id: int) -> str:
     return f"{CARD_TAG_PREFIX}-{card_id}"
 
 
+def format_anki_example(examples: list[str], word_family: list[WordFamilyItem]) -> str:
+    example = "\n".join(examples[:2])
+    if not word_family:
+        return example
+
+    family_lines = [
+        f"{item.word} ({item.part_of_speech}) - {item.translation}" for item in word_family
+    ]
+    family_text = "\n".join(family_lines)
+    return f"{example}\n\nWord family:\n{family_text}"
+
+
 def map_card_to_anki_payload(card: PendingCard, *, pronunciation_field: str) -> AnkiNotePayload:
     translation = ", ".join(card.translation_variants)
-    example = "\n".join(card.examples[:2])
     fields = {
         "Word": card.canonical_text_normalized,
         "Transcription": card.transcription or "",
         "PronunciationAudio": pronunciation_field,
         "Translation": translation,
         "Explanation": card.explanation,
-        "Example": example,
+        "Example": format_anki_example(card.examples, card.word_family),
     }
     return AnkiNotePayload(
         deck_name=ANKI_DECK_NAME,

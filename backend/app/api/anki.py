@@ -41,6 +41,26 @@ def get_pending(
     return [AnkiPendingCardResponse.from_card(c) for c in cards]
 
 
+@router.get("/cards", response_model=list[AnkiPendingCardResponse])
+def get_eligible_cards(
+    session: SessionDep,
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[AnkiPendingCardResponse]:
+    cards = (
+        session.execute(
+            select(Card)
+            .where(Card.eligible_for_anki == True)  # noqa: E712
+            .order_by(Card.id.asc())
+            .offset(offset)
+            .limit(limit)
+        )
+        .scalars()
+        .all()
+    )
+    return [AnkiPendingCardResponse.from_card(c) for c in cards]
+
+
 @router.post("/ack", status_code=status.HTTP_204_NO_CONTENT)
 def ack_card(body: AnkiAckRequest, session: SessionDep) -> None:
     card = session.get(Card, body.card_id)

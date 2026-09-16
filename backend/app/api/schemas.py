@@ -147,6 +147,7 @@ class AnkiPendingCardResponse(BaseModel):
     canonical_text_normalized: str
     transcription: str | None
     translation_variants: list[str]
+    word_family: list[WordFamilyItem]
     explanation: str
     examples: list[str]
 
@@ -158,6 +159,7 @@ class AnkiPendingCardResponse(BaseModel):
             canonical_text_normalized=c.canonical_text_normalized,
             transcription=c.transcription,
             translation_variants=c.translation_variants_json,
+            word_family=c.word_family_json or [],
             explanation=c.explanation,
             examples=c.examples_json,
         )
