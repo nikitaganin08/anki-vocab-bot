@@ -54,6 +54,11 @@ class Card(Base):
     canonical_text_normalized: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     transcription: Mapped[str | None] = mapped_column(String(255), nullable=True)
     translation_variants_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    word_family_json: Mapped[list[dict[str, str]]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+    )
     explanation: Mapped[str] = mapped_column(Text, nullable=False)
     examples_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     frequency: Mapped[int] = mapped_column(Integer, nullable=False)

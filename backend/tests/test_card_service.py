@@ -66,7 +66,18 @@ def test_normalize_source_text() -> None:
 
 
 def test_card_service_creates_new_card(session: Session) -> None:
-    generator = FakeGenerator(result=make_accepted_response(canonical_text="  Take   OFF  "))
+    generator = FakeGenerator(
+        result=make_accepted_response(
+            canonical_text="  Take   OFF  ",
+            word_family=[
+                {
+                    "word": "takeoff",
+                    "part_of_speech": "noun",
+                    "translation": "взлёт",
+                }
+            ],
+        )
+    )
     result = apply_source_text(session, generator, "  take   off  ")
 
     assert result.status == "created"
@@ -74,6 +85,13 @@ def test_card_service_creates_new_card(session: Session) -> None:
     assert result.card.eligible_for_anki is True
     assert result.card.source_text == "take off"
     assert result.card.canonical_text_normalized == "take off"
+    assert result.card.word_family_json == [
+        {
+            "word": "takeoff",
+            "part_of_speech": "noun",
+            "translation": "взлёт",
+        }
+    ]
     assert result.card.llm_model == "test-model"
     assert generator.call_count == 1
 

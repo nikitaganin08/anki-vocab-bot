@@ -14,6 +14,13 @@ def _make_card(translations: list[str]) -> Card:
         canonical_text_normalized="take off",
         transcription="teik of",
         translation_variants_json=translations,
+        word_family_json=[
+            {
+                "word": "takeoff",
+                "part_of_speech": "noun",
+                "translation": "взлёт",
+            }
+        ],
         explanation="To leave the ground or remove clothing.",
         examples_json=[
             "The plane will take off in ten minutes.",
@@ -34,6 +41,8 @@ def test_format_card_payload_renders_primary_translation_and_synonyms() -> None:
 
     assert "🌍 Primary translation: <b>взлетать</b>" in payload
     assert "🧩 Synonyms: <b>снимать; резко начинаться</b>" in payload
+    assert "🧬 Word family" in payload
+    assert "<b>takeoff</b> (noun) — взлёт" in payload
 
 
 def test_format_card_payload_handles_missing_synonyms_fallback() -> None:

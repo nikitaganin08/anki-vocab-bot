@@ -14,6 +14,13 @@ def test_parse_llm_response_accepts_valid_payload() -> None:
             "canonical_text": "take off",
             "transcription": "teik of",
             "translation_variants": ["взлетать", "снимать"],
+            "word_family": [
+                {
+                    "word": "takeoff",
+                    "part_of_speech": "noun",
+                    "translation": "взлёт",
+                }
+            ],
             "explanation": "To leave the ground.",
             "examples": [
                 "The plane will take off soon.",
@@ -27,6 +34,41 @@ def test_parse_llm_response_accepts_valid_payload() -> None:
 
     assert isinstance(result, AcceptedLlmResponse)
     assert result.entry_type.value == "phrasal_verb"
+    assert result.word_family[0].word == "takeoff"
+
+
+def test_parse_llm_response_rejects_duplicate_word_family_items() -> None:
+    with pytest.raises(ValueError):
+        parse_llm_response(
+            {
+                "accepted": True,
+                "source_language": "en",
+                "entry_type": "word",
+                "canonical_text": "accommodate",
+                "transcription": "/əˈkɑːmədeɪt/",
+                "translation_variants": ["размещать", "приспосабливать"],
+                "word_family": [
+                    {
+                        "word": "accommodation",
+                        "part_of_speech": "noun",
+                        "translation": "размещение",
+                    },
+                    {
+                        "word": "ACCOMMODATION",
+                        "part_of_speech": "noun",
+                        "translation": "жильё",
+                    },
+                ],
+                "explanation": "To provide space or adjust to a situation.",
+                "examples": [
+                    "The hotel can accommodate more guests.",
+                    "The accommodation was close to the station.",
+                    "The flexible schedule accommodated everyone.",
+                ],
+                "frequency": 7,
+                "frequency_note": "Common.",
+            }
+        )
 
 
 def test_parse_llm_response_accepts_russian_source_with_same_contract() -> None:

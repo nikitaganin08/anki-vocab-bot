@@ -420,6 +420,7 @@ textarea:focus {
 }
 
 .translation-list,
+.word-family-list,
 .example-list {
   display: grid;
   gap: 0.45rem;

@@ -76,6 +76,24 @@ def _example_references_canonical(example: str, canonical_tokens: set[str]) -> b
     )
 
 
+class WordFamilyItem(BaseModel):
+    word: str
+    part_of_speech: str
+    translation: str
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("word", "part_of_speech")
+    @classmethod
+    def validate_english_text(cls, value: str) -> str:
+        return _ensure_non_cyrillic(value, "word family item")
+
+    @field_validator("translation")
+    @classmethod
+    def validate_translation(cls, value: str) -> str:
+        return _ensure_contains_cyrillic(value)
+
+
 class AcceptedLlmResponse(BaseModel):
     accepted: Literal[True]
     source_language: SourceLanguage
@@ -85,6 +103,7 @@ class AcceptedLlmResponse(BaseModel):
     # Contract semantics: index 0 is the primary Russian translation,
     # remaining items are Russian synonyms/near-synonymous variants.
     translation_variants: list[str] = Field(min_length=2, max_length=3)
+    word_family: list[WordFamilyItem] = Field(default_factory=list, max_length=5)
     explanation: str
     examples: list[str] = Field(min_length=3, max_length=3)
     frequency: int = Field(ge=0, le=10)
@@ -119,6 +138,17 @@ class AcceptedLlmResponse(BaseModel):
             seen.add(key)
         return normalized_items
 
+    @field_validator("word_family")
+    @classmethod
+    def validate_word_family(cls, value: list[WordFamilyItem]) -> list[WordFamilyItem]:
+        seen: set[str] = set()
+        for item in value:
+            key = item.word.casefold()
+            if key in seen:
+                raise ValueError("word family items must be unique")
+            seen.add(key)
+        return value
+
     @field_validator("transcription", "frequency_note")
     @classmethod
     def normalize_optional_text(cls, value: str | None) -> str | None:
@@ -130,6 +160,9 @@ class AcceptedLlmResponse(BaseModel):
     @model_validator(mode="after")
     def validate_contract_semantics(self) -> "AcceptedLlmResponse":
         canonical_text_casefolded = self.canonical_text.casefold()
+        if any(item.word.casefold() == canonical_text_casefolded for item in self.word_family):
+            raise ValueError("word family must not repeat canonical_text")
+
         if self.entry_type in {
             EntryType.WORD,
             EntryType.PHRASAL_VERB,

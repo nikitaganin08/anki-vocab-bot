@@ -13,6 +13,13 @@ Accepted contract:
   "canonical_text": "...",
   "transcription": "...",
   "translation_variants": ["...", "..."],
+  "word_family": [
+    {
+      "word": "...",
+      "part_of_speech": "...",
+      "translation": "..."
+    }
+  ],
   "explanation": "...",
   "examples": ["...", "...", "..."],
   "frequency": 0..10,
@@ -41,9 +48,16 @@ Rules:
 - translation_variants[1..] must be Russian synonyms or near-synonymous variants
   of the primary translation.
 - Preserve translation_variants ordering: primary translation first, then synonyms/variants.
+- word_family must contain 0 to 5 established English derivational forms related to canonical_text.
+- Each word_family item must include the English word, its part of speech, and
+  a Russian translation.
+- Do not include canonical_text itself, ordinary tense/plural forms, invented
+  forms, or weakly related words.
 - examples must contain exactly 3 items.
 - examples must illustrate the same meaning of canonical_text.
 - At least 2 of 3 examples must explicitly include canonical_text or its inflected form.
+- When word_family is not empty, use at least one of its forms naturally in
+  the examples when this does not distort the meaning.
 - frequency must be an integer from 0 to 10.
 - If you cannot provide one primary Russian translation
   and at least one Russian synonym/variant, reject.

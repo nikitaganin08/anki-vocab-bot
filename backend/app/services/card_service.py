@@ -63,6 +63,7 @@ def apply_source_text(
         canonical_text_normalized=canonical_text_normalized,
         transcription=llm_result.transcription,
         translation_variants_json=llm_result.translation_variants,
+        word_family_json=[item.model_dump() for item in llm_result.word_family],
         explanation=llm_result.explanation,
         examples_json=llm_result.examples,
         frequency=llm_result.frequency,

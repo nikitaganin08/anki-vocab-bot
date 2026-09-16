@@ -9,6 +9,12 @@ export type EntryType =
 
 export type AnkiSyncStatus = "pending" | "synced" | "failed";
 
+export interface WordFamilyItem {
+  word: string;
+  part_of_speech: string;
+  translation: string;
+}
+
 export interface Card {
   id: number;
   source_text: string;
@@ -18,6 +24,7 @@ export interface Card {
   canonical_text_normalized: string;
   transcription: string | null;
   translation_variants: string[];
+  word_family: WordFamilyItem[];
   explanation: string;
   examples: string[];
   frequency: number;

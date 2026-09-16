@@ -10,6 +10,11 @@ def format_card_payload(card: Card) -> str:
     translations = [_html(value) for value in card.translation_variants_json]
     primary_translation = translations[0] if translations else "—"
     synonyms = "; ".join(translations[1:]) if len(translations) > 1 else "—"
+    word_family = "\n".join(
+        f"• <b>{_html(item['word'])}</b> ({_html(item['part_of_speech'])}) — "
+        f"{_html(item['translation'])}"
+        for item in card.word_family_json or []
+    ) or "—"
     numbered_labels = ("1️⃣", "2️⃣", "3️⃣")
     examples = "\n".join(
         f"{numbered_labels[idx]} {_html(example)}"
@@ -23,6 +28,7 @@ def format_card_payload(card: Card) -> str:
         f"🗣 Transcription: {transcription}\n"
         f"🌍 Primary translation: <b>{primary_translation}</b>\n"
         f"🧩 Synonyms: <b>{synonyms}</b>\n\n"
+        f"🧬 Word family\n{word_family}\n\n"
         "📝 Explanation\n"
         f"{_html(card.explanation)}\n\n"
         "🪧 Examples\n"

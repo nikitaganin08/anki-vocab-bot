@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.models.card import AnkiSyncStatus, Card, EntryType, SourceLanguage
+from app.schemas.llm import WordFamilyItem
 
 
 class CardResponse(BaseModel):
@@ -17,6 +18,7 @@ class CardResponse(BaseModel):
     canonical_text_normalized: str
     transcription: str | None
     translation_variants: list[str]
+    word_family: list[WordFamilyItem]
     explanation: str
     examples: list[str]
     frequency: int
@@ -39,6 +41,7 @@ class CardResponse(BaseModel):
             canonical_text_normalized=c.canonical_text_normalized,
             transcription=c.transcription,
             translation_variants=c.translation_variants_json,
+            word_family=c.word_family_json or [],
             explanation=c.explanation,
             examples=c.examples_json,
             frequency=c.frequency,
@@ -108,6 +111,7 @@ class MobileCardPreview(BaseModel):
     canonical_text: str
     transcription: str | None
     translation_variants: list[str]
+    word_family: list[WordFamilyItem]
     explanation: str
     examples: list[str]
     frequency: int
@@ -121,6 +125,7 @@ class MobileCardPreview(BaseModel):
             canonical_text=c.canonical_text,
             transcription=c.transcription,
             translation_variants=c.translation_variants_json,
+            word_family=c.word_family_json or [],
             explanation=c.explanation,
             examples=c.examples_json[:3],
             frequency=c.frequency,

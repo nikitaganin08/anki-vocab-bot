@@ -59,6 +59,13 @@ describe("CardsPage", () => {
           canonical_text_normalized: "turn down",
           transcription: "/t3:n daun/",
           translation_variants: ["отклонять", "убавлять"],
+          word_family: [
+            {
+              word: "turn-down",
+              part_of_speech: "noun",
+              translation: "отказ",
+            },
+          ],
           explanation: "Refuse or reduce volume.",
           examples: ["She turned down the offer.", "Turn down the music.", "He turned down help."],
           frequency: 6,
@@ -84,6 +91,8 @@ describe("CardsPage", () => {
     expect(await screen.findByText("Showing 1-1 of 1")).toBeInTheDocument();
     expect(screen.getByText("Batch Import")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Import" })).toBeInTheDocument();
+    expect(screen.getByText("turn-down")).toBeInTheDocument();
+    expect(screen.getByText(/отказ/)).toBeInTheDocument();
   });
 
   it("splits large input into chunks of 50 and 5", async () => {
@@ -229,6 +238,7 @@ describe("CardsPage", () => {
           canonical_text_normalized: "turn down",
           transcription: "/t3:n daun/",
           translation_variants: ["отклонять", "убавлять"],
+          word_family: [],
           explanation: "Refuse or reduce volume.",
           examples: ["She turned down the offer.", "Turn down the music.", "He turned down help."],
           frequency: 6,

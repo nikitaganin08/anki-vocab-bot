@@ -512,6 +512,21 @@ export function CardsPage(): JSX.Element {
                   </section>
 
                   <section className="card-content-panel">
+                    <h4>Word family</h4>
+                    {card.word_family.length > 0 ? (
+                      <ul className="word-family-list">
+                        {card.word_family.map((item) => (
+                          <li key={item.word}>
+                            <strong>{item.word}</strong> ({item.part_of_speech}) — {item.translation}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>—</p>
+                    )}
+                  </section>
+
+                  <section className="card-content-panel">
                     <h4>Explanation</h4>
                     <p>{card.explanation}</p>
                   </section>

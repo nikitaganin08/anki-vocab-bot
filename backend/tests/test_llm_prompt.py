@@ -35,6 +35,12 @@ def test_system_prompt_requires_primary_translation_and_synonyms_order() -> None
     ) in SYSTEM_PROMPT
 
 
+def test_system_prompt_requires_word_family_items_and_examples() -> None:
+    assert '"word_family": [' in SYSTEM_PROMPT
+    assert "word_family must contain 0 to 5 established English derivational forms" in SYSTEM_PROMPT
+    assert "forms naturally in" in SYSTEM_PROMPT
+
+
 def test_build_llm_messages_includes_source_text() -> None:
     messages = build_llm_messages("привет")
 

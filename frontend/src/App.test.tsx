@@ -33,6 +33,7 @@ const cardsPayload = {
       canonical_text_normalized: "take off",
       transcription: "/teik of/",
       translation_variants: ["v1", "v2"],
+      word_family: [],
       explanation: "example explanation",
       examples: ["e1", "e2", "e3"],
       frequency: 4,
