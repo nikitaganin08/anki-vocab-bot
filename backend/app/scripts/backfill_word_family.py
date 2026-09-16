@@ -6,10 +6,14 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+import app.models.anki_sync_attempt as anki_sync_attempt_model
 from app.clients.openrouter import OpenRouterClient, OpenRouterError
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.models.card import Card
+
+# Register relationship targets when this command runs without the bot runtime.
+MODEL_MODULES = (anki_sync_attempt_model,)
 
 
 @dataclass(slots=True)
