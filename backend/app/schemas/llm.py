@@ -94,6 +94,12 @@ class WordFamilyItem(BaseModel):
         return _ensure_contains_cyrillic(value)
 
 
+class WordFamilyResponse(BaseModel):
+    word_family: list[WordFamilyItem] = Field(default_factory=list, max_length=3)
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class AcceptedLlmResponse(BaseModel):
     accepted: Literal[True]
     source_language: SourceLanguage
@@ -207,6 +213,7 @@ class RejectedLlmResponse(BaseModel):
 
 LlmResponse = AcceptedLlmResponse | RejectedLlmResponse
 LLM_RESPONSE_ADAPTER = TypeAdapter(LlmResponse)
+WORD_FAMILY_RESPONSE_ADAPTER = TypeAdapter(WordFamilyResponse)
 
 
 def parse_llm_response(payload: str | dict[str, Any]) -> LlmResponse:
@@ -219,3 +226,23 @@ def parse_llm_response(payload: str | dict[str, Any]) -> LlmResponse:
         return LLM_RESPONSE_ADAPTER.validate_python(raw_payload)
     except Exception as exc:  # pydantic validation errors are normalized for callers
         raise ValueError("LLM payload does not match the contract") from exc
+
+
+def parse_word_family_response(
+    payload: str | dict[str, Any],
+    *,
+    canonical_text: str,
+) -> WordFamilyResponse:
+    try:
+        raw_payload = json.loads(payload) if isinstance(payload, str) else payload
+    except json.JSONDecodeError as exc:
+        raise ValueError("LLM payload is not valid JSON") from exc
+
+    try:
+        result = WORD_FAMILY_RESPONSE_ADAPTER.validate_python(raw_payload)
+        canonical_key = _normalize_whitespace(canonical_text).casefold()
+        if any(item.word.casefold() == canonical_key for item in result.word_family):
+            raise ValueError("word family must not repeat canonical_text")
+        return result
+    except Exception as exc:  # pydantic validation errors are normalized for callers
+        raise ValueError("LLM payload does not match the word family contract") from exc

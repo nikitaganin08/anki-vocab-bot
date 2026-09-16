@@ -59,6 +59,11 @@ class Card(Base):
         nullable=False,
         default=list,
     )
+    word_family_backfilled: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+    )
     explanation: Mapped[str] = mapped_column(Text, nullable=False)
     examples_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     frequency: Mapped[int] = mapped_column(Integer, nullable=False)

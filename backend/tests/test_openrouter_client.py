@@ -32,6 +32,17 @@ VALID_COMPLETION_CONTENT = json.dumps(
 VALID_DESCRIPTION_LOOKUP_CONTENT = json.dumps(
     {"found": True, "candidates": ["shovel away", "clear away", "remove"]}
 )
+VALID_WORD_FAMILY_CONTENT = json.dumps(
+    {
+        "word_family": [
+            {
+                "word": "accommodation",
+                "part_of_speech": "noun",
+                "translation": "размещение",
+            }
+        ]
+    }
+)
 
 
 def test_openrouter_client_parses_valid_response() -> None:
@@ -121,3 +132,26 @@ def test_openrouter_client_parses_description_lookup_response() -> None:
 
     assert isinstance(result, FoundDescriptionLookupResponse)
     assert result.candidates == ["shovel away", "clear away", "remove"]
+
+
+def test_openrouter_client_parses_word_family_response() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = request.read().decode("utf-8")
+        assert "canonical_text: accommodate" in payload
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": VALID_WORD_FAMILY_CONTENT}}]},
+        )
+
+    client = OpenRouterClient(
+        api_key="secret",
+        model="test-model",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    result = client.generate_word_family(
+        "accommodate",
+        explanation="To provide space or adjust to a situation.",
+        translation_variants=["размещать", "приспосабливать"],
+    )
+
+    assert result[0].word == "accommodation"

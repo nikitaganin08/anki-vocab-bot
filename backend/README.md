@@ -6,6 +6,8 @@ and sync helpers for the anki-vocab-bot monorepo.
 Useful local commands:
 - `uv run uvicorn app.main:app --reload` for API development.
 - `uv run python -m app.scripts.sync_anki --limit 50` for one sync pass.
+- `uv run python -m app.scripts.backfill_word_family --limit 10` to fill missing
+  word-family forms for existing cards.
 
 Webhook mode:
 - Telegram delivers updates to `POST /telegram/webhook`.
