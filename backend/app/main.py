@@ -30,8 +30,8 @@ if _FRONTEND_INDEX.exists():
 
     @app.get("/telegram/webapp/{path:path}")
     def telegram_webapp_spa(path: str) -> FileResponse:
-        candidate = _FRONTEND_DIST / path
-        if candidate.is_file():
+        candidate = (_FRONTEND_DIST / path).resolve()
+        if candidate.is_relative_to(_FRONTEND_DIST) and candidate.is_file():
             return FileResponse(candidate)
 
         return FileResponse(_FRONTEND_INDEX)

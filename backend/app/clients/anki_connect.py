@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import time
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -86,17 +87,6 @@ class AnkiConnectClient:
             )
         return result
 
-    def update_note_fields(self, note_id: int, fields: dict[str, str]) -> None:
-        self._request_with_retry(
-            "updateNoteFields",
-            {
-                "note": {
-                    "id": note_id,
-                    "fields": fields,
-                }
-            },
-        )
-
     def store_media_file(self, filename: str, data: bytes) -> None:
         encoded_data = base64.b64encode(data).decode("ascii")
         result = self._request_with_retry(
@@ -131,10 +121,12 @@ class AnkiConnectClient:
             "params": params,
         }
 
-        if self.http_client is not None:
-            return self._send(self.http_client, payload)
-
-        with httpx.Client(timeout=self.timeout_seconds) as client:
+        client_context = (
+            nullcontext(self.http_client)
+            if self.http_client is not None
+            else httpx.Client(timeout=self.timeout_seconds)
+        )
+        with client_context as client:
             return self._send(client, payload)
 
     def _send(self, client: httpx.Client, payload: dict[str, Any]) -> Any:
@@ -173,7 +165,8 @@ class AnkiConnectClient:
         error = data["error"]
         if error is not None:
             error_message = str(error)
-            raise AnkiConnectTransportError(
+            # Not a transport error: Anki rejected the action, so retrying will not help.
+            raise AnkiConnectError(
                 f"AnkiConnect action failed: {error_message}",
                 code="anki_connect_action_error",
                 user_message=error_message,

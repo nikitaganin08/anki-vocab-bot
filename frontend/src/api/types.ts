@@ -32,6 +32,7 @@ export interface Card {
   eligible_for_anki: boolean;
   anki_sync_status: AnkiSyncStatus;
   anki_note_id: number | null;
+  anki_sync_error: string | null;
   llm_model: string;
   created_at: string;
   updated_at: string;

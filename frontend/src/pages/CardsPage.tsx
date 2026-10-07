@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
 
 import { ApiError, deleteCard, getCards, importCardsBatch } from "../api/client";
 import type {
@@ -15,7 +14,8 @@ import type {
 import { EmptyState, ErrorState, LoadingState } from "../components/PageState";
 
 const PAGE_SIZE = 20;
-const BATCH_CHUNK_SIZE = 50;
+// Each item is a sequential LLM call; keep requests well under the proxy timeout.
+const BATCH_CHUNK_SIZE = 5;
 
 type EligibleFilter = "all" | "true" | "false";
 
@@ -127,6 +127,17 @@ function hasActiveFilters(
     ankiStatus.length > 0 ||
     eligible !== "all"
   );
+}
+
+// Filters live in the query string; replaceState keeps Telegram's back button out of it.
+function useSearchParams(): [URLSearchParams, (next: URLSearchParams) => void] {
+  const [params, setParams] = useState(() => new URLSearchParams(window.location.search));
+  const update = (next: URLSearchParams): void => {
+    const query = next.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+    setParams(next);
+  };
+  return [params, update];
 }
 
 export function CardsPage(): JSX.Element {
@@ -250,7 +261,7 @@ export function CardsPage(): JSX.Element {
       next.delete("page");
     }
 
-    setSearchParams(next, { replace: true });
+    setSearchParams(next);
   };
 
   const total = cardsQuery.data?.total ?? 0;
@@ -473,6 +484,8 @@ export function CardsPage(): JSX.Element {
                     {card.anki_sync_status}
                   </span>
                 </div>
+
+                {card.anki_sync_error ? <p className="batch-message-error">{card.anki_sync_error}</p> : null}
 
                 <div className="card-meta-grid">
                   <p>

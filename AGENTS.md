@@ -155,17 +155,11 @@ Validation rules:
 - `eligible_for_anki`
 - `anki_sync_status` (`pending`, `synced`, `failed`)
 - `anki_note_id`
+- `anki_sync_error` (last sync failure, cleared on ack)
+- `word_family_json`
 - `llm_model`
 - `created_at`
 - `updated_at`
-
-### `anki_sync_attempts`
-
-- `id`
-- `card_id`
-- `status`
-- `error_message`
-- `created_at`
 
 ## Backend API
 

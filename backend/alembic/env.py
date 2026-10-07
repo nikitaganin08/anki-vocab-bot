@@ -4,13 +4,10 @@ from logging.config import fileConfig
 
 from sqlalchemy import create_engine, pool
 
-import app.models.anki_sync_attempt as anki_sync_attempt_model
-import app.models.card as card_model
+import app.models.card  # noqa: F401  # registers the table on Base.metadata
 from alembic import context
 from app.core.config import get_settings
 from app.db.base import Base
-
-MODEL_MODULES = (anki_sync_attempt_model, card_model)
 
 config = context.config
 

@@ -6,7 +6,6 @@ from app.clients.anki_connect import AnkiConnectTransportError, AnkiNotePayload
 from app.clients.backend_sync_api import BackendSyncApiError, PendingCard
 from app.schemas.llm import WordFamilyItem
 from app.services.anki_sync import map_card_to_anki_payload, sync_pending_cards
-from app.services.anki_word_family import rebuild_anki_examples
 from app.services.pronunciation import PronunciationAudioError
 
 
@@ -77,55 +76,6 @@ def test_map_card_to_anki_payload_appends_word_family_to_example() -> None:
         "The plane took off.\nTake off your coat.\n\n"
         "Word family:\naccommodation (noun) - размещение"
     )
-
-
-def test_rebuild_anki_examples_updates_existing_note() -> None:
-    card = _pending_card()
-    card.word_family = [
-        WordFamilyItem(
-            word="takeoff",
-            part_of_speech="noun",
-            translation="взлет",
-        )
-    ]
-
-    class FakeBackendClient:
-        def get_eligible(self, *, limit: int, offset: int) -> list[PendingCard]:
-            assert (limit, offset) == (50, 0)
-            return [card]
-
-    class FakeAnkiClient:
-        def __init__(self) -> None:
-            self.updates: list[tuple[int, dict[str, str]]] = []
-
-        def find_notes_by_tag(self, tag: str) -> list[int]:
-            assert tag == "avb-card-7"
-            return [555]
-
-        def update_note_fields(self, note_id: int, fields: dict[str, str]) -> None:
-            self.updates.append((note_id, fields))
-
-    anki = FakeAnkiClient()
-    summary = rebuild_anki_examples(
-        backend_client=FakeBackendClient(),  # type: ignore[arg-type]
-        anki_client=anki,  # type: ignore[arg-type]
-    )
-
-    assert summary.total == 1
-    assert summary.updated == 1
-    assert summary.skipped == 0
-    assert summary.failed == 0
-    assert anki.updates == [
-        (
-            555,
-            {
-                "Example": (
-                    "The plane took off.\nTake off your coat.\n\n"
-                    "Word family:\ntakeoff (noun) - взлет"
-                )
-            },
-        )
-    ]
 
 
 def test_sync_pending_cards_acks_successful_cards() -> None:

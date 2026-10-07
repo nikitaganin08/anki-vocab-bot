@@ -5,6 +5,7 @@ import pytest
 
 from app.clients.anki_connect import (
     AnkiConnectClient,
+    AnkiConnectError,
     AnkiConnectProtocolError,
     AnkiConnectTimeoutError,
     AnkiConnectTransportError,
@@ -67,14 +68,20 @@ def test_add_note_retries_then_succeeds() -> None:
     assert flaky.calls == 2
 
 
-def test_add_note_raises_transport_error_for_action_error() -> None:
+def test_add_note_raises_without_retry_for_action_error() -> None:
     def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
         return httpx.Response(200, json={"result": None, "error": "duplicate note"})
 
+    calls = 0
     client = AnkiConnectClient(http_client=httpx.Client(transport=httpx.MockTransport(handler)))
 
-    with pytest.raises(AnkiConnectTransportError):
+    with pytest.raises(AnkiConnectError) as exc_info:
         client.add_note(_note_payload())
+
+    assert not isinstance(exc_info.value, AnkiConnectTransportError)
+    assert calls == 1
 
 
 def test_add_note_raises_protocol_error_for_invalid_result() -> None:
@@ -112,19 +119,6 @@ def test_find_notes_by_tag_success() -> None:
     client = AnkiConnectClient(http_client=httpx.Client(transport=httpx.MockTransport(handler)))
 
     assert client.find_notes_by_tag("avb-card-7") == [777]
-
-
-def test_update_note_fields_success() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        payload = request.read().decode("utf-8")
-        assert '"action":"updateNoteFields"' in payload
-        assert '"id":777' in payload
-        assert '"Example":"Updated example"' in payload
-        return httpx.Response(200, json={"result": None, "error": None})
-
-    client = AnkiConnectClient(http_client=httpx.Client(transport=httpx.MockTransport(handler)))
-
-    client.update_note_fields(777, {"Example": "Updated example"})
 
 
 def test_get_version_success() -> None:

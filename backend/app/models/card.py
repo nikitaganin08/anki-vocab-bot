@@ -2,16 +2,12 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING
 
 from sqlalchemy import JSON, Boolean, DateTime, Integer, String, Text, func
 from sqlalchemy import Enum as SqlEnum
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
-
-if TYPE_CHECKING:
-    from app.models.anki_sync_attempt import AnkiSyncAttempt
 
 
 def _enum_values(enum_type: type[Enum]) -> list[str]:
@@ -59,11 +55,6 @@ class Card(Base):
         nullable=False,
         default=list,
     )
-    word_family_backfilled: Mapped[bool] = mapped_column(
-        Boolean,
-        nullable=False,
-        default=True,
-    )
     explanation: Mapped[str] = mapped_column(Text, nullable=False)
     examples_json: Mapped[list[str]] = mapped_column(JSON, nullable=False)
     frequency: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -75,6 +66,7 @@ class Card(Base):
         default=AnkiSyncStatus.PENDING,
     )
     anki_note_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    anki_sync_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     llm_model: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -86,9 +78,4 @@ class Card(Base):
         server_default=func.now(),
         onupdate=func.now(),
         nullable=False,
-    )
-
-    sync_attempts: Mapped[list["AnkiSyncAttempt"]] = relationship(
-        back_populates="card",
-        cascade="all, delete-orphan",
     )

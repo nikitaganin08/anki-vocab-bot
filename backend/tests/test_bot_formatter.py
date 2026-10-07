@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import app.models.anki_sync_attempt as anki_sync_attempt_model  # noqa: F401
 from app.bot.formatter import format_card_payload
 from app.models.card import Card, EntryType, SourceLanguage
 

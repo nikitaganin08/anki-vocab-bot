@@ -1,10 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { BrowserRouter } from "react-router-dom";
 
 import { EmptyState } from "./components/PageState";
 import { CardsPage } from "./pages/CardsPage";
-import { resolveWebAppBasename } from "./routing";
 import { hasTelegramWebAppContext, prepareTelegramWebApp } from "./telegram";
 
 export function App(): JSX.Element {
@@ -38,22 +36,20 @@ export function App(): JSX.Element {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter basename={resolveWebAppBasename()}>
-        <div className="admin-shell">
-          <header className="app-header">
-            <div className="brand-block">
-              <p className="eyebrow">anki-vocab-bot</p>
-              <h1>Telegram Dictionary Panel</h1>
-            </div>
+      <div className="admin-shell">
+        <header className="app-header">
+          <div className="brand-block">
+            <p className="eyebrow">anki-vocab-bot</p>
+            <h1>Telegram Dictionary Panel</h1>
+          </div>
 
-            <p className="eyebrow">Manage cards inside Telegram</p>
-          </header>
+          <p className="eyebrow">Manage cards inside Telegram</p>
+        </header>
 
-          <main className="page-shell">
-            <CardsPage />
-          </main>
-        </div>
-      </BrowserRouter>
+        <main className="page-shell">
+          <CardsPage />
+        </main>
+      </div>
     </QueryClientProvider>
   );
 }

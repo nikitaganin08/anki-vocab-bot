@@ -725,6 +725,26 @@ def test_anki_pending_includes_failed_cards_for_retry(
     assert data[0]["canonical_text"] == "retry me"
 
 
+def test_anki_pending_puts_new_cards_before_failed_ones(
+    authed_client: TestClient,
+    session: Session,
+) -> None:
+    session.add(
+        _make_card(
+            anki_sync_status=AnkiSyncStatus.FAILED,
+            canonical_text="old failure",
+            canonical_text_normalized="old failure",
+        )
+    )
+    session.commit()
+    session.add(_make_card(canonical_text="fresh", canonical_text_normalized="fresh"))
+    session.commit()
+
+    resp = authed_client.get("/api/anki/pending?limit=1")
+
+    assert [item["canonical_text"] for item in resp.json()] == ["fresh"]
+
+
 def test_anki_pending_limit(authed_client: TestClient, session: Session) -> None:
     for i in range(5):
         session.add(
@@ -739,41 +759,6 @@ def test_anki_pending_limit(authed_client: TestClient, session: Session) -> None
     resp = authed_client.get("/api/anki/pending?limit=3")
     assert resp.status_code == 200
     assert len(resp.json()) == 3
-
-
-def test_anki_cards_includes_synced_eligible_cards(
-    authed_client: TestClient,
-    session: Session,
-) -> None:
-    session.add(
-        _make_card(
-            eligible_for_anki=True,
-            anki_sync_status=AnkiSyncStatus.SYNCED,
-            canonical_text_normalized="synced word",
-        )
-    )
-    session.add(
-        _make_card(
-            eligible_for_anki=True,
-            anki_sync_status=AnkiSyncStatus.PENDING,
-            canonical_text_normalized="pending word",
-        )
-    )
-    session.add(
-        _make_card(
-            eligible_for_anki=False,
-            canonical_text_normalized="not eligible",
-        )
-    )
-    session.commit()
-
-    resp = authed_client.get("/api/anki/cards")
-
-    assert resp.status_code == 200
-    assert [item["canonical_text_normalized"] for item in resp.json()] == [
-        "synced word",
-        "pending word",
-    ]
 
 
 # ---------------------------------------------------------------------------
@@ -796,8 +781,7 @@ def test_anki_ack_updates_card(authed_client: TestClient, session: Session) -> N
     session.refresh(card)
     assert card.anki_sync_status == AnkiSyncStatus.SYNCED
     assert card.anki_note_id == 42
-    assert len(card.sync_attempts) == 1
-    assert card.sync_attempts[0].status == "synced"
+    assert card.anki_sync_error is None
 
 
 def test_anki_ack_not_found(authed_client: TestClient) -> None:
@@ -827,9 +811,7 @@ def test_anki_fail_updates_card(authed_client: TestClient, session: Session) -> 
 
     session.refresh(card)
     assert card.anki_sync_status == AnkiSyncStatus.FAILED
-    assert len(card.sync_attempts) == 1
-    assert card.sync_attempts[0].status == "failed"
-    assert card.sync_attempts[0].error_message == "AnkiConnect refused"
+    assert card.anki_sync_error == "AnkiConnect refused"
 
 
 def test_anki_fail_not_found(authed_client: TestClient) -> None:

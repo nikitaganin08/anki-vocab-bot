@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 
 from aiogram.types import InlineKeyboardMarkup
 
-import app.models.anki_sync_attempt as anki_sync_attempt_model  # noqa: F401
 from app.bot.handler import (
     TelegramAdminWebAppHandler,
     TelegramDescriptionLookupHandler,
