@@ -7,8 +7,6 @@ from functools import lru_cache
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import Command
 
-import app.models.anki_sync_attempt as anki_sync_attempt_model
-import app.models.card as card_model
 from app.bot.handler import (
     TelegramAdminWebAppHandler,
     TelegramDescriptionLookupHandler,
@@ -19,8 +17,6 @@ from app.clients.openrouter import OpenRouterClient
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.services.card_service import CardServiceResult, apply_source_text
-
-MODEL_MODULES = (anki_sync_attempt_model, card_model)
 
 
 @dataclass(slots=True)

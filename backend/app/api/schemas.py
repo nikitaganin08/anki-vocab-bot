@@ -26,6 +26,7 @@ class CardResponse(BaseModel):
     eligible_for_anki: bool
     anki_sync_status: AnkiSyncStatus
     anki_note_id: int | None
+    anki_sync_error: str | None
     llm_model: str
     created_at: datetime
     updated_at: datetime
@@ -49,6 +50,7 @@ class CardResponse(BaseModel):
             eligible_for_anki=c.eligible_for_anki,
             anki_sync_status=c.anki_sync_status,
             anki_note_id=c.anki_note_id,
+            anki_sync_error=c.anki_sync_error,
             llm_model=c.llm_model,
             created_at=c.created_at,
             updated_at=c.updated_at,

@@ -34,3 +34,12 @@ def test_admin_route_is_unsupported() -> None:
         response = client.get("/admin/")
 
     assert response.status_code == 404
+
+
+def test_telegram_webapp_does_not_serve_files_outside_dist() -> None:
+    with TestClient(app) as client:
+        response = client.get("/telegram/webapp/..%2F..%2Fbackend%2Fpyproject.toml")
+
+    assert response.status_code == 200
+    assert '<div id="root"></div>' in response.text
+    assert "[project]" not in response.text

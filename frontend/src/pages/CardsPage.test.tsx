@@ -1,6 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { deleteCard, getCards, importCardsBatch } from "../api/client";
@@ -27,9 +26,7 @@ function renderCardsPage(): ReturnType<typeof render> {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/cards"]}>
-        <CardsPage />
-      </MemoryRouter>
+      <CardsPage />
     </QueryClientProvider>,
   );
 }
@@ -73,6 +70,7 @@ describe("CardsPage", () => {
           eligible_for_anki: true,
           anki_sync_status: "pending",
           anki_note_id: null,
+          anki_sync_error: null,
           llm_model: "test-model",
           created_at: "2026-01-01T00:00:00Z",
           updated_at: "2026-01-01T00:00:00Z",
@@ -95,7 +93,7 @@ describe("CardsPage", () => {
     expect(screen.getByText(/отказ/)).toBeInTheDocument();
   });
 
-  it("splits large input into chunks of 50 and 5", async () => {
+  it("splits large input into chunks of 5", async () => {
     mockedImportCardsBatch.mockImplementation(async (sourceTexts) => ({
       items: sourceTexts.map((sourceText, index) => ({
         source_text: sourceText,
@@ -119,19 +117,19 @@ describe("CardsPage", () => {
 
     await screen.findByRole("heading", { name: "Cards" });
 
-    const lines = Array.from({ length: 55 }, (_, index) => `item-${index + 1}`).join("\n");
+    const lines = Array.from({ length: 12 }, (_, index) => `item-${index + 1}`).join("\n");
     fireEvent.change(screen.getByLabelText("Input list"), { target: { value: lines } });
     fireEvent.click(screen.getByRole("button", { name: "Import" }));
 
     await waitFor(() => {
-      expect(mockedImportCardsBatch).toHaveBeenCalledTimes(2);
+      expect(mockedImportCardsBatch).toHaveBeenCalledTimes(3);
     });
 
-    expect(mockedImportCardsBatch.mock.calls[0][0]).toHaveLength(50);
-    expect(mockedImportCardsBatch.mock.calls[1][0]).toHaveLength(5);
-    expect(await screen.findByText("Processed 55/55")).toBeInTheDocument();
-    expect(await screen.findByText("Total processed: 55")).toBeInTheDocument();
-    expect(await screen.findByText("Created: 55")).toBeInTheDocument();
+    expect(mockedImportCardsBatch.mock.calls[0][0]).toHaveLength(5);
+    expect(mockedImportCardsBatch.mock.calls[2][0]).toHaveLength(2);
+    expect(await screen.findByText("Processed 12/12")).toBeInTheDocument();
+    expect(await screen.findByText("Total processed: 12")).toBeInTheDocument();
+    expect(await screen.findByText("Created: 12")).toBeInTheDocument();
   });
 
   it("shows mixed statuses in batch results table", async () => {
@@ -190,7 +188,7 @@ describe("CardsPage", () => {
   it("stops on second chunk error and keeps partial results", async () => {
     mockedImportCardsBatch
       .mockResolvedValueOnce({
-        items: Array.from({ length: 50 }, (_, index) => ({
+        items: Array.from({ length: 5 }, (_, index) => ({
           source_text: `item-${index + 1}`,
           status: "created" as const,
           card_id: index + 1,
@@ -198,8 +196,8 @@ describe("CardsPage", () => {
           message: null,
         })),
         summary: {
-          total: 50,
-          created: 50,
+          total: 5,
+          created: 5,
           duplicate_source: 0,
           duplicate_canonical: 0,
           rejected: 0,
@@ -212,7 +210,7 @@ describe("CardsPage", () => {
     renderCardsPage();
 
     await screen.findByRole("heading", { name: "Cards" });
-    const lines = Array.from({ length: 55 }, (_, index) => `item-${index + 1}`).join("\n");
+    const lines = Array.from({ length: 7 }, (_, index) => `item-${index + 1}`).join("\n");
     fireEvent.change(screen.getByLabelText("Input list"), { target: { value: lines } });
     fireEvent.click(screen.getByRole("button", { name: "Import" }));
 
@@ -221,8 +219,8 @@ describe("CardsPage", () => {
     });
 
     expect(await screen.findByText("Import stopped: Batch import failed due to request error.")).toBeInTheDocument();
-    expect(screen.getByText("Total processed: 50")).toBeInTheDocument();
-    expect(screen.getByText("Created: 50")).toBeInTheDocument();
+    expect(screen.getByText("Total processed: 5")).toBeInTheDocument();
+    expect(screen.getByText("Created: 5")).toBeInTheDocument();
     expect(screen.getAllByText("item-1").length).toBeGreaterThan(0);
   });
 
@@ -246,6 +244,7 @@ describe("CardsPage", () => {
           eligible_for_anki: true,
           anki_sync_status: "pending",
           anki_note_id: null,
+          anki_sync_error: null,
           llm_model: "test-model",
           created_at: "2026-01-01T00:00:00Z",
           updated_at: "2026-01-01T00:00:00Z",

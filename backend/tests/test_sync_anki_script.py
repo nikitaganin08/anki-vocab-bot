@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
-
 import pytest
 
+import app.scripts.sync_anki as sync_anki
 from app.clients.anki_connect import AnkiConnectTransportError
-from app.scripts.sync_anki import ensure_anki_connect_available, resolve_anki_desktop_launch_command
+from app.scripts.sync_anki import ensure_anki_connect_available
+
+OFFLINE = AnkiConnectTransportError(
+    "offline", code="anki_connect_transport", user_message="offline"
+)
 
 
 class FakeAnkiClient:
@@ -21,79 +24,34 @@ class FakeAnkiClient:
         return response
 
 
-def monotonic_clock(values: list[float]) -> Iterator[float]:
-    return iter(values)
+@pytest.fixture
+def launches(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
+    calls: list[list[str]] = []
+    monkeypatch.setattr(sync_anki.subprocess, "Popen", lambda command, **_: calls.append(command))
+    monkeypatch.setattr(sync_anki.time, "sleep", lambda _: None)
+    return calls
 
 
-def test_ensure_anki_connect_available_skips_launch_when_already_running() -> None:
+def test_skips_launch_when_already_running(launches: list[list[str]]) -> None:
     client = FakeAnkiClient([6])
-    launches: list[list[str]] = []
 
-    ensure_anki_connect_available(
-        anki_client=client,
-        startup_timeout_seconds=5.0,
-        system_name="Darwin",
-        launch_process=lambda command: launches.append(list(command)),
-    )
+    ensure_anki_connect_available(anki_client=client, startup_timeout_seconds=5.0)
 
     assert launches == []
     assert client.version_calls == 1
 
 
-def test_ensure_anki_connect_available_launches_and_waits_until_ready() -> None:
-    client = FakeAnkiClient(
-        [
-            AnkiConnectTransportError(
-                "offline",
-                code="anki_connect_transport",
-                user_message="offline",
-            ),
-            AnkiConnectTransportError(
-                "still offline",
-                code="anki_connect_transport",
-                user_message="still offline",
-            ),
-            6,
-        ]
-    )
-    launches: list[list[str]] = []
-    clock = monotonic_clock([0.0, 0.1, 0.2, 0.3])
-    sleeps: list[float] = []
+def test_launches_and_waits_until_ready(launches: list[list[str]]) -> None:
+    client = FakeAnkiClient([OFFLINE, OFFLINE, 6])
 
-    ensure_anki_connect_available(
-        anki_client=client,
-        startup_timeout_seconds=5.0,
-        system_name="Darwin",
-        launch_process=lambda command: launches.append(list(command)),
-        monotonic=lambda: next(clock),
-        sleep=lambda seconds: sleeps.append(seconds),
-    )
+    ensure_anki_connect_available(anki_client=client, startup_timeout_seconds=5.0)
 
     assert launches == [["open", "-a", "Anki"]]
-    assert sleeps == [0.5]
     assert client.version_calls == 3
 
 
-def test_ensure_anki_connect_available_raises_without_launch_command() -> None:
-    client = FakeAnkiClient(
-        [
-            AnkiConnectTransportError(
-                "offline",
-                code="anki_connect_transport",
-                user_message="offline",
-            )
-        ]
-    )
+def test_raises_when_anki_never_comes_up(launches: list[list[str]]) -> None:
+    client = FakeAnkiClient([OFFLINE])
 
-    with pytest.raises(RuntimeError, match="no default Anki launch command"):
-        ensure_anki_connect_available(
-            anki_client=client,
-            startup_timeout_seconds=5.0,
-            system_name="Plan9",
-        )
-
-
-def test_resolve_anki_desktop_launch_command_uses_platform_default() -> None:
-    command = resolve_anki_desktop_launch_command(system_name="Darwin")
-
-    assert command == ["open", "-a", "Anki"]
+    with pytest.raises(RuntimeError, match="did not become reachable"):
+        ensure_anki_connect_available(anki_client=client, startup_timeout_seconds=0.0)

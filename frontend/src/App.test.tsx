@@ -41,6 +41,7 @@ const cardsPayload = {
       eligible_for_anki: true,
       anki_sync_status: "pending",
       anki_note_id: null,
+      anki_sync_error: null,
       llm_model: "test-model",
       created_at: "2026-01-01T00:00:00Z",
       updated_at: "2026-01-01T00:00:00Z",

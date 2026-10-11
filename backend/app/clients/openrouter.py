@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Any
 
@@ -11,15 +11,9 @@ from app.schemas.description_lookup import (
     DescriptionLookupResponse,
     parse_description_lookup_response,
 )
-from app.schemas.llm import (
-    LlmResponse,
-    WordFamilyItem,
-    parse_llm_response,
-    parse_word_family_response,
-)
+from app.schemas.llm import LlmResponse, parse_llm_response
 from app.services.description_lookup_prompt import build_description_lookup_messages
 from app.services.llm_prompt import build_llm_messages
-from app.services.word_family_prompt import build_word_family_messages
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
@@ -61,29 +55,6 @@ class OpenRouterClient:
             ),
         )
 
-    def generate_word_family(
-        self,
-        canonical_text: str,
-        *,
-        explanation: str,
-        translation_variants: list[str],
-    ) -> list[WordFamilyItem]:
-        response = self._request_json_completion(
-            messages=build_word_family_messages(
-                canonical_text,
-                explanation=explanation,
-                translation_variants=translation_variants,
-            ),
-            response_parser=lambda payload: parse_word_family_response(
-                payload,
-                canonical_text=canonical_text,
-            ),
-            invalid_contract_user_message=(
-                "The language model returned an invalid word family response. Please try again."
-            ),
-        )
-        return response.word_family
-
     def _request_json_completion(
         self,
         *,
@@ -104,21 +75,28 @@ class OpenRouterClient:
         }
         url = f"{self.base_url}/chat/completions"
 
-        if self.http_client is not None:
-            response = self._send_request(self.http_client, url, payload, headers)
-            return self._parse_response(
-                response,
-                response_parser=response_parser,
-                invalid_contract_user_message=invalid_contract_user_message,
-            )
+        client_context = (
+            nullcontext(self.http_client)
+            if self.http_client is not None
+            else httpx.Client(timeout=self.timeout_seconds)
+        )
 
-        with httpx.Client(timeout=self.timeout_seconds) as client:
+        def complete(client: httpx.Client) -> Any:
             response = self._send_request(client, url, payload, headers)
             return self._parse_response(
                 response,
                 response_parser=response_parser,
                 invalid_contract_user_message=invalid_contract_user_message,
             )
+
+        with client_context as client:
+            try:
+                return complete(client)
+            except OpenRouterError as exc:
+                # One retry: the validators are strict and models occasionally drift.
+                if exc.code != "openrouter_invalid_contract":
+                    raise
+                return complete(client)
 
     def _send_request(
         self,
@@ -175,29 +153,12 @@ class OpenRouterClient:
             ) from exc
 
         try:
-            return response_parser(self._extract_content(content))
+            if not isinstance(content, str):
+                raise ValueError("OpenRouter message content must be a string")
+            return response_parser(content)
         except ValueError as exc:
             raise OpenRouterError(
                 "OpenRouter payload did not contain valid contract JSON",
                 code="openrouter_invalid_contract",
                 user_message=invalid_contract_user_message,
             ) from exc
-
-    @staticmethod
-    def _extract_content(content: Any) -> str:
-        if isinstance(content, str):
-            return content
-
-        if isinstance(content, Sequence):
-            text_chunks: list[str] = []
-            for item in content:
-                if (
-                    isinstance(item, dict)
-                    and item.get("type") == "text"
-                    and isinstance(item.get("text"), str)
-                ):
-                    text_chunks.append(item["text"])
-            if text_chunks:
-                return "".join(text_chunks)
-
-        raise ValueError("OpenRouter message content must be a string or text parts")

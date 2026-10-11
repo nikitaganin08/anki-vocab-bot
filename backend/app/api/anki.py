@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_anki_token
 from app.api.schemas import AnkiAckRequest, AnkiFailRequest, AnkiPendingCardResponse
 from app.db.session import get_session
-from app.models.anki_sync_attempt import AnkiSyncAttempt
 from app.models.card import AnkiSyncStatus, Card
 
 router = APIRouter(
@@ -32,27 +31,8 @@ def get_pending(
             select(Card)
             .where(Card.eligible_for_anki == True)  # noqa: E712
             .where(Card.anki_sync_status.in_(retryable_statuses))
-            .order_by(Card.created_at.asc())
-            .limit(limit)
-        )
-        .scalars()
-        .all()
-    )
-    return [AnkiPendingCardResponse.from_card(c) for c in cards]
-
-
-@router.get("/cards", response_model=list[AnkiPendingCardResponse])
-def get_eligible_cards(
-    session: SessionDep,
-    limit: Annotated[int, Query(ge=1, le=200)] = 50,
-    offset: Annotated[int, Query(ge=0)] = 0,
-) -> list[AnkiPendingCardResponse]:
-    cards = (
-        session.execute(
-            select(Card)
-            .where(Card.eligible_for_anki == True)  # noqa: E712
-            .order_by(Card.id.asc())
-            .offset(offset)
+            # New cards first, so permanently failing ones cannot starve the queue.
+            .order_by(Card.anki_sync_status == AnkiSyncStatus.FAILED, Card.created_at.asc())
             .limit(limit)
         )
         .scalars()
@@ -68,8 +48,7 @@ def ack_card(body: AnkiAckRequest, session: SessionDep) -> None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
     card.anki_sync_status = AnkiSyncStatus.SYNCED
     card.anki_note_id = body.anki_note_id
-    attempt = AnkiSyncAttempt(card_id=card.id, status="synced")
-    session.add(attempt)
+    card.anki_sync_error = None
     session.commit()
 
 
@@ -79,6 +58,5 @@ def fail_card(body: AnkiFailRequest, session: SessionDep) -> None:
     if card is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
     card.anki_sync_status = AnkiSyncStatus.FAILED
-    attempt = AnkiSyncAttempt(card_id=card.id, status="failed", error_message=body.error_message)
-    session.add(attempt)
+    card.anki_sync_error = body.error_message
     session.commit()

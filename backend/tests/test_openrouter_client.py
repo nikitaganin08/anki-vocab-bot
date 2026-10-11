@@ -81,7 +81,11 @@ def test_openrouter_client_raises_transport_error_for_http_failure() -> None:
 
 
 def test_openrouter_client_raises_protocol_error_for_invalid_contract() -> None:
+    calls = 0
+
     def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
         invalid_content = json.dumps({"accepted": True})
         return httpx.Response(200, json={"choices": [{"message": {"content": invalid_content}}]})
 
@@ -95,6 +99,7 @@ def test_openrouter_client_raises_protocol_error_for_invalid_contract() -> None:
         client.generate_card("take off")
 
     assert exc_info.value.code == "openrouter_invalid_contract"
+    assert calls == 2  # retried once
 
 
 def test_openrouter_client_raises_timeout_error() -> None:
@@ -134,24 +139,23 @@ def test_openrouter_client_parses_description_lookup_response() -> None:
     assert result.candidates == ["shovel away", "clear away", "remove"]
 
 
-def test_openrouter_client_parses_word_family_response() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        payload = request.read().decode("utf-8")
-        assert "canonical_text: accommodate" in payload
-        return httpx.Response(
-            200,
-            json={"choices": [{"message": {"content": VALID_WORD_FAMILY_CONTENT}}]},
-        )
+def test_openrouter_client_retries_once_after_invalid_contract() -> None:
+    responses = iter(
+        [
+            json.dumps({"accepted": True}),
+            json.dumps({"accepted": False, "message_for_user": "Not a stable expression."}),
+        ]
+    )
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"choices": [{"message": {"content": next(responses)}}]})
 
     client = OpenRouterClient(
         api_key="secret",
         model="test-model",
         http_client=httpx.Client(transport=httpx.MockTransport(handler)),
     )
-    result = client.generate_word_family(
-        "accommodate",
-        explanation="To provide space or adjust to a situation.",
-        translation_variants=["размещать", "приспосабливать"],
-    )
 
-    assert result[0].word == "accommodation"
+    result = client.generate_card("hello there friend")
+
+    assert result.accepted is False
