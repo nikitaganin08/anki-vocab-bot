@@ -1,4 +1,4 @@
-.PHONY: backend-dev frontend-dev backend-test frontend-test test build-frontend sync-anki android-apk docker-build docker-up docker-down smoke-api
+.PHONY: backend-dev frontend-dev backend-test frontend-test test build-frontend sync-anki android-apk docker-build docker-up docker-down
 
 backend-dev:
 	cd backend && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -31,6 +31,3 @@ docker-up:
 
 docker-down:
 	docker compose down
-
-smoke-api:
-	curl --fail --silent http://127.0.0.1/api/health

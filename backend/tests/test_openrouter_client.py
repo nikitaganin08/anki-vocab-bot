@@ -32,17 +32,6 @@ VALID_COMPLETION_CONTENT = json.dumps(
 VALID_DESCRIPTION_LOOKUP_CONTENT = json.dumps(
     {"found": True, "candidates": ["shovel away", "clear away", "remove"]}
 )
-VALID_WORD_FAMILY_CONTENT = json.dumps(
-    {
-        "word_family": [
-            {
-                "word": "accommodation",
-                "part_of_speech": "noun",
-                "translation": "размещение",
-            }
-        ]
-    }
-)
 
 
 def test_openrouter_client_parses_valid_response() -> None:

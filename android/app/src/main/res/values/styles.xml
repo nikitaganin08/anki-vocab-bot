@@ -1,7 +1,5 @@
 <resources>
-    <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:windowNoTitle">true</item>
-    </style>
+    <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar" />
 
     <style name="AppTheme.Dialog" parent="@android:style/Theme.Material.Light.Dialog.Alert">
         <item name="android:windowNoTitle">true</item>

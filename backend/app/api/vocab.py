@@ -46,7 +46,7 @@ def mobile_lookup(
 
     validation = validate_source_input(payload.text)
     if validation.normalized_text is None:
-        message = validation.error_message or "Invalid input."
+        message = validation.error_message
         logger.info("mobile lookup rejected invalid input")
         return MobileLookupResponse(
             status="invalid_input",

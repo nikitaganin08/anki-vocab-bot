@@ -1,8 +1,6 @@
 .git
 .gitignore
 .idea
-.tasks
-.beads
 
 **/__pycache__
 **/*.pyc

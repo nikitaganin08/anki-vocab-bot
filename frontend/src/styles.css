@@ -4,9 +4,7 @@
   --bg-aqua: #155c66;
   --surface: rgba(247, 241, 231, 0.96);
   --surface-strong: rgba(255, 250, 242, 0.98);
-  --surface-tint: rgba(255, 255, 255, 0.16);
   --border-soft: rgba(11, 30, 45, 0.14);
-  --border-strong: rgba(8, 19, 31, 0.18);
   --text-main: #112130;
   --text-muted: #536578;
   --accent: #1a8c80;
@@ -18,7 +16,7 @@
   --shadow-soft: 0 20px 55px rgba(5, 13, 22, 0.2);
   --shadow-dialog: 0 30px 80px rgba(2, 8, 15, 0.45);
   color: var(--text-main);
-  font-family: "Fraunces", "Avenir Next", "Trebuchet MS", sans-serif;
+  font-family: "Avenir Next", "Trebuchet MS", sans-serif;
   line-height: 1.5;
   font-weight: 400;
   font-synthesis: none;

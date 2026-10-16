@@ -47,10 +47,9 @@ class Settings(BaseSettings):
     llm_model: str = Field(default="google/gemini-2.5-flash-lite", alias="LLM_MODEL")
 
     model_config = SettingsConfigDict(
-        env_file=(str(REPO_ROOT / ".env"), str(REPO_ROOT / "backend" / ".env")),
+        env_file=str(REPO_ROOT / ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
-        populate_by_name=True,
     )
 
     @property

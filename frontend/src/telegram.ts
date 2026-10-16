@@ -10,17 +10,8 @@ interface TelegramWindow extends Window {
   };
 }
 
-function getTelegramWindow(): TelegramWindow | null {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  return window as TelegramWindow;
-}
-
-export function getTelegramWebApp(): TelegramWebApp | null {
-  const telegramWindow = getTelegramWindow();
-  const webApp = telegramWindow?.Telegram?.WebApp;
+function getTelegramWebApp(): TelegramWebApp | null {
+  const webApp = (window as TelegramWindow).Telegram?.WebApp;
   if (!webApp || webApp.initData.length === 0) {
     return null;
   }

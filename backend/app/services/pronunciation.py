@@ -34,8 +34,6 @@ class EdgeTtsPronunciationGenerator:
 
         try:
             audio_bytes = asyncio.run(self._generate_audio_bytes(text))
-        except PronunciationAudioError:
-            raise
         except Exception as exc:
             raise PronunciationAudioError(
                 "edge-tts failed to synthesize pronunciation audio",

@@ -68,13 +68,10 @@ class ApplySourceTextStub:
 @dataclass
 class LookupCandidatesStub:
     result: object | None = None
-    error: Exception | None = None
     calls: list[str] = field(default_factory=list)
 
     def __call__(self, description: str) -> object:
         self.calls.append(description)
-        if self.error is not None:
-            raise self.error
         assert self.result is not None
         return self.result
 

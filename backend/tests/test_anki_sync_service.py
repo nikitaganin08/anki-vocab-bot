@@ -25,10 +25,8 @@ class FakePronunciationGenerator:
     def __init__(
         self,
         *,
-        audio: bytes = b"audio",
         error: PronunciationAudioError | None = None,
     ) -> None:
-        self.audio = audio
         self.error = error
         self.calls: list[str] = []
 
@@ -36,7 +34,7 @@ class FakePronunciationGenerator:
         self.calls.append(text)
         if self.error is not None:
             raise self.error
-        return self.audio
+        return b"audio"
 
 
 def test_map_card_to_anki_payload_uses_required_field_mapping() -> None:
@@ -154,7 +152,6 @@ def test_sync_pending_cards_reports_failures() -> None:
         def add_note(self, payload: AnkiNotePayload) -> int:
             raise AnkiConnectTransportError(
                 "duplicate note",
-                code="anki_connect_action_error",
                 user_message="duplicate note",
             )
 
@@ -183,11 +180,7 @@ def test_sync_pending_cards_raises_if_fail_reporting_breaks() -> None:
             raise AssertionError(f"Did not expect ack() for card={card_id}, note={anki_note_id}")
 
         def fail(self, card_id: int, error_message: str) -> None:
-            raise BackendSyncApiError(
-                "backend down",
-                code="backend_sync_transport",
-                user_message="backend down",
-            )
+            raise BackendSyncApiError("backend down")
 
     class FakeAnkiClient:
         def store_media_file(self, filename: str, data: bytes) -> None:
@@ -201,7 +194,6 @@ def test_sync_pending_cards_raises_if_fail_reporting_breaks() -> None:
         def add_note(self, payload: AnkiNotePayload) -> int:
             raise AnkiConnectTransportError(
                 "anki down",
-                code="anki_connect_transport",
                 user_message="anki down",
             )
 

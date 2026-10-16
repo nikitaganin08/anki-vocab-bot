@@ -9,13 +9,13 @@ from typing import Any, Callable
 import httpx
 
 DEFAULT_ANKI_CONNECT_URL = "http://127.0.0.1:8765"
-DEFAULT_ANKI_CONNECT_VERSION = 6
+ANKI_CONNECT_VERSION = 6
+RETRY_BACKOFF_SECONDS = 0.3
 
 
 class AnkiConnectError(RuntimeError):
-    def __init__(self, message: str, *, code: str, user_message: str) -> None:
+    def __init__(self, message: str, *, user_message: str) -> None:
         super().__init__(message)
-        self.code = code
         self.user_message = user_message
 
 
@@ -42,10 +42,8 @@ class AnkiNotePayload:
 @dataclass(slots=True)
 class AnkiConnectClient:
     endpoint: str = DEFAULT_ANKI_CONNECT_URL
-    version: int = DEFAULT_ANKI_CONNECT_VERSION
     timeout_seconds: float = 10.0
     max_retries: int = 2
-    retry_backoff_seconds: float = 0.3
     http_client: httpx.Client | None = None
     sleeper: Callable[[float], None] = time.sleep
 
@@ -54,7 +52,6 @@ class AnkiConnectClient:
         if not isinstance(result, int):
             raise AnkiConnectProtocolError(
                 "AnkiConnect version result is not an integer",
-                code="anki_connect_invalid_version",
                 user_message="AnkiConnect returned an invalid version response.",
             )
         return result
@@ -72,7 +69,6 @@ class AnkiConnectClient:
         if not isinstance(result, int):
             raise AnkiConnectProtocolError(
                 "AnkiConnect addNote result is not an integer note id",
-                code="anki_connect_invalid_note_id",
                 user_message="AnkiConnect returned an invalid note ID.",
             )
         return result
@@ -82,7 +78,6 @@ class AnkiConnectClient:
         if not isinstance(result, list) or not all(isinstance(item, int) for item in result):
             raise AnkiConnectProtocolError(
                 "AnkiConnect findNotes result is not a list of note ids",
-                code="anki_connect_invalid_find_notes_result",
                 user_message="AnkiConnect returned invalid findNotes response.",
             )
         return result
@@ -99,7 +94,6 @@ class AnkiConnectClient:
         if result not in (None, filename):
             raise AnkiConnectProtocolError(
                 "AnkiConnect storeMediaFile returned unexpected result",
-                code="anki_connect_invalid_store_media_result",
                 user_message="AnkiConnect returned an invalid media upload response.",
             )
 
@@ -112,12 +106,12 @@ class AnkiConnectClient:
                 if attempt >= self.max_retries:
                     raise
                 attempt += 1
-                self.sleeper(self.retry_backoff_seconds * attempt)
+                self.sleeper(RETRY_BACKOFF_SECONDS * attempt)
 
     def _request(self, action: str, params: dict[str, Any]) -> Any:
         payload = {
             "action": action,
-            "version": self.version,
+            "version": ANKI_CONNECT_VERSION,
             "params": params,
         }
 
@@ -136,13 +130,11 @@ class AnkiConnectClient:
         except httpx.TimeoutException as exc:
             raise AnkiConnectTimeoutError(
                 "AnkiConnect request timed out",
-                code="anki_connect_timeout",
                 user_message="AnkiConnect timed out.",
             ) from exc
         except httpx.HTTPError as exc:
             raise AnkiConnectTransportError(
                 "AnkiConnect request failed",
-                code="anki_connect_transport",
                 user_message="Could not reach AnkiConnect.",
             ) from exc
 
@@ -151,14 +143,12 @@ class AnkiConnectClient:
         except ValueError as exc:
             raise AnkiConnectProtocolError(
                 "AnkiConnect returned non-JSON payload",
-                code="anki_connect_non_json",
                 user_message="AnkiConnect returned unreadable payload.",
             ) from exc
 
         if not isinstance(data, dict) or "error" not in data or "result" not in data:
             raise AnkiConnectProtocolError(
                 "AnkiConnect response is missing required keys",
-                code="anki_connect_missing_keys",
                 user_message="AnkiConnect response format is invalid.",
             )
 
@@ -168,7 +158,6 @@ class AnkiConnectClient:
             # Not a transport error: Anki rejected the action, so retrying will not help.
             raise AnkiConnectError(
                 f"AnkiConnect action failed: {error_message}",
-                code="anki_connect_action_error",
                 user_message=error_message,
             )
 
