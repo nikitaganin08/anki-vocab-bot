@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, checkAnswer, getReviewSession, getReviewSummary, gradeCard } from "../api/client";
@@ -99,9 +100,16 @@ function checked(overrides: Partial<CheckResponse> = {}): CheckResponse {
   };
 }
 
-function renderReview(mode: ReviewMode = {}): ReturnType<typeof vi.fn> {
+// The ["settings"] cache is seeded, as the app has it by the time a card shows.
+function renderReview(mode: ReviewMode = {}, ttsEnabled = false): ReturnType<typeof vi.fn> {
   const onExit = vi.fn();
-  render(<ReviewView mode={mode} onExit={onExit} />);
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  queryClient.setQueryData(["settings"], { tts_enabled: ttsEnabled });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <ReviewView mode={mode} onExit={onExit} />
+    </QueryClientProvider>,
+  );
   return onExit;
 }
 
@@ -465,7 +473,7 @@ describe("pronunciation", () => {
     vi.unstubAllGlobals();
   });
 
-  it("hides the speaker without speechSynthesis", async () => {
+  it("hides the speaker without server audio and speechSynthesis", async () => {
     expect("speechSynthesis" in window).toBe(false);
     renderReview();
 
@@ -497,6 +505,74 @@ describe("pronunciation", () => {
     fireEvent.click(speaker);
     expect(speak).toHaveBeenCalledTimes(1);
     expect(speak).toHaveBeenCalledWith(expect.objectContaining({ text: "give", lang: "en-US", voice: usVoice }));
+  });
+
+  function stubAudio(play: () => Promise<void>): string[] {
+    const sources: string[] = [];
+    vi.stubGlobal(
+      "Audio",
+      class {
+        constructor(src: string) {
+          sources.push(src);
+        }
+        play = play;
+      },
+    );
+    URL.createObjectURL = vi.fn(() => "blob:give");
+    return sources;
+  }
+
+  it("plays server audio on tap with one authorized request per card", async () => {
+    vi.stubGlobal("Telegram", { WebApp: { initData: "signed-init-data" } });
+    const fetchMock = vi.fn(async () => new Response(new Blob(["mp3"]), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const play = vi.fn(() => Promise.resolve());
+    const sources = stubAudio(play);
+    mockedSession.mockResolvedValue([item(31, "give", "___ up", { intro: true, srs_due_at: null })]);
+    renderReview({}, true);
+
+    // Shown without speechSynthesis; nothing is fetched or played before a tap.
+    const speaker = await screen.findByRole("button", { name: "Play pronunciation" });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    // A double tap shares one request.
+    fireEvent.click(speaker);
+    fireEvent.click(speaker);
+    await waitFor(() => expect(play).toHaveBeenCalledTimes(2));
+    // Once loaded, a tap plays at once from memory.
+    fireEvent.click(speaker);
+    expect(play).toHaveBeenCalledTimes(3);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith("/api/cards/31/audio", {
+      headers: { "X-Telegram-Init-Data": "signed-init-data" },
+    });
+    expect(sources).toEqual(["blob:give", "blob:give", "blob:give"]);
+  });
+
+  it("falls back to speechSynthesis when server audio fails", async () => {
+    const speak = vi.fn();
+    vi.stubGlobal("speechSynthesis", { speak, cancel: vi.fn(), getVoices: () => [] });
+    vi.stubGlobal(
+      "SpeechSynthesisUtterance",
+      class {
+        lang = "";
+        constructor(readonly text: string) {}
+      },
+    );
+    const fetchMock = vi.fn(async () => new Response('{"detail":"TTS failed"}', { status: 502 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const play = vi.fn(() => Promise.resolve());
+    stubAudio(play);
+    mockedSession.mockResolvedValue([item(32, "give", "___ up", { intro: true, srs_due_at: null })]);
+    renderReview({}, true);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Play pronunciation" }));
+
+    await waitFor(() => expect(speak).toHaveBeenCalledTimes(1));
+    expect(speak).toHaveBeenCalledWith(expect.objectContaining({ text: "give", lang: "en-US" }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(play).not.toHaveBeenCalled();
   });
 });
 

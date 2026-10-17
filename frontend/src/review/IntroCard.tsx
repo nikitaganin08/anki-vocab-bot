@@ -1,5 +1,8 @@
+import { useQuery } from "@tanstack/react-query";
+
+import { getSettings } from "../api/client";
 import type { Card } from "../api/types";
-import { canSpeak, speak } from "./speak";
+import { canSpeak, playPronunciation } from "./speak";
 
 // Tabler "volume" outline icon (MIT), 24x24.
 const SPEAKER_PATHS = [
@@ -10,16 +13,23 @@ const SPEAKER_PATHS = [
 
 // The full card, shared by the intro and the back side. Pronunciation plays only on tap.
 export function CardDetails({ card }: { card: Card }): JSX.Element {
+  // Shares the ["settings"] cache; until it loads (or if it fails) device speech is used.
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: getSettings,
+    staleTime: Infinity,
+  });
+  const ttsEnabled = settings?.tts_enabled === true;
   return (
     <div className="surface-panel review-card">
       <div className="review-word">
         <h2>{card.canonical_text}</h2>
-        {canSpeak() ? (
+        {ttsEnabled || canSpeak() ? (
           <button
             type="button"
             className="icon-button"
             aria-label="Play pronunciation"
-            onClick={() => speak(card.canonical_text)}
+            onClick={() => playPronunciation(card, ttsEnabled)}
           >
             <svg viewBox="0 0 24 24" aria-hidden="true">
               {SPEAKER_PATHS.map((d) => (

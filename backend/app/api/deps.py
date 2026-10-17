@@ -9,6 +9,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.api.telegram_webapp_auth import parse_and_validate_init_data
 from app.clients.openrouter import OpenRouterClient
 from app.core.config import get_settings
+from app.services.pronunciation import GoogleTtsClient
 
 _bearer = HTTPBearer()
 
@@ -34,6 +35,21 @@ def get_openrouter_client() -> OpenRouterClient:
         api_key=settings.openrouter_api_key,
         model=settings.llm_model,
     )
+
+
+def is_tts_enabled() -> bool:
+    return bool(get_settings().google_tts_api_key)
+
+
+def get_tts_client() -> GoogleTtsClient:
+    settings = get_settings()
+    if not settings.google_tts_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Pronunciation is not configured",
+        )
+
+    return GoogleTtsClient(api_key=settings.google_tts_api_key, voice=settings.google_tts_voice)
 
 
 def require_telegram_webapp_user(

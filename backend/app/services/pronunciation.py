@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-import asyncio
+import base64
 from dataclasses import dataclass
 
-import edge_tts
+import httpx
+
+GOOGLE_TTS_URL = "https://texttospeech.googleapis.com/v1/text:synthesize"
 
 
 class PronunciationAudioError(RuntimeError):
@@ -22,43 +24,49 @@ def build_pronunciation_sound_field(card_id: int) -> str:
 
 
 @dataclass(slots=True)
-class EdgeTtsPronunciationGenerator:
+class GoogleTtsClient:
+    api_key: str
     voice: str
+    http_client: httpx.Client | None = None
+    timeout_seconds: float = 15.0
 
-    def generate_audio(self, text: str) -> bytes:
-        if not text.strip():
+    def synthesize(self, text: str) -> bytes:
+        body = {
+            "input": {"text": text},
+            # "en-US-Chirp3-HD-Aoede" -> "en-US"
+            "voice": {"languageCode": "-".join(self.voice.split("-")[:2]), "name": self.voice},
+            "audioConfig": {"audioEncoding": "MP3"},
+        }
+        # The key goes in a header, not ?key=, so httpx request logs never show it.
+        headers = {"X-Goog-Api-Key": self.api_key}
+        try:
+            if self.http_client is not None:
+                response = self.http_client.post(GOOGLE_TTS_URL, json=body, headers=headers)
+            else:
+                with httpx.Client(timeout=self.timeout_seconds) as client:
+                    response = client.post(GOOGLE_TTS_URL, json=body, headers=headers)
+        except httpx.HTTPError as exc:
             raise PronunciationAudioError(
-                "Pronunciation text must not be empty",
-                user_message="Pronunciation audio generation failed: empty source text.",
+                f"Google TTS request failed: {exc!r}",
+                user_message="Pronunciation service is unreachable",
+            ) from exc
+
+        if response.is_error:
+            raise PronunciationAudioError(
+                f"Google TTS returned status {response.status_code}: {response.text[:300]}",
+                user_message=f"Pronunciation service returned status {response.status_code}",
             )
 
         try:
-            audio_bytes = asyncio.run(self._generate_audio_bytes(text))
-        except Exception as exc:
+            audio = base64.b64decode(response.json()["audioContent"])
+        except (ValueError, KeyError, TypeError) as exc:
             raise PronunciationAudioError(
-                "edge-tts failed to synthesize pronunciation audio",
-                user_message="Pronunciation audio generation failed.",
+                "Google TTS response has no audioContent",
+                user_message="Pronunciation service returned no audio",
             ) from exc
-
-        if not audio_bytes:
+        if not audio:
             raise PronunciationAudioError(
-                "edge-tts produced empty audio output",
-                user_message="Pronunciation audio generation failed: empty audio output.",
+                "Google TTS returned empty audioContent",
+                user_message="Pronunciation service returned no audio",
             )
-
-        return audio_bytes
-
-    async def _generate_audio_bytes(self, text: str) -> bytes:
-        communicate = edge_tts.Communicate(
-            text=text,
-            voice=self.voice,
-        )
-        audio_chunks: list[bytes] = []
-
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                data = chunk.get("data")
-                if isinstance(data, bytes):
-                    audio_chunks.append(data)
-
-        return b"".join(audio_chunks)
+        return audio

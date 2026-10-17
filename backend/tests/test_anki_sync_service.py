@@ -10,7 +10,6 @@ from app.services.anki_sync import (
     map_card_to_anki_payload,
     sync_pending_cards,
 )
-from app.services.pronunciation import PronunciationAudioError
 
 
 def _pending_card() -> PendingCard:
@@ -23,22 +22,6 @@ def _pending_card() -> PendingCard:
         explanation="To leave the ground.",
         examples=["The plane took off.", "Take off your coat.", "Sales took off."],
     )
-
-
-class FakePronunciationGenerator:
-    def __init__(
-        self,
-        *,
-        error: PronunciationAudioError | None = None,
-    ) -> None:
-        self.error = error
-        self.calls: list[str] = []
-
-    def generate_audio(self, text: str) -> bytes:
-        self.calls.append(text)
-        if self.error is not None:
-            raise self.error
-        return b"audio"
 
 
 def test_map_card_to_anki_payload_uses_required_field_mapping() -> None:
@@ -113,10 +96,15 @@ def test_sync_pending_cards_acks_successful_cards() -> None:
     class FakeBackendClient:
         def __init__(self) -> None:
             self.acks: list[tuple[int, int]] = []
+            self.audio_calls: list[int] = []
 
         def get_pending(self, limit: int = 50) -> list[PendingCard]:
             assert limit == 50
             return [_pending_card()]
+
+        def get_card_audio(self, card_id: int) -> bytes:
+            self.audio_calls.append(card_id)
+            return b"audio"
 
         def ack(self, card_id: int, anki_note_id: int) -> None:
             self.acks.append((card_id, anki_note_id))
@@ -143,20 +131,15 @@ def test_sync_pending_cards_acks_successful_cards() -> None:
 
     backend = FakeBackendClient()
     anki = FakeAnkiClient()
-    pronunciation = FakePronunciationGenerator()
 
-    summary = sync_pending_cards(
-        backend_client=backend,
-        anki_client=anki,
-        pronunciation_generator=pronunciation,
-    )
+    summary = sync_pending_cards(backend_client=backend, anki_client=anki)
 
     assert summary.total == 1
     assert summary.synced == 1
     assert summary.failed == 0
     assert backend.acks == [(7, 555)]
     assert anki.uploads == [("avb-pronunciation-7.mp3", b"audio")]
-    assert pronunciation.calls == ["Take Off"]
+    assert backend.audio_calls == [7]
 
 
 def test_sync_pending_cards_reports_failures() -> None:
@@ -166,6 +149,9 @@ def test_sync_pending_cards_reports_failures() -> None:
 
         def get_pending(self, limit: int = 50) -> list[PendingCard]:
             return [_pending_card()]
+
+        def get_card_audio(self, card_id: int) -> bytes:
+            return b"audio"
 
         def ack(self, card_id: int, anki_note_id: int) -> None:
             raise AssertionError(f"Did not expect ack() for card={card_id}, note={anki_note_id}")
@@ -190,13 +176,8 @@ def test_sync_pending_cards_reports_failures() -> None:
 
     backend = FakeBackendClient()
     anki = FakeAnkiClient()
-    pronunciation = FakePronunciationGenerator()
 
-    summary = sync_pending_cards(
-        backend_client=backend,
-        anki_client=anki,
-        pronunciation_generator=pronunciation,
-    )
+    summary = sync_pending_cards(backend_client=backend, anki_client=anki)
 
     assert summary.total == 1
     assert summary.synced == 0
@@ -208,6 +189,9 @@ def test_sync_pending_cards_raises_if_fail_reporting_breaks() -> None:
     class FakeBackendClient:
         def get_pending(self, limit: int = 50) -> list[PendingCard]:
             return [_pending_card()]
+
+        def get_card_audio(self, card_id: int) -> bytes:
+            return b"audio"
 
         def ack(self, card_id: int, anki_note_id: int) -> None:
             raise AssertionError(f"Did not expect ack() for card={card_id}, note={anki_note_id}")
@@ -231,11 +215,7 @@ def test_sync_pending_cards_raises_if_fail_reporting_breaks() -> None:
             )
 
     with pytest.raises(RuntimeError):
-        sync_pending_cards(
-            backend_client=FakeBackendClient(),
-            anki_client=FakeAnkiClient(),
-            pronunciation_generator=FakePronunciationGenerator(),
-        )
+        sync_pending_cards(backend_client=FakeBackendClient(), anki_client=FakeAnkiClient())
 
 
 def test_sync_pending_cards_uses_existing_tagged_note_idempotently() -> None:
@@ -245,6 +225,9 @@ def test_sync_pending_cards_uses_existing_tagged_note_idempotently() -> None:
 
         def get_pending(self, limit: int = 50) -> list[PendingCard]:
             return [_pending_card()]
+
+        def get_card_audio(self, card_id: int) -> bytes:
+            raise AssertionError("Did not expect audio for an already synced note")
 
         def ack(self, card_id: int, anki_note_id: int) -> None:
             self.acks.append((card_id, anki_note_id))
@@ -270,13 +253,8 @@ def test_sync_pending_cards_uses_existing_tagged_note_idempotently() -> None:
 
     backend = FakeBackendClient()
     anki = FakeAnkiClient()
-    pronunciation = FakePronunciationGenerator()
 
-    summary = sync_pending_cards(
-        backend_client=backend,
-        anki_client=anki,
-        pronunciation_generator=pronunciation,
-    )
+    summary = sync_pending_cards(backend_client=backend, anki_client=anki)
 
     assert summary.total == 1
     assert summary.synced == 1
@@ -284,20 +262,26 @@ def test_sync_pending_cards_uses_existing_tagged_note_idempotently() -> None:
     assert backend.acks == [(7, 777)]
     assert anki.add_note_called is False
     assert anki.store_media_called is False
-    assert pronunciation.calls == []
 
 
-def test_sync_pending_cards_adds_note_without_audio_when_tts_fails(
+def test_sync_pending_cards_adds_note_without_audio_when_backend_audio_fails(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     class FakeBackendClient:
         def __init__(self) -> None:
             self.acks: list[tuple[int, int]] = []
+            self.audio_calls: list[int] = []
 
         def get_pending(self, limit: int = 50) -> list[PendingCard]:
             second = _pending_card()
             second.id = 8
             return [_pending_card(), second]
+
+        def get_card_audio(self, card_id: int) -> bytes:
+            self.audio_calls.append(card_id)
+            raise BackendSyncApiError(
+                'Backend sync API returned status 503: {"detail":"Pronunciation is not configured"}'
+            )
 
         def ack(self, card_id: int, anki_note_id: int) -> None:
             self.acks.append((card_id, anki_note_id))
@@ -321,18 +305,8 @@ def test_sync_pending_cards_adds_note_without_audio_when_tts_fails(
 
     backend = FakeBackendClient()
     anki = FakeAnkiClient()
-    pronunciation = FakePronunciationGenerator(
-        error=PronunciationAudioError(
-            "tts failed",
-            user_message="Pronunciation audio generation failed.",
-        )
-    )
 
-    summary = sync_pending_cards(
-        backend_client=backend,
-        anki_client=anki,
-        pronunciation_generator=pronunciation,
-    )
+    summary = sync_pending_cards(backend_client=backend, anki_client=anki)
 
     assert summary.total == 2
     assert summary.synced == 2
@@ -341,5 +315,6 @@ def test_sync_pending_cards_adds_note_without_audio_when_tts_fails(
     assert backend.acks == [(7, 501), (8, 502)]
     warnings = [r for r in caplog.records if r.levelname == "WARNING"]
     assert len(warnings) == 1
-    # After the first failure the run stops calling TTS.
-    assert pronunciation.calls == ["Take Off"]
+    assert "Pronunciation is not configured" in warnings[0].getMessage()
+    # After the first failure the run stops requesting audio.
+    assert backend.audio_calls == [7]

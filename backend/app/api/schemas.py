@@ -212,6 +212,10 @@ class AppSettingsPayload(BaseModel):
         return value
 
 
+class AppSettingsResponse(AppSettingsPayload):
+    tts_enabled: bool  # read-only: GOOGLE_TTS_API_KEY is set
+
+
 class AnkiAckRequest(BaseModel):
     card_id: int
     anki_note_id: int

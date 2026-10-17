@@ -32,7 +32,7 @@ keeps it for 12+ weeks; metrics from `review_logs` show it.
 | Typing | Always required. New cards: intro (full card, "Got it") first, typed question later in the same session. |
 | Back side | Diff of typed vs expected, then the full card: word + audio + IPA, translations, explanation, chunks, 1 example, word family (one form per line). Auto-selected grade, user can change; "My answer was right" override. |
 | Reminders | Background asyncio loop in the FastAPI lifespan, one message a day at the chosen hour, suppressed/backed-off per research. |
-| Anki | Sync unchanged in mechanics; `Example` field = chunks + example. Owner's `English::Inbox` deck is imported with approximate FSRS state. |
+| Anki | Sync unchanged in mechanics; `Example` field = chunks + example; pronunciation MP3 comes from the backend (Google TTS, best-effort). Owner's `English::Inbox` deck is imported with approximate FSRS state. |
 
 ## Data model (Alembic migration `0005`)
 
@@ -90,7 +90,7 @@ Look: flat, neutral, follows the Telegram theme (`Telegram.WebApp.themeParams` �
 
 Full card (intro and back side, one component): word + speaker + IPA → translations → explanation (full English definition) → "Usage" chunks → one example → word family, each form on its own line ("distinguishable (adjective) — различимый"), never joined with "·".
 
-Audio: device TTS only — `window.speechSynthesis` speaks `canonical_text` (lang en-US, cancel then speak, an English voice when the device lists one), on tap only, never automatically. The speaker button is shown only where `speechSynthesis` exists; it is hidden e.g. in Telegram Desktop and the Android WebView. No server audio (decided 2026-10-17: edge-tts gets 403 from Microsoft, and the small VPS should not store audio). Label "Play pronunciation". Anki audio stays best-effort: `sync_anki` adds the note with an empty `PronunciationAudio` field when edge-tts fails.
+Audio (revised 2026-10-17): Google Cloud Text-to-Speech (`en-US-Chirp3-HD-Aoede` by default), proxied by the backend and never stored on the server. `GET /api/cards/{id}/audio` synthesizes `canonical_text` per request and returns `audio/mpeg` with `Cache-Control: private, max-age=31536000, immutable`; inert until `GOOGLE_TTS_API_KEY` is set (503). The speaker shows when `GET /api/settings` reports `tts_enabled` or `speechSynthesis` exists. On tap only (no autoplay, no prefetch) the Mini App fetches the MP3 once per card per page load, keeps the object URL in memory and plays it; on any failure or without the key it falls back to `speechSynthesis` (lang en-US, an English voice when listed), else silent. Label "Play pronunciation". Chirp 3 HD is free up to 1M characters per month; the owner sets a quota in the GCP console. Anki audio: `sync_anki` downloads the same MP3 from `GET /api/anki/cards/{id}/audio` (bearer token); best-effort, the note is added with an empty `PronunciationAudio` field when audio fails. (Earlier device-only decision: edge-tts got 403 from Microsoft.)
 
 Views switched by `?view=` (no router): `home`, `review`, `cards`, `settings`; the reminder and `/review` open `?view=review`.
 

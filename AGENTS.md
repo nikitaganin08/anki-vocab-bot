@@ -63,7 +63,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 - `TanStack Query`
 - No router: views are switched by the `?view=` query parameter
 - Theme follows Telegram: `Telegram.WebApp.themeParams` are mapped to CSS variables (`--tg-bg`, `--tg-text`, `--tg-hint`, `--tg-accent`, `--tg-accent-text`, `--tg-surface`) with light fallbacks; flat surfaces, no gradients, one accent button per screen
-- Audio: device TTS only via `window.speechSynthesis` (`en-US`, cancel then speak, an English voice when the device lists one), plays only on tap (no autoplay); the speaker button is hidden where `speechSynthesis` is missing (e.g. Telegram Desktop, Android WebView). No server audio: nothing is generated or stored on the VPS
+- Audio: see "Pronunciation". The speaker plays only on tap (no autoplay, no prefetch); it shows when `GET /api/settings` reports `tts_enabled` or `window.speechSynthesis` exists, and is hidden otherwise
 - UI copy is English, sentence case (`<html lang="en">`); Russian appears only as card data (translations, chunk translations)
 - `npm` for dependency management
 - `npx` only for one-off scaffolding and CLI bootstrap commands
@@ -255,8 +255,9 @@ Validation rules:
 - `POST /api/review/{card_id}/check` (verdict, expected answer, auto rating, intervals; no DB write)
 - `POST /api/review/{card_id}/grade` (409 on a stale `expected_due_at`)
 - `POST /api/review/undo`
-- `GET /api/settings`
-- `PUT /api/settings`
+- `GET /api/cards/{card_id}/audio` (MP3 of `canonical_text`, see "Pronunciation")
+- `GET /api/settings` (also read-only `tts_enabled`: `GOOGLE_TTS_API_KEY` is set)
+- `PUT /api/settings` (`tts_enabled` is not required and is ignored)
 
 ### Telegram Webhook API
 
@@ -268,6 +269,7 @@ Validation rules:
 - `POST /api/anki/ack`
 - `POST /api/anki/fail`
 - `POST /api/anki/import` (one Anki note → linked/created card with approximate FSRS state)
+- `GET /api/anki/cards/{card_id}/audio` (same MP3 as the Web App route)
 
 The Anki sync API uses bearer token authentication.
 
@@ -305,10 +307,17 @@ Production exposure (`deploy/nginx/anki.conf`):
 Mapping:
 - `Word` -> `canonical_text_normalized` (lowercased, whitespace-collapsed `canonical_text`)
 - `Transcription` -> `transcription`
-- `PronunciationAudio` -> `[sound:avb-pronunciation-<card_id>.mp3]` generated locally with edge-tts during `sync_anki`; best-effort: when generation fails (edge-tts currently gets 403 from Microsoft) the note is still added with an empty field and the card is acked
+- `PronunciationAudio` -> `[sound:avb-pronunciation-<card_id>.mp3]`; `sync_anki` downloads the MP3 from `GET /api/anki/cards/{card_id}/audio` and uploads it to Anki media. Best-effort: on any audio failure (including 503 before the key is set) the note is still added with an empty field and the card is acked; the run logs one warning with the cause and stops requesting audio
 - `Translation` -> comma-joined translations
 - `Explanation` -> `explanation`
 - `Example` -> chunk lines (`text — translation`), blank line, first English example, then the word family block
+
+## Pronunciation
+
+- Google Cloud Text-to-Speech (`app/services/pronunciation.py`, `GoogleTtsClient`), proxied by the backend: `GET /api/cards/{card_id}/audio` (Web App auth) and `GET /api/anki/cards/{card_id}/audio` (bearer token) synthesize `canonical_text` per request and return `audio/mpeg` with `Cache-Control: private, max-age=31536000, immutable`. Nothing is stored on the server
+- Inert until `GOOGLE_TTS_API_KEY` is set: 503 `Pronunciation is not configured`; unknown card 404; Google failure 502 (cause logged)
+- Mini App: the first tap per card fetches the MP3 once per page load (object URL kept in memory, double taps share the request) and plays it with `new Audio`; on any failure, or without the key, it falls back to `speechSynthesis` (`en-US`, an English voice when listed), else stays silent
+- Cost: Chirp 3 HD has a free tier of 1M characters per month (a word is ~10 characters); set a quota on the Text-to-Speech API in the GCP console so a bug cannot run up a bill
 
 Deck import (`app/scripts/import_anki.py`, one-off): notes of `English::Inbox` are posted to `POST /api/anki/import`; tagged notes link to their card, others are matched by canonical text or created via the LLM pipeline. Review cards get stability = interval, difficulty from ease, due = last review + interval; suspended notes are not learning; imported cards are marked `synced` so `sync_anki` does not push them again.
 
@@ -322,11 +331,12 @@ Required environment variables:
 - `TELEGRAM_WEBAPP_URL`
 - `OPENROUTER_API_KEY`
 - `ANKI_SYNC_TOKEN`
-- `ANKI_PRONUNCIATION_VOICE` (default: `en-US-EmmaNeural`)
 - `DATABASE_URL` (default: `sqlite:///backend/data/app.db`)
 - `LLM_MODEL` (default: `google/gemini-2.5-flash-lite`)
 
 Optional:
+- `GOOGLE_TTS_API_KEY` (Google Cloud Text-to-Speech; unset = pronunciation endpoints return 503)
+- `GOOGLE_TTS_VOICE` (default: `en-US-Chirp3-HD-Aoede`; the language code is taken from the name)
 - `DISABLE_REMINDERS=1` turns off the reminder loop (set in tests)
 
 Review preferences (timezone, reminder hour, limits, retention, learn threshold) live in `app_settings`, edited via `PUT /api/settings`.

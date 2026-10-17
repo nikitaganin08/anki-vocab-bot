@@ -7,8 +7,6 @@ from app.clients.anki_connect import AnkiConnectClient, AnkiConnectError, AnkiNo
 from app.clients.backend_sync_api import BackendSyncApiClient, BackendSyncApiError, PendingCard
 from app.schemas.llm import CardChunk, WordFamilyItem
 from app.services.pronunciation import (
-    EdgeTtsPronunciationGenerator,
-    PronunciationAudioError,
     build_pronunciation_filename,
     build_pronunciation_sound_field,
 )
@@ -67,7 +65,6 @@ def sync_pending_cards(
     *,
     backend_client: BackendSyncApiClient,
     anki_client: AnkiConnectClient,
-    pronunciation_generator: EdgeTtsPronunciationGenerator,
     limit: int = 50,
 ) -> SyncSummary:
     pending_cards = backend_client.get_pending(limit=limit)
@@ -81,18 +78,14 @@ def sync_pending_cards(
             summary.synced += 1
             continue
 
-        # Audio is best-effort (edge-tts's endpoint may refuse, e.g. 403): the note matters more.
+        # Audio is best-effort (503 until GOOGLE_TTS_API_KEY is set): the note matters more.
         audio_bytes: bytes | None = None
         if not audio_down:
             try:
-                audio_bytes = pronunciation_generator.generate_audio(card.canonical_text)
-            except PronunciationAudioError as exc:
+                audio_bytes = backend_client.get_card_audio(card.id)
+            except BackendSyncApiError as exc:
                 audio_down = True
-                logger.warning(
-                    "Adding notes without pronunciation audio: %s (%s)",
-                    exc.user_message,
-                    exc.__cause__,
-                )
+                logger.warning("Adding notes without pronunciation audio: %s", exc)
 
         try:
             pronunciation_field = ""

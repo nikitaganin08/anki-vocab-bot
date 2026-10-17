@@ -31,6 +31,8 @@ class TelegramSettingsStub:
     telegram_bot_token: str = TELEGRAM_BOT_TOKEN
     telegram_allowed_user_id: int = TELEGRAM_ALLOWED_USER_ID
     anki_sync_token: str | None = "sync-token"
+    google_tts_api_key: str | None = None
+    google_tts_voice: str = "en-US-Chirp3-HD-Aoede"
 
 
 @pytest.fixture

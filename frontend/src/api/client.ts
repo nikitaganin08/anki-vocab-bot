@@ -111,6 +111,16 @@ export async function setCardLearning(cardId: number, isLearning: boolean): Prom
   return request(`/api/cards/${cardId}`, "PATCH", { is_learning: isLearning });
 }
 
+export async function getCardAudio(cardId: number): Promise<Blob> {
+  const response = await fetch(resolveApiPath(`/api/cards/${cardId}/audio`), {
+    headers: buildHeaders({}),
+  });
+  if (!response.ok) {
+    throw new ApiError(await readErrorMessage(response), response.status);
+  }
+  return response.blob();
+}
+
 export async function getReviewSummary(): Promise<ReviewSummary> {
   return request("/api/review/summary");
 }

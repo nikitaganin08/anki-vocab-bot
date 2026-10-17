@@ -66,6 +66,9 @@ class BackendSyncApiClient:
     def import_note(self, item: dict[str, Any]) -> dict[str, Any]:
         return self._request("POST", "/api/anki/import", json=item)
 
+    def get_card_audio(self, card_id: int) -> bytes:
+        return self._request("GET", f"/api/anki/cards/{card_id}/audio", raw=True)
+
     def _request(
         self,
         method: str,
@@ -74,6 +77,7 @@ class BackendSyncApiClient:
         params: dict[str, Any] | None = None,
         json: dict[str, Any] | None = None,
         expect_json: bool = True,
+        raw: bool = False,
     ) -> Any:
         url = f"{self.base_url.rstrip('/')}{path}"
         headers = {
@@ -95,6 +99,7 @@ class BackendSyncApiClient:
                 params=params,
                 json=json,
                 expect_json=expect_json,
+                raw=raw,
             )
 
     def _send(
@@ -107,6 +112,7 @@ class BackendSyncApiClient:
         params: dict[str, Any] | None,
         json: dict[str, Any] | None,
         expect_json: bool,
+        raw: bool,
     ) -> Any:
         try:
             response = client.request(method, url, headers=headers, params=params, json=json)
@@ -116,8 +122,12 @@ class BackendSyncApiClient:
             raise BackendSyncApiError("Backend sync API request failed") from exc
 
         if response.status_code >= 400:
-            raise BackendSyncApiError(f"Backend sync API returned status {response.status_code}")
+            raise BackendSyncApiError(
+                f"Backend sync API returned status {response.status_code}: {response.text[:200]}"
+            )
 
+        if raw:
+            return response.content
         if not expect_json:
             return None
 
