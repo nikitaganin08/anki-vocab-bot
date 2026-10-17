@@ -206,11 +206,18 @@ textarea {
   min-height: 9.5rem;
 }
 
-input:focus,
+input:not([type="checkbox"]):not([type="radio"]):focus,
 select:focus,
 textarea:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+/* Checkboxes and radios have no border to recolour: keep a visible focus ring. */
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* Buttons: one .primary-button (accent) per screen */
@@ -655,11 +662,6 @@ progress::-moz-progress-bar {
 
 .learning-toggle input:checked::after {
   transform: translateX(16px);
-}
-
-.learning-toggle input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 /* States and dialogs */

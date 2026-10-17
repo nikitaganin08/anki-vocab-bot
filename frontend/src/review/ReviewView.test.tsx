@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, checkAnswer, getReviewSession, getReviewSummary, gradeCard } from "../api/client";
 import type { Card, CheckResponse, ReviewSessionItem, ReviewSummary } from "../api/types";
 import type { ReviewMode } from "../home/HomeView";
+import { formatInterval } from "./AnswerCard";
 import { ReviewView } from "./ReviewView";
 
 vi.mock("../api/client", async (importOriginal) => {
@@ -62,8 +63,7 @@ function item(
       index: 0,
       masked,
       hint_translation: "сдаться",
-      expected_length: word.length,
-      hint_letter: word[0],
+      first_letter_hint: word[0] + word.slice(1).replace(/\S/g, "_"),
     },
     srs_due_at: "2026-10-17T08:00:00.123456Z",
     ...overrides,
@@ -283,7 +283,7 @@ describe("ReviewView", () => {
     mockedSummary
       .mockResolvedValueOnce(summary())
       .mockResolvedValueOnce(summary({ heatmap, due_today: 6, new_today: 2, est_minutes: 4 }));
-    const onExit = renderReview({ size: 5 });
+    const onExit = renderReview();
 
     await answer("give");
     await grade(/^Хорошо/);
@@ -295,7 +295,7 @@ describe("ReviewView", () => {
     expect(progress).toHaveAttribute("max", "20");
     expect(screen.getByText("Осталось ~4 мин")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "На сегодня хватит" })).toHaveClass("secondary-button");
-    expect(mockedSession).toHaveBeenLastCalledWith({ size: 5, includeBacklog: false });
+    expect(mockedSession).toHaveBeenLastCalledWith({ size: 10, includeBacklog: false });
 
     fireEvent.click(screen.getByRole("button", { name: "Ещё раунд" }));
     expect(await screen.findByText("___ off")).toBeInTheDocument();
@@ -317,6 +317,33 @@ describe("ReviewView", () => {
     expect(onExit).toHaveBeenCalled();
   });
 
+  it("capped session asks only for what is left of the cap", async () => {
+    mockedSession
+      .mockResolvedValueOnce([item(1, "give", "___ up"), item(2, "take", "___ off")])
+      .mockResolvedValueOnce([item(3, "make", "___ sense")])
+      .mockResolvedValueOnce([item(4, "keep", "___ calm")]);
+    renderReview({ capCards: 3 });
+
+    expect(await screen.findByText("Раунд 1 · 1 из 2")).toBeInTheDocument();
+    expect(mockedSession).toHaveBeenLastCalledWith({ size: 3, includeBacklog: false });
+    await answer("give");
+    await grade(/^Хорошо/);
+    await answer("take");
+    await grade(/^Хорошо/);
+
+    expect(await screen.findByRole("heading", { name: "✓ Раунд готов" })).toBeInTheDocument();
+    expect(mockedSession).toHaveBeenLastCalledWith({ size: 1, includeBacklog: false });
+    fireEvent.click(screen.getByRole("button", { name: "Ещё раунд" }));
+    expect(await screen.findByText("Раунд 2 · 1 из 1")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("max", "1");
+    await answer("make");
+    await grade(/^Хорошо/);
+
+    // The cap is reached: the round ends, and any further round is a regular one.
+    expect(await screen.findByRole("heading", { name: "✓ Раунд готов" })).toBeInTheDocument();
+    expect(mockedSession).toHaveBeenLastCalledWith({ size: 10, includeBacklog: false });
+  });
+
   it("override grades good", async () => {
     mockedSession.mockResolvedValue([item(1, "give", "___ up")]);
     mockedCheck.mockResolvedValue(checked({ verdict: "wrong", auto_rating: 1 }));
@@ -336,8 +363,13 @@ describe("ReviewView", () => {
     mockedCheck.mockResolvedValue(checked({ auto_rating: 2 }));
     renderReview();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Подсказка: первая буква" }));
+    const input = await screen.findByRole("textbox", { name: "Ответ" });
+    expect(input).toHaveAttribute("maxlength", "200");
+    const hint = screen.getByRole("button", { name: "Подсказка: первая буква" });
+    hint.focus();
+    fireEvent.click(hint);
     expect(screen.getByText("g___")).toBeInTheDocument();
+    expect(input).toHaveFocus();
     await answer("give");
     expect(mockedCheck).toHaveBeenCalledWith(1, expect.objectContaining({ hint_used: true }));
 
@@ -391,5 +423,15 @@ describe("ReviewView", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Произнести" }));
     expect(speak).toHaveBeenCalledWith(expect.objectContaining({ text: "give", lang: "en-US" }));
+  });
+});
+
+describe("formatInterval", () => {
+  it("rounds before picking the unit", () => {
+    expect(formatInterval(30)).toBe("<1 м");
+    expect(formatInterval(600)).toBe("10 м");
+    expect(formatInterval(3570)).toBe("1 ч");
+    expect(formatInterval(86000)).toBe("1 д");
+    expect(formatInterval(345600)).toBe("4 д");
   });
 });

@@ -73,8 +73,7 @@ def test_session_hides_expected_answer(client: TestClient, session: Session) -> 
         "index": 0,
         "masked": "___ smoking",
         "hint_translation": "бросить курить",
-        "expected_length": 7,
-        "hint_letter": "g",
+        "first_letter_hint": "g___ __",
     }
     assert client.get("/api/review/session?size=21", headers=telegram_headers()).status_code == 422
 

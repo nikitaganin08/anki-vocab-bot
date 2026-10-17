@@ -1,6 +1,6 @@
 # SRS review in the Telegram Mini App — design
 
-Date: 2026-10-17. Status: agreed in chat (sections 1–4), UI details pending variant picks.
+Date: 2026-10-17. Status: agreed in chat (sections 1–4); Mini App design approved 2026-10-17.
 Research inputs: `docs/research/market-research-2026-10.md`, `docs/research/motivation-ux-2026-10.md`.
 
 ## Goal
@@ -69,8 +69,8 @@ Backfill pass for existing cards (one-off script, deleted after run): asks only 
 
 ## Review API (Mini App auth, same `require_telegram_webapp_user`)
 
-- `GET /api/review/summary` → today goal (due capped by limits, new remaining, est. minutes from median `response_ms`), retention 30d (share of non-Again answers on cards with `elapsed ≥ 7d`), learned total (`srs_state=review`) + delta 7d, streak + best streak (day counts if ≥5 typed answers; 2 freeze days per week), heatmap last 14 weeks, forecast (tomorrow, 7-day average), `backlog` (due beyond limit).
-- `GET /api/review/session?size=10` → next round: due learning/relearning first; then due reviews ordered by retrievability desc (warm-up); new cards interleaved (intro + typed later), respecting daily limits. Each item: card payload, `intro`, `srs_due_at`, `prompt` `{kind, index, masked, hint_translation, expected_length, hint_letter}` (the expected answer itself is not sent).
+- `GET /api/review/summary` → today goal (due capped by limits, new remaining, est. minutes from median `response_ms`), retention 30d (share of non-Again answers on cards with `elapsed ≥ 7d`), learned total (`srs_state=review`) + delta 7d, streak + best streak (day counts if ≥5 typed answers; 2 freeze days per week), heatmap last 14 weeks, forecast (tomorrow, 7-day average), `backlog` (due beyond limit), `due_all` (all due learning + review cards, ignoring the limit), `days_away` (study days since the last answer; null if never).
+- `GET /api/review/session?size=10&include_backlog=false` → next round (`include_backlog=true` ignores the daily review limit): due learning/relearning first; then due reviews ordered by retrievability desc (warm-up); new cards interleaved (intro + typed later), respecting daily limits. Each item: card payload, `intro`, `srs_due_at`, `prompt` `{kind, index, masked, hint_translation, first_letter_hint}` (`first_letter_hint`: first letter, `_` per further letter, spaces kept; the expected answer itself is not sent).
 - `POST /api/review/{id}/check` `{typed, prompt_kind, prompt_index, hint_used}` → `{verdict, expected, auto_rating, intervals: {1..4: seconds}}` (the client renders the diff). Stateless; no DB write.
 - `POST /api/review/{id}/grade` `{rating, auto_rating, overridden, typed, prompt_kind, prompt_index, verdict, hint_used, response_ms, expected_due_at}` → schedules with py-fsrs, writes `review_logs`, returns next due. `expected_due_at` echoes the session's `srs_due_at` (±1 s), otherwise 409 — guards against double-taps.
 - `POST /api/review/undo` → restores `card_before_json` of the latest log row and deletes it.
@@ -92,10 +92,10 @@ Views switched by `?view=` (no router): `home`, `review`, `cards`, `settings`; t
 
 - **Navigation — N1:** bottom tab bar with 4 tabs: Главная, Повтор, Слова, Настройки (Tabler-style outline icons). Hidden during an active review; Telegram BackButton leaves the review to Главная.
 - **Главная — dashboard v2:** "Цель на сегодня: N карточек · ~M мин" (`due_today + new_today`, `est_minutes`), accent button "Начать", secondary "Быстро: 5 карточек"; 2×2 stats: "Удержание за 30 дн." `retention_30d` with "цель 90%", "Выучено" `learned_total` with "+delta за неделю"; activity heatmap 14 weeks × 7 days from `heatmap` (empty days neutral grey, never red); small line "серия N дн. · лучшая M" shown only when `streak_days >= 3`; forecast "Завтра ~X · неделя ~Y/день". If `backlog > 0`: muted "Отложено: N".
-- **С возвращением — W2:** shown instead of the goal card when `days_away >= 3` and there is something due: title "С возвращением", "Как сегодня?", buttons "5 минут" (accent; session capped at `round(5 / est per card)` cards, min 5; reaching the cap ends the round), "Обычная сессия", "Всё сразу (N)" (`due_all`, ignores the daily review limit via `include_backlog=true`).
+- **С возвращением — W2:** shown instead of the goal card when `days_away >= 3` and there is something due: title "С возвращением", "Как сегодня?", buttons "5 минут" (accent; session capped at `ceil(5 / est per card)` cards, min 5; reaching the cap ends the round), "Обычная сессия", "Всё сразу (N)" (`due_all`, ignores the daily review limit via `include_backlog=true`).
 - **Знакомство — I1:** chip "Новое", full card (word + audio + IPA, translations, chunks, example), accent button "Запомнил"; the typed question for that card is inserted two items later in the same round.
 - **Вопрос:** "Раунд R · k из T" (T = typed questions in the round: 10, fewer when the server returns fewer, 5 for "Быстро") + "~N мин", round progress bar; masked chunk (or translations), hint translation under it; input autofocus, Enter submits, `autocorrect/autocapitalize/spellcheck` off; "Подсказка: первая буква" (sets `hint_used`); accent button "Проверить".
-- **Оборот:** "Ты: <typed> → верно: <expected>" (or "✓ верно" / "опечатка"), word + audio + IPA + translations, "Как используется" chunks, 1 example, word family, explanation (one line); "Мой ответ верный" link, shown only for a `wrong` verdict (forces Good, `overridden=true`); 4 grade buttons "Снова" / "Трудно" / "Хорошо" / "Легко" (Again/Hard/Good/Easy) with interval labels from `check`, the auto-rated one highlighted; caption "Оценка выбрана автоматически, можно поменять". Audio = browser `speechSynthesis` (en-US), no server audio.
+- **Оборот:** "Ты: <typed> → верно: <expected>" (or "✓ верно" / "опечатка"), word + audio + IPA + translations, "Как используется" chunks, 1 example, word family, explanation (one line); "Мой ответ верный" link, shown only after a wrong answer (forces Good, `overridden=true`); 4 grade buttons "Снова / Трудно / Хорошо / Легко" (Again/Hard/Good/Easy) with interval labels from `check`, the auto-rated one highlighted; caption "Оценка выбрана автоматически, можно поменять". Audio = browser `speechSynthesis` (en-US), no server audio.
 - **Конец раунда — R1:** "✓ Раунд готов", "Сегодня X из Y" with a progress bar to the daily goal, "Осталось ~N мин", accent "Ещё раунд", secondary "На сегодня хватит". When nothing is left: "Готово на сегодня", "Завтра ~X карточек", single "Закрыть" (back to Главная).
 - **Настройки — S1:** one plain list: Новых в день, Повторений в день, Целевое удержание (80–95 %), Напоминание (час), Привязка (text, optional), Порог «учить» (0–10), Часовой пояс; "Сохранить".
 - **Слова:** existing list (search, filters, batch import, delete) + per-card "Учим" toggle (`PATCH is_learning`).
@@ -120,5 +120,5 @@ Backend unit tests: answer checker (layout, typo, inflected targets), queue buil
 
 1. PR #3 (cleanup) merged first; this work branches on top.
 2. Backend PR: migration, contract, review API, reminders, bot flows, import/backfill scripts.
-3. Frontend PR after design picks.
+3. The Mini App (frontend) ships in the same PR #4 as the backend.
 4. On prod: run backfill (`docker compose exec app python -m app.scripts.backfill_chunks`), then local `import_anki`; delete both scripts in a follow-up.

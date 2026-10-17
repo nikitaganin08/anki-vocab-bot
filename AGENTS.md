@@ -236,15 +236,15 @@ Validation rules:
 ### Public JSON API
 
 - `GET /api/health`
+
+### Web App API (Telegram Web App auth)
+
 - `GET /api/cards` (filters include `is_learning`)
 - `POST /api/cards/batch`
 - `PATCH /api/cards/{card_id}` (`{is_learning}`)
 - `DELETE /api/cards/{card_id}`
-
-### Review and Settings API (Telegram Web App auth)
-
 - `GET /api/review/summary` (today goal, backlog, `due_all`, `days_away`, retention 30d, learned, streak, heatmap, forecast)
-- `GET /api/review/session?size=10&include_backlog=false` (next round; the expected answer is not sent; `include_backlog=true` ignores the daily review cap)
+- `GET /api/review/session?size=10&include_backlog=false` (next round; the expected answer is not sent, only `first_letter_hint`; `include_backlog=true` ignores the daily review cap)
 - `POST /api/review/{card_id}/check` (verdict, expected answer, auto rating, intervals; no DB write)
 - `POST /api/review/{card_id}/grade` (409 on a stale `expected_due_at`)
 - `POST /api/review/undo`
@@ -266,11 +266,11 @@ The Anki sync API uses bearer token authentication.
 
 ## Telegram Web App
 
-Views are switched by `?view=` (`history.replaceState`, other params kept); unknown or missing values open `home`. The bot's `/review` command and reminders open `?view=review`. Screen content and Russian copy follow the "Mini App" section of `docs/superpowers/specs/2026-10-17-srs-review-design.md`.
+Views are switched by `?view=` (`history.replaceState`, other params and the hash kept); unknown or missing values open `home`. The bot's `/review` command and reminders open `?view=review`. Screen content and Russian copy follow the "Mini App" section of `docs/superpowers/specs/2026-10-17-srs-review-design.md`.
 
 - Bottom tab bar (`src/components/TabBar.tsx`): Главная (`home`), Повтор (`review`), Слова (`cards`), Настройки (`settings`). Hidden during a review; the Telegram BackButton leaves the review to Главная.
-- Главная (`src/home/`): today's goal with "Начать" and "Быстро: 5 карточек", retention and learned tiles, 14-week heatmap, streak line (only from 3 days), forecast, backlog. After 3+ study days away with cards due it shows "С возвращением" instead: "5 минут" (card cap from today's pace), "Обычная сессия", "Всё сразу (N)" (`include_backlog=true`).
-- Повтор (`src/review/`): `useReviewSession` drives the flow in rounds of 10 from `GET /api/review/session`. New cards show an intro ("Запомнил"), and the typed question for that card comes two items later in the same round. Question → `check` → back side with the diff, card details and four grade buttons (auto rating highlighted, "Мой ответ верный" forces Good) → `grade`. `grade` echoes `srs_due_at` verbatim as `expected_due_at`; a 409 refetches the round. After each round: "Раунд готов" with progress to the daily goal; an empty session shows "Готово на сегодня".
+- Главная (`src/home/`): today's goal with "Начать" and "Быстро: 5 карточек" (ends after 5 graded cards), retention and learned tiles, 14-week heatmap, streak line (only from 3 days), forecast, backlog. After 3+ study days away with cards due it shows "С возвращением" instead: "5 минут" (card cap from today's pace), "Обычная сессия", "Всё сразу (N)" (`include_backlog=true`).
+- Повтор (`src/review/`): `useReviewSession` drives the flow in rounds of 10 (5 for «Быстро») from `GET /api/review/session`. New cards show an intro ("Запомнил"), and the typed question for that card comes two items later in the same round. Question → `check` → back side with the diff, card details and four grade buttons "Снова / Трудно / Хорошо / Легко" (auto rating highlighted; after a wrong answer "Мой ответ верный" forces Good) → `grade`. `grade` echoes `srs_due_at` verbatim as `expected_due_at`; a 409 refetches the round. After each round: "Раунд готов" with progress to the daily goal; an empty session shows "Готово на сегодня".
 - Настройки (`src/settings/`): daily limits, desired retention, reminder hour and anchor, learn threshold, timezone; saved with `PUT /api/settings`.
 - Слова (`src/pages/CardsPage.tsx`): cards list with search and filters (including `is_learning`), batch import, deletion, and a per-card "Учим" toggle (`PATCH /api/cards/{card_id}`).
 

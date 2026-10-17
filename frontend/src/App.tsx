@@ -65,8 +65,8 @@ export function App(): JSX.Element {
     return (
       <main className="telegram-gate-shell">
         <EmptyState
-          title="Open This Panel From Telegram"
-          message="Use the /admin command in your bot chat to launch the dictionary panel inside Telegram."
+          title="Откройте панель из Telegram"
+          message="Команда /admin в чате с ботом открывает панель."
         />
       </main>
     );

@@ -56,7 +56,7 @@ async function readErrorMessage(response: Response): Promise<string> {
     // Not JSON: fall through to the raw text.
   }
 
-  return text.length > 0 ? text : `Request failed with status ${response.status}`;
+  return text.length > 0 ? text : `Ошибка запроса (${response.status})`;
 }
 
 async function request<T>(path: string, method = "GET", body?: unknown): Promise<T> {

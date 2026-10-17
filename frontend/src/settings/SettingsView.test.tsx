@@ -46,14 +46,14 @@ describe("SettingsView", () => {
     const newPerDay = await screen.findByLabelText("Новых в день");
     expect(newPerDay).toHaveValue(10);
     expect(screen.getByLabelText("Повторений в день")).toHaveValue(200);
-    expect(screen.getByLabelText("Целевое удержание")).toHaveValue("90");
+    expect(screen.getByLabelText("Целевое удержание")).toHaveValue("0.9");
     expect(screen.getByLabelText("Напоминание (час)")).toHaveValue(9);
     expect(screen.getByLabelText("Привязка")).toHaveValue("");
-    expect(screen.getByLabelText("Порог «учить»")).toHaveValue(3);
+    expect(screen.getByLabelText("Порог «учить» (0–10)")).toHaveValue(3);
     expect(screen.getByLabelText("Часовой пояс")).toHaveValue("Europe/Moscow");
 
     fireEvent.change(newPerDay, { target: { value: "15" } });
-    fireEvent.change(screen.getByLabelText("Целевое удержание"), { target: { value: "88" } });
+    fireEvent.change(screen.getByLabelText("Целевое удержание"), { target: { value: "0.88" } });
     fireEvent.change(screen.getByLabelText("Привязка"), { target: { value: "  после кофе " } });
     fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
 
@@ -65,6 +65,22 @@ describe("SettingsView", () => {
       reminder_anchor: "после кофе",
     });
     expect(await screen.findByText("Сохранено")).toBeInTheDocument();
+  });
+
+  it("keeps a stored retention outside the list", async () => {
+    mockedGet.mockResolvedValue({ ...settings, desired_retention: 0.97 });
+    mockedSave.mockImplementation(async (body) => body);
+    renderSettings();
+
+    const retention = await screen.findByLabelText("Целевое удержание");
+    expect(retention).toHaveValue("0.97");
+    expect(screen.getByRole("option", { name: "97 %" })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Новых в день"), { target: { value: "7" } });
+    fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
+
+    await waitFor(() => expect(mockedSave).toHaveBeenCalledTimes(1));
+    expect(mockedSave.mock.calls[0][0]).toEqual({ ...settings, desired_retention: 0.97, new_per_day: 7 });
   });
 
   it("settings shows validation error", async () => {

@@ -35,7 +35,7 @@ export function TabBar({ view, onChange }: TabBarProps): JSX.Element | null {
   }
 
   return (
-    <nav className="tab-bar">
+    <nav className="tab-bar" aria-label="Разделы">
       {TABS.map((tab) => (
         <button
           key={tab.view}

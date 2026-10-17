@@ -66,7 +66,7 @@ describe("HomeView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Начать" }));
     expect(onStart).toHaveBeenLastCalledWith({});
     fireEvent.click(screen.getByRole("button", { name: "Быстро: 5 карточек" }));
-    expect(onStart).toHaveBeenLastCalledWith({ size: 5 });
+    expect(onStart).toHaveBeenLastCalledWith({ capCards: 5 });
   });
 
   it("hides streak below three days", async () => {
@@ -95,7 +95,7 @@ describe("HomeView", () => {
 
   it("shows welcome back after three days away", async () => {
     const onStart = renderHome(
-      summary({ days_away: 3, due_today: 50, new_today: 0, est_minutes: 25, due_all: 60 }),
+      summary({ days_away: 3, due_today: 50, new_today: 0, est_minutes: 27, due_all: 60 }),
     );
 
     expect(await screen.findByRole("heading", { name: "С возвращением" })).toBeInTheDocument();
@@ -106,7 +106,7 @@ describe("HomeView", () => {
     const fiveMinutes = screen.getByRole("button", { name: "5 минут" });
     expect(fiveMinutes).toHaveClass("primary-button");
     fireEvent.click(fiveMinutes);
-    // 25 min / 50 cards = 0.5 min per card -> 10 cards fit in 5 minutes.
+    // 27 min / 50 cards = 0.54 min per card -> 5 / 0.54 = 9.3, rounded up to 10 cards.
     expect(onStart).toHaveBeenLastCalledWith({ capCards: 10 });
 
     fireEvent.click(screen.getByRole("button", { name: "Обычная сессия" }));

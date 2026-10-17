@@ -22,7 +22,9 @@ export function RoundEnd({ summary, done, onMore, onExit }: RoundEndProps): JSX.
     );
   }
 
-  // Today's answers are the last heatmap cell; the goal is those plus what is still due.
+  // Both sides count graded answers: today's answers (last heatmap cell) plus one answer per
+  // card still due or new today, from the summary fetched after this round. An Again re-queues
+  // the card as learning, so Y can grow during the day.
   const doneToday = summary.heatmap[summary.heatmap.length - 1] ?? 0;
   const goal = doneToday + summary.due_today + summary.new_today;
   return (

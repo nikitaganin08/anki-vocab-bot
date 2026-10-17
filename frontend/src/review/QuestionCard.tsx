@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { ReviewSessionItem } from "../api/types";
 import type { Round } from "./useReviewSession";
@@ -15,6 +15,7 @@ interface QuestionCardProps {
 export function QuestionCard({ item, round, estMinutes, busy, onCheck }: QuestionCardProps): JSX.Element {
   const [typed, setTyped] = useState("");
   const [hintUsed, setHintUsed] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
   const { prompt } = item;
 
   return (
@@ -41,8 +42,10 @@ export function QuestionCard({ item, round, estMinutes, busy, onCheck }: Questio
       </section>
 
       <input
+        ref={input}
         aria-label="Ответ"
         value={typed}
+        maxLength={200}
         onChange={(event) => setTyped(event.target.value)}
         autoFocus
         autoComplete="off"
@@ -51,12 +54,17 @@ export function QuestionCard({ item, round, estMinutes, busy, onCheck }: Questio
         spellCheck={false}
       />
       {hintUsed ? (
-        <p className="review-hint">
-          {prompt.hint_letter}
-          {"_".repeat(Math.max(prompt.expected_length - 1, 0))}
-        </p>
+        <p className="review-hint">{prompt.first_letter_hint}</p>
       ) : (
-        <button type="button" className="link-button" onClick={() => setHintUsed(true)}>
+        <button
+          type="button"
+          className="link-button"
+          onClick={() => {
+            setHintUsed(true);
+            // The button disappears; keep typing in the answer field.
+            input.current?.focus();
+          }}
+        >
           Подсказка: первая буква
         </button>
       )}

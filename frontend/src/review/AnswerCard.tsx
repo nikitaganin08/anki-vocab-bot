@@ -9,15 +9,18 @@ const GRADES = [
   { rating: 4, label: "Легко" },
 ];
 
+// Round first, then pick the unit: 3570 s is "1 ч", not "60 м".
 export function formatInterval(seconds: number): string {
   if (seconds < 60) {
     return "<1 м";
   }
-  if (seconds < 3600) {
-    return `${Math.round(seconds / 60)} м`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes} м`;
   }
-  if (seconds < 86400) {
-    return `${Math.round(seconds / 3600)} ч`;
+  const hours = Math.round(seconds / 3600);
+  if (hours < 24) {
+    return `${hours} ч`;
   }
   return `${Math.round(seconds / 86400)} д`;
 }

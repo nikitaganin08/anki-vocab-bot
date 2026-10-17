@@ -5,7 +5,7 @@ import { getSettings, saveSettings } from "../api/client";
 import type { AppSettings } from "../api/types";
 import { ErrorState, LoadingState } from "../components/PageState";
 
-const RETENTION_PERCENTS = Array.from({ length: 16 }, (_, i) => 80 + i);
+const RETENTIONS = Array.from({ length: 16 }, (_, i) => (80 + i) / 100);
 const FALLBACK_TIME_ZONES = ["UTC", "Europe/Moscow", "Asia/Almaty", "Asia/Novosibirsk"];
 
 function timeZones(current: string): string[] {
@@ -16,6 +16,12 @@ function timeZones(current: string): string[] {
   return zones.includes(current) ? zones : [current, ...zones];
 }
 
+// Like the timezone, a stored value off the 80–95 % list stays selectable, so saving another
+// field keeps it.
+function retentions(current: number): number[] {
+  return RETENTIONS.includes(current) ? RETENTIONS : [...RETENTIONS, current].sort((a, b) => a - b);
+}
+
 // Uncontrolled form: native min/max/required guard the obvious, the server validates the rest.
 function readForm(form: HTMLFormElement): AppSettings {
   const data = new FormData(form);
@@ -24,7 +30,7 @@ function readForm(form: HTMLFormElement): AppSettings {
   return {
     new_per_day: num("new_per_day"),
     reviews_per_day: num("reviews_per_day"),
-    desired_retention: num("desired_retention") / 100,
+    desired_retention: num("desired_retention"),
     reminder_hour: num("reminder_hour"),
     reminder_anchor: text("reminder_anchor") || null,
     learn_threshold: num("learn_threshold"),
@@ -41,7 +47,7 @@ export function SettingsView(): JSX.Element {
   });
 
   if (error) {
-    return <ErrorState title="Не удалось загрузить" error={error} onRetry={() => void refetch()} />;
+    return <ErrorState error={error} onRetry={() => void refetch()} />;
   }
   if (!data) {
     return <LoadingState title="Настройки" message="Загружаем настройки…" />;
@@ -72,10 +78,10 @@ export function SettingsView(): JSX.Element {
       </label>
       <label>
         Целевое удержание
-        <select name="desired_retention" defaultValue={String(Math.round(data.desired_retention * 100))}>
-          {RETENTION_PERCENTS.map((percent) => (
-            <option key={percent} value={percent}>
-              {percent} %
+        <select name="desired_retention" defaultValue={String(data.desired_retention)}>
+          {retentions(data.desired_retention).map((retention) => (
+            <option key={retention} value={retention}>
+              {Math.round(retention * 1000) / 10} %
             </option>
           ))}
         </select>
@@ -95,7 +101,7 @@ export function SettingsView(): JSX.Element {
         />
       </label>
       <label>
-        Порог «учить»
+        Порог «учить» (0–10)
         <input name="learn_threshold" type="number" min={0} max={10} required defaultValue={data.learn_threshold} />
       </label>
       <label>

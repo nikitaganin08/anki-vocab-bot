@@ -6,8 +6,8 @@ import { ErrorState, LoadingState } from "../components/PageState";
 import { Heatmap } from "./Heatmap";
 
 export interface ReviewMode {
-  size?: number;
   includeBacklog?: boolean;
+  // The session ends after this many graded cards ("Быстро", "5 минут").
   capCards?: number;
 }
 
@@ -29,7 +29,7 @@ export function cardsLabel(count: number): string {
 // "5 минут": as many cards as fit in 5 minutes at today's pace, at least 5.
 function fiveMinuteCap(summary: ReviewSummary): number {
   const perCard = summary.est_minutes / Math.max(summary.due_today + summary.new_today, 1);
-  return perCard > 0 ? Math.max(5, Math.round(5 / perCard)) : 5;
+  return perCard > 0 ? Math.max(5, Math.ceil(5 / perCard)) : 5;
 }
 
 function GoalCard({ summary, onStart }: { summary: ReviewSummary } & HomeViewProps): JSX.Element {
@@ -42,7 +42,7 @@ function GoalCard({ summary, onStart }: { summary: ReviewSummary } & HomeViewPro
       <button type="button" className="primary-button" onClick={() => onStart({})}>
         Начать
       </button>
-      <button type="button" className="secondary-button" onClick={() => onStart({ size: 5 })}>
+      <button type="button" className="secondary-button" onClick={() => onStart({ capCards: 5 })}>
         Быстро: 5 карточек
       </button>
     </section>
@@ -82,7 +82,7 @@ export function HomeView({ onStart }: HomeViewProps): JSX.Element {
   });
 
   if (error) {
-    return <ErrorState title="Не удалось загрузить" error={error} onRetry={() => void refetch()} />;
+    return <ErrorState error={error} onRetry={() => void refetch()} />;
   }
   if (!data) {
     return <LoadingState title="Главная" message="Загружаем цель на сегодня…" />;

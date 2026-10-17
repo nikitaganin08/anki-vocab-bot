@@ -19,7 +19,7 @@ export function ReviewView({ mode, onExit }: ReviewViewProps): JSX.Element | nul
     case "loading":
       return <LoadingState title="Повтор" message="Загружаем карточки…" />;
     case "error":
-      return <ErrorState title="Не удалось загрузить" error={session.error} onRetry={session.retry} />;
+      return <ErrorState error={session.error} onRetry={session.retry} />;
     case "intro":
       return <IntroCard card={item.card} onRemember={session.remember} />;
     case "question":

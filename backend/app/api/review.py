@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from typing import Annotated
 
@@ -77,8 +78,8 @@ def get_review_session(
                     index=item.prompt.index,
                     masked=item.prompt.masked,
                     hint_translation=item.prompt.hint_translation,
-                    expected_length=len(item.prompt.expected),
-                    hint_letter=item.prompt.expected[:1],
+                    first_letter_hint=item.prompt.expected[:1]
+                    + re.sub(r"\S", "_", item.prompt.expected[1:]),
                 ),
                 srs_due_at=as_utc(item.card.srs_due_at) if item.card.srs_due_at else None,
             )
