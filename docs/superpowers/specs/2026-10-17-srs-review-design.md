@@ -82,13 +82,27 @@ Normalise: NFKC, casefold, trim, collapse spaces, `’`→`'`, strip trailing pu
 
 ## Reminders (`app/services/reminders.py`)
 
-Loop every 5 minutes in FastAPI lifespan (`asyncio.create_task`; single uvicorn worker — ceiling noted in code). Send when: local time ≥ `reminder_hour`, `last_reminder_on != today`, no review logs today, due+new > 0, backoff allows (`ignored_reminders` ≥3 → every other day, ≥7 → paused until next session; any session resets to 0). Message: 12 rotating templates with counts, minutes, optional anchor, one warm-up chunk with a gap from today's due cards; Monday adds last week's summary (active days, learned delta, retention). Inline web_app button opens `?view=review`. No streak mentions, no evening ping.
+Loop every 5 minutes in FastAPI lifespan (`asyncio.create_task`; single uvicorn worker — ceiling noted in code). Send when: local time ≥ `reminder_hour`, `last_reminder_on != today`, no review logs today, due+new > 0, backoff allows (`ignored_reminders` ≥3 → every other day, ≥7 → paused until next session; any session resets to 0). Message (M1): 12 rotating short templates with counts and minutes, optional anchor prefix, no warm-up chunk; Monday adds last week's summary (active days, learned delta, retention). Inline web_app button opens `?view=review`. No streak mentions, no evening ping.
 
-## Mini App
+## Mini App (design approved 2026-10-17)
 
-Views switched by `?view=` (no router): `home` (dashboard v2, approved), `review` (question/back, approved v2), `cards` (existing list + `is_learning` toggle), `settings`. Pending design picks (2–3 variants each, owner approves): navigation between views, intro screen for new cards, end-of-round / end-of-session screen, "welcome back" after a break, settings screen, rare-word bot message, reminder message.
+Look: flat, neutral, follows the Telegram theme (`Telegram.WebApp.themeParams` → CSS variables with light fallbacks); one accent button per screen; no gradients. The existing cards page is restyled to the same tokens. Russian UI copy, sentence case.
 
-Input UX: autofocus, Enter submits, `autocorrect/autocapitalize/spellcheck` off, first-letter hint button. Rounds of 10 with own progress bar; Again re-queues without growing the denominator.
+Views switched by `?view=` (no router): `home`, `review`, `cards`, `settings`; the reminder and `/review` open `?view=review`.
+
+- **Navigation — N1:** bottom tab bar with 4 tabs: Главная, Повтор, Слова, Настройки (Tabler-style outline icons). Hidden during an active review; Telegram BackButton leaves the review to Главная.
+- **Главная — dashboard v2:** "Цель на сегодня: N карточек · ~M мин" (`due_today + new_today`, `est_minutes`), accent button "Начать", secondary "Быстро: 5 карточек"; 2×2 stats: "Удержание за 30 дн." `retention_30d` with "цель 90%", "Выучено" `learned_total` with "+delta за неделю"; activity heatmap 14 weeks × 7 days from `heatmap` (empty days neutral grey, never red); small line "серия N дн. · лучшая M" shown only when `streak_days >= 3`; forecast "Завтра ~X · неделя ~Y/день". If `backlog > 0`: muted "Отложено: N".
+- **С возвращением — W2:** shown instead of the goal card when `days_away >= 3` and there is something due: title "С возвращением", "Как сегодня?", buttons "5 минут" (accent; session capped at `ceil(5 / est per card)` cards, min 5), "Обычная сессия", "Всё сразу (N)" (`due_all`, ignores the daily review limit via `include_backlog=true`).
+- **Знакомство — I1:** chip "Новое", full card (word + audio + IPA, translations, chunks, example), accent button "Запомнил"; the typed question for that card is inserted two items later in the same round.
+- **Вопрос:** "Раунд R · k из 10" + "~N мин", round progress bar; masked chunk (or translations), hint translation under it; input autofocus, Enter submits, `autocorrect/autocapitalize/spellcheck` off; "Подсказка: первая буква" (sets `hint_used`); accent button "Проверить".
+- **Оборот:** "Ты: <typed> → верно: <expected>" (or "✓ верно" / "опечатка"), word + audio + IPA + translations, "Как используется" chunks, 1 example, word family, explanation (one line); "Мой ответ верный" link (forces Good, `overridden=true`); 4 grade buttons Again/Hard/Good/Easy with interval labels from `check`, the auto-rated one highlighted; caption "Оценка выбрана автоматически, можно поменять". Audio = browser `speechSynthesis` (en-US), no server audio.
+- **Конец раунда — R1:** "✓ Раунд готов", "Сегодня X из Y" with a progress bar to the daily goal, "Осталось ~N мин", accent "Ещё раунд", secondary "На сегодня хватит". When nothing is left: "Готово на сегодня", "Завтра ~X карточек", single "Закрыть" (back to Главная).
+- **Настройки — S1:** one plain list: Новых в день, Повторений в день, Целевое удержание (80–95 %), Напоминание (час), Привязка (text, optional), Порог «учить» (0–10), Часовой пояс; "Сохранить".
+- **Слова:** existing list (search, filters, batch import, delete) + per-card "Учим" toggle (`PATCH is_learning`).
+- **Бот, редкое слово — B1:** card message, then a separate message "Редкое слово (N/10). Учить?" with "Учить" / "Не учить" (as implemented).
+- **Бот, напоминание — M1:** short: "{anchor — }17 карточек, ~6 минут." + button "Повторить"; Monday appends the weekly block; no warm-up chunk.
+
+Input UX: rounds of 10; Again re-queues via the next round (learning look-ahead), never grows the current denominator; on 409 from `grade` the client refetches the session.
 
 ## Anki import (`app/scripts/import_anki.py`, local, one-off)
 
