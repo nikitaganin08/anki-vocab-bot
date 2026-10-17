@@ -59,12 +59,21 @@ def backfill_transcription(
     return updated, unchanged, failed
 
 
+def _positive_int(value: str) -> int:
+    number = int(value)
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return number
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Rewrite card transcriptions as General American IPA."
     )
-    parser.add_argument("--limit", type=int, default=None, help="Max cards to handle.")
-    parser.add_argument("--batch-size", type=int, default=20, help="Cards per LLM request.")
+    parser.add_argument("--limit", type=_positive_int, default=None, help="Max cards to handle.")
+    parser.add_argument(
+        "--batch-size", type=_positive_int, default=20, help="Cards per LLM request."
+    )
     parser.add_argument("--dry-run", action="store_true", help="Print old -> new, write nothing.")
     args = parser.parse_args()
     settings = get_settings()

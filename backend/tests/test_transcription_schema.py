@@ -23,6 +23,13 @@ def test_parser_returns_valid_items_stripped() -> None:
     assert result == {1: "/ˈhɔːnt/", 2: "/ˈteɪk ˈɔf/"}
 
 
+def test_parser_accepts_general_american_ipa() -> None:
+    good = ["/ˈsoʊbɝ/", "/ˌpɝːsəˈvɪr/", "/ˈtʃɛr/", "/ˈbæk ən ˈfɔːrθ/", "/ˈɡɑːnrə/"]
+    payload = _payload(*({"id": i, "transcription": v} for i, v in enumerate(good)))
+
+    assert list(parse_transcriptions_response(payload, set(range(len(good)))).values()) == good
+
+
 @pytest.mark.parametrize(
     "bad",
     [
@@ -34,6 +41,13 @@ def test_parser_returns_valid_items_stripped() -> None:
         "/хɔːnt/",  # Cyrillic
         "/ˈhɔːnt2/",  # digit
         "//",  # too short
+        "/ɡʊd/ /bɔɪ/",  # a pair of slashes per word
+        "/ˈhɔːn.t/",  # syllable dot
+        "/ˈ/",  # no letters
+        "/ˈhɒt/",  # British LOT vowel
+        "/ˈkəʊt/",  # British GOAT vowel
+        "/ˈnɪə/",  # British centring diphthong
+        "/ˈhɔːnt\nˈhɔːnt/",  # newline
         "/" + "a" * 119 + "/",  # too long
     ],
 )

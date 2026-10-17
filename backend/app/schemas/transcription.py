@@ -9,6 +9,12 @@ from pydantic import BaseModel, ValidationError, field_validator
 from app.schemas.llm import CYRILLIC_PATTERN
 
 FORBIDDEN_PATTERN = re.compile(r"[\[\](){}\d]")
+# Syllable dots or a second pair of slashes mean the model ignored the one-pair format.
+INNER_FORBIDDEN_PATTERN = re.compile(r"[/.·\n]")
+# Stress, length and spaces alone are not a pronunciation.
+STRESS_AND_SPACE = re.compile(r"[ˈˌːˑ\s]")
+# British-only vowels: the cards must be General American.
+BRITISH_VOWELS = ("ɒ", "əʊ", "ɪə", "eə", "ʊə")
 
 
 class TranscriptionItem(BaseModel):
@@ -23,7 +29,12 @@ class TranscriptionItem(BaseModel):
             raise ValueError("transcription must be 3..120 chars wrapped in slashes")
         if CYRILLIC_PATTERN.search(value) or FORBIDDEN_PATTERN.search(value):
             raise ValueError("transcription must not contain Cyrillic, brackets or digits")
-        return value
+        inner = value[1:-1]
+        if INNER_FORBIDDEN_PATTERN.search(inner) or not STRESS_AND_SPACE.sub("", inner):
+            raise ValueError("transcription must be one pair of slashes around plain IPA")
+        if any(vowel in inner for vowel in BRITISH_VOWELS):
+            raise ValueError("transcription must be General American, not British")
+        return " ".join(value.split())
 
 
 def parse_transcriptions_response(

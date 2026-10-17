@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 
 import httpx
@@ -8,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.clients.openrouter import OpenRouterClient, OpenRouterError
 from app.models.card import Card
-from app.scripts.backfill_transcription import backfill_transcription
+from app.scripts.backfill_transcription import _positive_int, backfill_transcription
 from app.services.transcription_prompt import SYSTEM_PROMPT
 
 from .conftest import make_card
@@ -206,3 +207,10 @@ def test_generate_transcriptions_raises_after_second_contract_error() -> None:
 
     assert exc_info.value.code == "openrouter_invalid_contract"
     assert calls == 2
+
+
+def test_cli_rejects_non_positive_numbers() -> None:
+    assert _positive_int("5") == 5
+    for bad in ("0", "-1"):
+        with pytest.raises(argparse.ArgumentTypeError):
+            _positive_int(bad)

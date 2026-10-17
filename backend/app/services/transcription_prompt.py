@@ -4,7 +4,8 @@ import json
 
 # Shared by the card prompt (llm_prompt.py) and the one-off backfill below.
 IPA_RULES = """- Write the pronunciation as General American (US) IPA, always wrapped in slashes
-  like /ˈhɔːnt/; never use square brackets and never put syllable dots in it.
+  like /ˈhɔːnt/; never use square brackets or parentheses (write optional sounds out in
+  full) and never put syllable dots in it.
 - Include primary (ˈ) and secondary (ˌ) stress marks.
 - Use US vowels: ɑ for the LOT and PALM vowels, oʊ (not əʊ), and r-coloured vowels
   (ɝ or ɜːr, ɚ or ər, ɔːr, ɪr, ɛr, ʊr); never the British non-rhotic forms
