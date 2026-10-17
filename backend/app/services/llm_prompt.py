@@ -73,7 +73,8 @@ Rules:
   meaning (collocation, typical object or complement, fixed frame), most frequent first.
 - Each chunk text must be 2 to 6 English words.
 - Each chunk target must be the exact contiguous substring of its text that realises
-  canonical_text; it may be inflected (e.g. text "gave up on him", target "gave up").
+  canonical_text; it may be inflected (e.g. text "gave up on him", target "gave up") but
+  must not add words beyond canonical_text (text "the sales ledger", target "ledger").
 - Each chunk translation must be the Russian translation of the whole chunk text.
 - Return "chunks": [] when canonical_text has no frequent chunks (rare or technical words).
 - frequency must be an integer from 0 to 10.

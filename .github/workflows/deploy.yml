@@ -97,6 +97,14 @@ jobs:
           echo "$response"
           echo "$response" | grep -q '"ok":true'
 
+      - name: Set Telegram bot commands
+        run: |
+          set -euo pipefail
+          commands='{"commands":[{"command":"review","description":"Повторить слова"},{"command":"admin","description":"Словарь, статистика и настройки"},{"command":"find","description":"Найти слово по описанию"}]}'
+          response=$(curl -sS --fail "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/setMyCommands" \
+            -H "Content-Type: application/json" -d "$commands")
+          echo "$response" | grep -q '"ok":true'
+
       - name: Verify Telegram webhook
         run: |
           set -euo pipefail

@@ -217,13 +217,15 @@ class AcceptedLlmResponse(BaseModel):
     @field_validator("word_family")
     @classmethod
     def validate_word_family(cls, value: list[WordFamilyItem]) -> list[WordFamilyItem]:
+        # Duplicates are model noise; drop them instead of rejecting the whole card.
         seen: set[str] = set()
+        unique: list[WordFamilyItem] = []
         for item in value:
             key = item.word.casefold()
-            if key in seen:
-                raise ValueError("word family items must be unique")
-            seen.add(key)
-        return value
+            if key not in seen:
+                seen.add(key)
+                unique.append(item)
+        return unique
 
     @field_validator("transcription", "frequency_note")
     @classmethod
@@ -236,8 +238,9 @@ class AcceptedLlmResponse(BaseModel):
     @model_validator(mode="after")
     def validate_contract_semantics(self) -> "AcceptedLlmResponse":
         canonical_text_casefolded = self.canonical_text.casefold()
-        if any(item.word.casefold() == canonical_text_casefolded for item in self.word_family):
-            raise ValueError("word family must not repeat canonical_text")
+        self.word_family = [
+            item for item in self.word_family if item.word.casefold() != canonical_text_casefolded
+        ]
 
         if self.entry_type in {
             EntryType.WORD,
