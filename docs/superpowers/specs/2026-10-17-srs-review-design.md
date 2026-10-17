@@ -59,7 +59,7 @@ Accepted result adds `chunks`: 0–5 items `{text, target, translation}`:
 - `examples` becomes 1–3 items (prompt asks for exactly 1; old 3-example cards stay valid). The "≥2 examples reference canonical" check becomes "every chunk `target` is in its `text`, and the example or ≥1 chunk references canonical".
 - Prompt adds: reject function words (articles, pronouns, auxiliaries, prepositions on their own).
 
-Backfill pass for existing cards (one-off script, deleted after run): asks only for `chunks` + best single example for a given card, keeps canonical text, translations, IPA unchanged.
+Backfill pass for existing cards (one-off script, run 2026-10-17 and deleted, see git history): asks only for `chunks` + best single example for a given card, keeps canonical text, translations, IPA unchanged.
 
 ## Bot flows
 
@@ -108,7 +108,7 @@ Views switched by `?view=` (no router): `home`, `review`, `cards`, `settings`; t
 
 Input UX: rounds of 10; Again re-queues via the next round (learning look-ahead), never grows the current denominator; on 409 from `grade` the client refetches the session.
 
-## Anki import (`app/scripts/import_anki.py`, local, one-off)
+## Anki import (done 2026-10-17; script and `POST /api/anki/import` removed, see git history)
 
 Via AnkiConnect: `findNotes deck:"English::Inbox"`, `notesInfo`, `cardsInfo`, `getReviewsOfCards` (latest review time). For each note:
 - tag `avb-card-<id>` → existing backend card (marked synced with the note id, so `sync_anki` never re-adds it); else a card with the same normalized canonical text; otherwise create via the normal card pipeline from the `Word` field (LLM fills explanation, chunks, IPA; Anki translation kept as first translation variant if the LLM's differs).
@@ -125,4 +125,4 @@ Backend unit tests: answer checker (layout, typo, inflected targets), queue buil
 1. PR #3 (cleanup) merged first; this work branches on top.
 2. Backend PR: migration, contract, review API, reminders, bot flows, import/backfill scripts.
 3. The Mini App (frontend) ships in the same PR #4 as the backend.
-4. On prod: run backfill (`docker compose exec app python -m app.scripts.backfill_chunks`), then local `import_anki`; delete both scripts in a follow-up.
+4. On prod: run backfill, then local Anki import. Done 2026-10-17; both scripts and the import endpoint were deleted afterwards (see git history).

@@ -147,23 +147,6 @@ def valid_chunks(value: Any) -> Any:
     return valid[:5]
 
 
-class ChunksResponse(BaseModel):
-    chunks: list[CardChunk] = Field(max_length=5)
-    example: str
-
-    model_config = ConfigDict(extra="forbid")
-
-    @field_validator("chunks", mode="before")
-    @classmethod
-    def drop_invalid_chunks(cls, value: Any) -> Any:
-        return valid_chunks(value)
-
-    @field_validator("example")
-    @classmethod
-    def validate_example(cls, value: str) -> str:
-        return _ensure_non_cyrillic(value, "example")
-
-
 class AcceptedLlmResponse(BaseModel):
     accepted: Literal[True]
     source_language: SourceLanguage
@@ -294,15 +277,3 @@ def parse_llm_response(payload: str | dict[str, Any]) -> LlmResponse:
         return LLM_RESPONSE_ADAPTER.validate_python(raw_payload)
     except Exception as exc:  # pydantic validation errors are normalized for callers
         raise ValueError("LLM payload does not match the contract") from exc
-
-
-def parse_chunks_response(payload: str | dict[str, Any]) -> ChunksResponse:
-    try:
-        raw_payload = json.loads(payload) if isinstance(payload, str) else payload
-    except json.JSONDecodeError as exc:
-        raise ValueError("LLM payload is not valid JSON") from exc
-
-    try:
-        return ChunksResponse.model_validate(raw_payload)
-    except Exception as exc:  # pydantic validation errors are normalized for callers
-        raise ValueError("LLM payload does not match the chunks contract") from exc
