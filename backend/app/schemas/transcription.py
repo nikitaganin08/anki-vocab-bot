@@ -13,8 +13,10 @@ FORBIDDEN_PATTERN = re.compile(r"[\[\](){}\d]")
 INNER_FORBIDDEN_PATTERN = re.compile(r"[/.·\n]")
 # Stress, length and spaces alone are not a pronunciation.
 STRESS_AND_SPACE = re.compile(r"[ˈˌːˑ\s]")
-# British-only vowels: the cards must be General American.
-BRITISH_VOWELS = ("ɒ", "əʊ", "ɪə", "eə", "ʊə")
+# British-only vowels: the cards must be General American. The centring diphthongs ɪə and ʊə are
+# British after a consonant (near /nɪə/, tour /tʊə/) but legitimate inside the American
+# aɪər / eɪər / ɔɪər / aʊər sequences (wire, layer, employer, hour).
+BRITISH_VOWELS = re.compile(r"ɒ|əʊ|eə|(?<![aeɔ])ɪə|(?<!a)ʊə")
 
 
 class TranscriptionItem(BaseModel):
@@ -32,7 +34,7 @@ class TranscriptionItem(BaseModel):
         inner = value[1:-1]
         if INNER_FORBIDDEN_PATTERN.search(inner) or not STRESS_AND_SPACE.sub("", inner):
             raise ValueError("transcription must be one pair of slashes around plain IPA")
-        if any(vowel in inner for vowel in BRITISH_VOWELS):
+        if BRITISH_VOWELS.search(inner):
             raise ValueError("transcription must be General American, not British")
         return " ".join(value.split())
 
