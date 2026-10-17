@@ -324,6 +324,13 @@ Mapping:
 
 Deck import (`app/scripts/import_anki.py`, one-off): notes of `English::Inbox` are posted to `POST /api/anki/import`; tagged notes link to their card, others are matched by canonical text or created via the LLM pipeline. Review cards get stability = interval, difficulty from ease, due = last review + interval; suspended notes are not learning; imported cards are marked `synced` so `sync_anki` does not push them again.
 
+## Backups
+
+- `deploy/backup/backup.sh` runs daily from the VPS user's cron (`17 4 * * *`): consistent SQLite online copy, `integrity_check`, gzip into `~/backups/wordloop/app-<timestamp>.db.gz`, 14 days kept (log: `backup.log` next to them). The deploy workflow keeps the scripts in `/opt/anki-vocab-bot/backup/`; the cron entry itself is installed once by hand.
+- Restore: `/opt/anki-vocab-bot/backup/restore.sh ~/backups/wordloop/app-<timestamp>.db.gz` (checks the copy, stops the app, keeps the current database as `app.db.before-restore`, starts the app).
+- `make pull-backups` copies the server's backups to `~/Backups/wordloop` on the dev machine (off-server copy; `BACKUP_HOST` overrides the ssh host).
+- `.env` (tokens, keys) is not backed up; keep the secrets in a password manager.
+
 ## Configuration
 
 Required environment variables:

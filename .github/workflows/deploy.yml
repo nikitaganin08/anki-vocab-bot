@@ -67,6 +67,17 @@ jobs:
           target: /opt/anki-vocab-bot/nginx
           strip_components: 2
 
+      - name: Upload backup scripts
+        uses: appleboy/scp-action@v1.0.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          source: deploy/backup/backup.sh,deploy/backup/restore.sh
+          target: /opt/anki-vocab-bot/backup
+          strip_components: 2
+
       - name: Apply nginx routes
         uses: appleboy/ssh-action@v1.2.0
         with:

@@ -1,4 +1,4 @@
-.PHONY: backend-dev frontend-dev backend-test frontend-test test build-frontend sync-anki import-anki backfill-chunks docker-build docker-up docker-down
+.PHONY: pull-backups backend-dev frontend-dev backend-test frontend-test test build-frontend sync-anki import-anki backfill-chunks docker-build docker-up docker-down
 
 backend-dev:
 	cd backend && DISABLE_REMINDERS=1 uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -34,3 +34,9 @@ docker-up:
 
 docker-down:
 	docker compose down
+
+# Copy the server's daily database backups to this machine (off-server copy).
+BACKUP_HOST ?= nikitaganin08
+pull-backups:
+	mkdir -p $(HOME)/Backups/wordloop
+	rsync -av --ignore-existing $(BACKUP_HOST):backups/wordloop/ $(HOME)/Backups/wordloop/
