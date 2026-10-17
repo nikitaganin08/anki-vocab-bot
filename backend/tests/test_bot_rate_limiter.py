@@ -14,17 +14,7 @@ class ManualClock:
         self.now += seconds
 
 
-def test_rate_limiter_blocks_after_five_requests_in_window() -> None:
-    clock = ManualClock(now=100.0)
-    limiter = InMemoryRateLimiter(limit=5, window_seconds=60.0, clock=clock)
-
-    for _ in range(5):
-        assert limiter.allow_request() is True
-
-    assert limiter.allow_request() is False
-
-
-def test_rate_limiter_allows_requests_after_window_expires() -> None:
+def test_rate_limiter_blocks_in_window_and_recovers_after_expiry() -> None:
     clock = ManualClock(now=100.0)
     limiter = InMemoryRateLimiter(limit=5, window_seconds=60.0, clock=clock)
 

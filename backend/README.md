@@ -43,7 +43,4 @@ Idempotency policy:
 
 From repository root:
 - `docker build -t anki-vocab-bot:local .`
-- `docker compose up --build`
-
-Smoke check when container is running:
-- `curl --fail --silent http://127.0.0.1/api/health`
+- `docker compose up --build` (needs the external `edge` network: `docker network create edge`)

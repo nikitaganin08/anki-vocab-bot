@@ -95,7 +95,7 @@ def batch_import_cards(
                 CardBatchImportItemResponse(
                     source_text=source_text,
                     status="invalid_input",
-                    message=validation.error_message or "Invalid input.",
+                    message=validation.error_message,
                 )
             )
             continue
@@ -119,33 +119,12 @@ def batch_import_cards(
                 CardBatchImportItemResponse(
                     source_text=source_text,
                     status="rejected",
-                    message=(
-                        result.rejection.message_for_user
-                        if result.rejection is not None
-                        else "The input was rejected by the language model."
-                    ),
+                    message=result.rejection.message_for_user,
                 )
             )
             continue
 
-        if result.card is None:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Unexpected card service state",
-            )
-
-        if result.status == "created":
-            summary_counts["created"] += 1
-        elif result.status == "duplicate_source":
-            summary_counts["duplicate_source"] += 1
-        elif result.status == "duplicate_canonical":
-            summary_counts["duplicate_canonical"] += 1
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Unexpected card service state",
-            )
-
+        summary_counts[result.status] += 1
         items.append(
             CardBatchImportItemResponse(
                 source_text=source_text,
@@ -157,15 +136,7 @@ def batch_import_cards(
 
     return CardBatchImportResponse(
         items=items,
-        summary=CardBatchImportSummaryResponse(
-            total=len(payload.source_texts),
-            created=summary_counts["created"],
-            duplicate_source=summary_counts["duplicate_source"],
-            duplicate_canonical=summary_counts["duplicate_canonical"],
-            rejected=summary_counts["rejected"],
-            invalid_input=summary_counts["invalid_input"],
-            upstream_error=summary_counts["upstream_error"],
-        ),
+        summary=CardBatchImportSummaryResponse(total=len(payload.source_texts), **summary_counts),
     )
 
 

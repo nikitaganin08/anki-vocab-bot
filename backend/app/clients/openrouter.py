@@ -30,8 +30,6 @@ class OpenRouterClient:
     api_key: str
     model: str
     timeout_seconds: float = 30.0
-    base_url: str = OPENROUTER_BASE_URL
-    app_name: str = "anki-vocab-bot"
     http_client: httpx.Client | None = None
 
     def generate_card(self, source_text: str) -> LlmResponse:
@@ -71,9 +69,9 @@ class OpenRouterClient:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
             "HTTP-Referer": "https://local.anki-vocab-bot",
-            "X-Title": self.app_name,
+            "X-Title": "anki-vocab-bot",
         }
-        url = f"{self.base_url}/chat/completions"
+        url = f"{OPENROUTER_BASE_URL}/chat/completions"
 
         client_context = (
             nullcontext(self.http_client)

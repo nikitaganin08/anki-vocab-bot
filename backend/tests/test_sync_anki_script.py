@@ -6,9 +6,7 @@ import app.scripts.sync_anki as sync_anki
 from app.clients.anki_connect import AnkiConnectTransportError
 from app.scripts.sync_anki import ensure_anki_connect_available
 
-OFFLINE = AnkiConnectTransportError(
-    "offline", code="anki_connect_transport", user_message="offline"
-)
+OFFLINE = AnkiConnectTransportError("offline", user_message="offline")
 
 
 class FakeAnkiClient:

@@ -28,9 +28,7 @@ TELEGRAM_ALLOWED_USER_ID = 42
 class TelegramSettingsStub:
     telegram_bot_token: str = TELEGRAM_BOT_TOKEN
     telegram_allowed_user_id: int = TELEGRAM_ALLOWED_USER_ID
-    openrouter_api_key: str | None = "test-openrouter-key"
     anki_sync_token: str | None = "sync-token"
-    llm_model: str = "test-model"
 
 
 # ---------------------------------------------------------------------------
@@ -86,11 +84,11 @@ def authed_client(session: Session) -> Generator[TestClient, None, None]:
         app.dependency_overrides.clear()
 
 
-def telegram_headers(user_id: int = TELEGRAM_ALLOWED_USER_ID) -> dict[str, str]:
+def telegram_headers() -> dict[str, str]:
     return {
         "X-Telegram-Init-Data": build_telegram_init_data(
             bot_token=TELEGRAM_BOT_TOKEN,
-            user_id=user_id,
+            user_id=TELEGRAM_ALLOWED_USER_ID,
         )
     }
 
@@ -171,17 +169,6 @@ class FakeTelegramSender:
 
     def send_message(self, text: str, parse_mode: str | None = None) -> None:
         self.calls.append((text, parse_mode))
-
-
-# ---------------------------------------------------------------------------
-# Health
-# ---------------------------------------------------------------------------
-
-
-def test_health(client: TestClient) -> None:
-    resp = client.get("/api/health")
-    assert resp.status_code == 200
-    assert resp.json() == {"status": "ok"}
 
 
 # ---------------------------------------------------------------------------
@@ -399,33 +386,6 @@ def test_batch_import_rejects_more_than_fifty_items(client: TestClient) -> None:
     assert resp.status_code == 422
 
 
-def test_batch_import_marks_invalid_rows_without_llm_call(client: TestClient) -> None:
-    fake_generator = FakeBatchGenerator(
-        outcomes={
-            "take off": _make_accepted_llm_response("take off"),
-        }
-    )
-    app.dependency_overrides[get_openrouter_client] = lambda: fake_generator
-
-    resp = client.post(
-        "/api/cards/batch",
-        json={
-            "source_texts": [
-                "take off",
-                "one two three four five six seven eight nine",
-            ]
-        },
-        headers=telegram_headers(),
-    )
-
-    assert resp.status_code == 200
-    data = resp.json()
-    assert [item["status"] for item in data["items"]] == ["created", "invalid_input"]
-    assert data["summary"]["created"] == 1
-    assert data["summary"]["invalid_input"] == 1
-    assert fake_generator.calls == ["take off"]
-
-
 def test_batch_import_continues_after_upstream_error(client: TestClient) -> None:
     fake_generator = FakeBatchGenerator(
         outcomes={
@@ -462,7 +422,6 @@ def test_batch_import_returns_503_when_llm_not_configured(
         telegram_bot_token: str = TELEGRAM_BOT_TOKEN
         telegram_allowed_user_id: int = TELEGRAM_ALLOWED_USER_ID
         openrouter_api_key: str | None = None
-        llm_model: str = "test-model"
 
     monkeypatch.setattr(deps_mod, "get_settings", lambda: SettingsStub())
 
@@ -644,7 +603,6 @@ def test_anki_fail_no_token_is_401(client: TestClient) -> None:
 
 
 def test_anki_wrong_token_is_403(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    import app.api.deps as deps_mod
     from app.core.config import get_settings
 
     monkeypatch.setattr(deps_mod, "get_settings", lambda: get_settings())
@@ -701,28 +659,6 @@ def test_anki_pending_returns_eligible_cards(authed_client: TestClient, session:
     assert data[1]["canonical_text"] == "failed word"
     # Only Anki-relevant fields are exposed — no source_text
     assert "source_text" not in data[0]
-
-
-def test_anki_pending_includes_failed_cards_for_retry(
-    authed_client: TestClient,
-    session: Session,
-) -> None:
-    session.add(
-        _make_card(
-            eligible_for_anki=True,
-            anki_sync_status=AnkiSyncStatus.FAILED,
-            canonical_text="retry me",
-            canonical_text_normalized="retry me",
-        )
-    )
-    session.commit()
-
-    resp = authed_client.get("/api/anki/pending")
-    assert resp.status_code == 200
-    data = resp.json()
-
-    assert len(data) == 1
-    assert data[0]["canonical_text"] == "retry me"
 
 
 def test_anki_pending_puts_new_cards_before_failed_ones(

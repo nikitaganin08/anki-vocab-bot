@@ -40,7 +40,7 @@ def ensure_anki_connect_available(
     # ponytail: macOS only (`open -a Anki`); add other launchers if sync runs elsewhere.
     print("AnkiConnect unavailable, launching Anki")
     try:
-        subprocess.Popen(  # noqa: S603
+        subprocess.Popen(
             ["open", "-a", "Anki"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,

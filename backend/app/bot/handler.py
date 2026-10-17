@@ -39,7 +39,7 @@ class TelegramTextHandler:
 
         validation = validate_source_input(message.text or "")
         if validation.normalized_text is None:
-            await message.answer(validation.error_message or "Invalid input.")
+            await message.answer(validation.error_message)
             return
 
         try:
@@ -83,7 +83,7 @@ class TelegramDescriptionLookupHandler:
         description = self._extract_description_argument(getattr(message, "text", None))
         validation = validate_description_input(description)
         if validation.normalized_text is None:
-            await message.answer(validation.error_message or "Invalid input.")
+            await message.answer(validation.error_message)
             return
 
         try:

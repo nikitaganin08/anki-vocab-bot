@@ -57,7 +57,6 @@ The app receives words and stable expressions from Telegram, generates learning 
 - `React 18`
 - `TypeScript`
 - `Vite`
-- `React Router`
 - `TanStack Query`
 - `npm` for dependency management
 - `npx` only for one-off scaffolding and CLI bootstrap commands
@@ -208,7 +207,7 @@ Production exposure defaults (via external nginx policy):
   - `Example`
 
 Mapping:
-- `Word` -> `canonical_text`
+- `Word` -> `canonical_text_normalized` (lowercased, whitespace-collapsed `canonical_text`)
 - `Transcription` -> `transcription`
 - `PronunciationAudio` -> `[sound:avb-pronunciation-<card_id>.mp3]` generated locally during `sync_anki`
 - `Translation` -> comma-joined translations

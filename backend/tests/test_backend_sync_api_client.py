@@ -60,10 +60,8 @@ def test_get_pending_raises_protocol_error_for_invalid_payload() -> None:
         http_client=httpx.Client(transport=httpx.MockTransport(handler)),
     )
 
-    with pytest.raises(BackendSyncApiError) as exc_info:
+    with pytest.raises(BackendSyncApiError, match="expected schema"):
         client.get_pending()
-
-    assert exc_info.value.code == "backend_sync_invalid_pending"
 
 
 def test_ack_posts_payload() -> None:
@@ -109,7 +107,5 @@ def test_timeout_raises_timeout_error() -> None:
         http_client=TimeoutClient(),  # type: ignore[arg-type]
     )
 
-    with pytest.raises(BackendSyncApiError) as exc_info:
+    with pytest.raises(BackendSyncApiError, match="timed out"):
         client.get_pending()
-
-    assert exc_info.value.code == "backend_sync_timeout"

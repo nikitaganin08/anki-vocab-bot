@@ -165,12 +165,6 @@ export function CardsPage(): JSX.Element {
     setSearchDraft(search);
   }, [search]);
 
-  useEffect(() => {
-    if (hasActiveFilters(search, sourceLanguage, entryType, ankiStatus, eligible)) {
-      setFiltersExpanded(true);
-    }
-  }, [search, sourceLanguage, entryType, ankiStatus, eligible]);
-
   const cardsQuery = useQuery({
     queryKey: ["cards", { page, search, sourceLanguage, entryType, ankiStatus, eligible }],
     queryFn: () =>
@@ -225,11 +219,6 @@ export function CardsPage(): JSX.Element {
       setBatchFatalError(result.fatalErrorMessage);
       void queryClient.invalidateQueries({ queryKey: ["cards"] });
     },
-    onError: (error) => {
-      const message =
-        error instanceof ApiError ? error.message : "Batch import failed due to unexpected error.";
-      setBatchFatalError(message);
-    },
   });
 
   const startBatchImport = (): void => {
@@ -242,7 +231,6 @@ export function CardsPage(): JSX.Element {
       return;
     }
 
-    setBatchValidationError(null);
     batchImportMutation.mutate(sourceTexts);
   };
 
@@ -615,11 +603,7 @@ export function CardsPage(): JSX.Element {
                 type="button"
                 className="danger-button"
                 disabled={deleteMutation.isPending}
-                onClick={() => {
-                  if (pendingDeleteCard) {
-                    deleteMutation.mutate(pendingDeleteCard.id);
-                  }
-                }}
+                onClick={() => deleteMutation.mutate(pendingDeleteCard.id)}
               >
                 {deleteMutation.isPending ? "Deleting..." : "Delete card"}
               </button>

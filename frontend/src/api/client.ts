@@ -3,10 +3,15 @@ import type {
   CardListResponse,
   CardsQuery,
 } from "./types";
-import { resolveApiPath } from "../routing";
 import { getTelegramInitData } from "../telegram";
 
 export class ApiError extends Error {}
+
+const WEBAPP_PREFIX_PATTERN = /^(.*)\/telegram\/webapp(?:\/.*)?$/;
+
+function resolveApiPath(path: string): string {
+  return (window.location.pathname.match(WEBAPP_PREFIX_PATTERN)?.[1] ?? "") + path;
+}
 
 function buildHeaders(headers: Record<string, string>): Record<string, string> {
   const telegramInitData = getTelegramInitData();
