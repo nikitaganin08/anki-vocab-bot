@@ -487,13 +487,13 @@ describe("pronunciation", () => {
     renderReview();
   }
 
-  it("shows the speaker without speechSynthesis and plays cached server audio on tap only", async () => {
+  it("prefetches server audio when the card shows and plays it on tap only", async () => {
     expect("speechSynthesis" in window).toBe(false);
     renderIntro(21);
 
     const speaker = await screen.findByRole("button", { name: "Play pronunciation" });
-    // No autoplay.
-    expect(fetchMock).not.toHaveBeenCalled();
+    // Downloaded up front so a tap plays inside the gesture (iOS), but no autoplay.
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
     expect(playMock).not.toHaveBeenCalled();
 
     fireEvent.click(speaker);

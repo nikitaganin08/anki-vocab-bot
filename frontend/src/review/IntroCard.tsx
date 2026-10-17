@@ -1,5 +1,7 @@
+import { useEffect } from "react";
+
 import type { Card } from "../api/types";
-import { pronounce } from "./speak";
+import { prefetchAudio, pronounce } from "./speak";
 
 // Tabler "volume" outline icon (MIT), 24x24.
 const SPEAKER_PATHS = [
@@ -8,8 +10,11 @@ const SPEAKER_PATHS = [
   "M6 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h2l3.5-4.5A.8.8 0 0 1 11 5v14a.8.8 0 0 1-1.5.5L6 15",
 ];
 
-// The full card, shared by the intro and the back side. Audio plays only on tap.
+// The full card, shared by the intro and the back side. Audio is downloaded when the card
+// shows but plays only on tap.
 export function CardDetails({ card }: { card: Card }): JSX.Element {
+  useEffect(() => prefetchAudio(card.id), [card.id]);
+
   return (
     <div className="surface-panel review-card">
       <div className="review-word">
