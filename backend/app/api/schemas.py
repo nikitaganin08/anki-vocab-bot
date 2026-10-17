@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.card import AnkiSyncStatus, Card, EntryType, SourceLanguage
 from app.schemas.llm import CardChunk, WordFamilyItem
@@ -169,6 +170,90 @@ class AnkiPendingCardResponse(BaseModel):
             examples=c.examples_json,
             chunks=c.chunks_json,
         )
+
+
+class CardPatchRequest(BaseModel):
+    is_learning: bool
+
+
+PromptKind = Literal["chunk", "translation"]
+
+
+class ReviewPromptResponse(BaseModel):
+    kind: PromptKind
+    index: int
+    masked: str
+    hint_translation: str
+    expected_length: int
+    hint_letter: str
+
+
+class ReviewSessionItemResponse(BaseModel):
+    card: CardResponse
+    intro: bool
+    prompt: ReviewPromptResponse
+    srs_due_at: datetime | None
+
+
+class ReviewSessionResponse(BaseModel):
+    items: list[ReviewSessionItemResponse]
+
+
+class ReviewCheckRequest(BaseModel):
+    typed: str = Field(max_length=200)
+    prompt_kind: PromptKind
+    prompt_index: int = Field(ge=0)
+    hint_used: bool
+
+
+class ReviewCheckResponse(BaseModel):
+    verdict: Literal["correct", "typo", "wrong"]
+    expected: str
+    auto_rating: int
+    intervals: dict[int, int]
+
+
+class ReviewGradeRequest(BaseModel):
+    rating: int = Field(ge=1, le=4)
+    auto_rating: int = Field(ge=1, le=4)
+    overridden: bool
+    typed: str = Field(max_length=200)
+    prompt_kind: PromptKind
+    prompt_index: int = Field(ge=0)
+    verdict: Literal["correct", "typo", "wrong", "skipped"]
+    hint_used: bool
+    response_ms: int = Field(ge=0)
+    expected_due_at: datetime | None
+
+
+class ReviewGradeResponse(BaseModel):
+    srs_due_at: datetime
+    srs_state: str
+
+
+class ReviewUndoResponse(BaseModel):
+    card_id: int
+
+
+class AppSettingsPayload(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    timezone: str = Field(max_length=64)
+    reminder_hour: int = Field(ge=0, le=23)
+    reminder_anchor: str | None = Field(max_length=255)
+    new_per_day: int = Field(ge=0, le=100)
+    reviews_per_day: int = Field(ge=0, le=1000)
+    desired_retention: float = Field(ge=0.7, le=0.97)
+    learn_threshold: int = Field(ge=0, le=10)
+
+    @field_validator("timezone")
+    @classmethod
+    def _timezone_exists(cls, value: str) -> str:
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError, OSError) as exc:
+            raise ValueError(f"unknown timezone {value!r}") from exc
+        return value
 
 
 class AnkiAckRequest(BaseModel):

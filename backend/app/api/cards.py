@@ -13,6 +13,7 @@ from app.api.schemas import (
     CardBatchImportResponse,
     CardBatchImportSummaryResponse,
     CardListResponse,
+    CardPatchRequest,
     CardResponse,
 )
 from app.bot.input_validation import validate_source_input
@@ -138,6 +139,16 @@ def batch_import_cards(
         items=items,
         summary=CardBatchImportSummaryResponse(total=len(payload.source_texts), **summary_counts),
     )
+
+
+@router.patch("/{card_id}", response_model=CardResponse)
+def patch_card(card_id: int, body: CardPatchRequest, session: SessionDep) -> CardResponse:
+    card = session.get(Card, card_id)
+    if card is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
+    card.is_learning = body.is_learning
+    session.commit()
+    return CardResponse.from_card(card)
 
 
 @router.delete("/{card_id}", status_code=status.HTTP_204_NO_CONTENT)

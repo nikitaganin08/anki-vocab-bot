@@ -3,12 +3,14 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
-from app.api import anki, cards, telegram_webhook, vocab
+from app.api import anki, cards, review, settings, telegram_webhook, vocab
 
 app = FastAPI(title="anki-vocab-bot")
 
 app.include_router(cards.router)
 app.include_router(anki.router)
+app.include_router(review.router)
+app.include_router(settings.router)
 app.include_router(telegram_webhook.router)
 app.include_router(vocab.router)
 
