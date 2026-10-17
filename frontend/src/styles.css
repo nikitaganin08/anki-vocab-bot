@@ -467,6 +467,11 @@ progress::-moz-progress-bar {
   font-size: 20px;
 }
 
+.field-hint {
+  font-size: 13px;
+  color: var(--hint);
+}
+
 /* Cards page */
 
 .cards-page,

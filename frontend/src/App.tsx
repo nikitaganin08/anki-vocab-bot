@@ -33,14 +33,14 @@ function renderView(
   }
 }
 
-// The study day follows the device timezone; the field in Настройки stays as a manual override
-// until the device reports a different zone. Failures keep the stored value.
+// The study day follows the device timezone: each load replaces the stored zone (also one picked
+// by hand in Настройки) when the device reports another. Failures keep the stored value.
 async function syncDeviceTimezone(queryClient: QueryClient): Promise<void> {
-  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  if (!timezone) {
-    return;
-  }
   try {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (!timezone) {
+      return;
+    }
     const settings = await getSettings();
     if (settings.timezone === timezone) {
       return;

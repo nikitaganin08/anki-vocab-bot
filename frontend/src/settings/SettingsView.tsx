@@ -59,7 +59,8 @@ export function SettingsView(): JSX.Element {
   };
 
   return (
-    <form className="surface-panel settings-form" onSubmit={onSubmit}>
+    // Remount when the device timezone sync updates the stored zone (uncontrolled form).
+    <form key={data.timezone} className="surface-panel settings-form" onSubmit={onSubmit}>
       <h2>Настройки</h2>
       <label>
         Новых в день
@@ -113,6 +114,7 @@ export function SettingsView(): JSX.Element {
             </option>
           ))}
         </select>
+        <span className="field-hint">Определяется по устройству при каждом открытии</span>
       </label>
 
       {save.error ? (

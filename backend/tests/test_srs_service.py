@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 import sqlalchemy as sa
@@ -458,3 +459,17 @@ def test_lookahead_does_not_cross_into_next_study_day(session: Session) -> None:
 
     assert build_session(session, settings, before_midnight, size=10) == []
     assert build_summary(session, settings, before_midnight).due_today == 0
+
+
+@pytest.mark.parametrize(
+    ("moment", "hours"),
+    [
+        (datetime(2026, 3, 29, 10, 0, tzinfo=UTC), 23),  # Berlin springs forward
+        (datetime(2026, 10, 25, 10, 0, tzinfo=UTC), 25),  # Berlin falls back
+    ],
+)
+def test_day_window_spans_local_day_across_dst(moment: datetime, hours: int) -> None:
+    start, end = day_window(moment, "Europe/Berlin")
+
+    assert end - start == timedelta(hours=hours)
+    assert start.astimezone(ZoneInfo("Europe/Berlin")).hour == 0
