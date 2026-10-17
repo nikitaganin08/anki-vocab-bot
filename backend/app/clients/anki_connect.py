@@ -74,38 +74,11 @@ class AnkiConnectClient:
         return result
 
     def find_notes_by_tag(self, tag: str) -> list[int]:
-        return self.find_notes(f"tag:{tag}")
-
-    def find_notes(self, query: str) -> list[int]:
-        result = self._request_with_retry("findNotes", {"query": query})
+        result = self._request_with_retry("findNotes", {"query": f"tag:{tag}"})
         if not isinstance(result, list) or not all(isinstance(item, int) for item in result):
             raise AnkiConnectProtocolError(
                 "AnkiConnect findNotes result is not a list of note ids",
                 user_message="AnkiConnect returned invalid findNotes response.",
-            )
-        return result
-
-    def notes_info(self, ids: list[int]) -> list[dict[str, Any]]:
-        return self._request_dicts("notesInfo", {"notes": ids})
-
-    def cards_info(self, ids: list[int]) -> list[dict[str, Any]]:
-        return self._request_dicts("cardsInfo", {"cards": ids})
-
-    def reviews_of_cards(self, card_ids: list[int]) -> dict[str, list[dict[str, Any]]]:
-        result = self._request_with_retry("getReviewsOfCards", {"cards": card_ids})
-        if not isinstance(result, dict):
-            raise AnkiConnectProtocolError(
-                "AnkiConnect getReviewsOfCards result is not an object",
-                user_message="AnkiConnect returned invalid getReviewsOfCards response.",
-            )
-        return result
-
-    def _request_dicts(self, action: str, params: dict[str, Any]) -> list[dict[str, Any]]:
-        result = self._request_with_retry(action, params)
-        if not isinstance(result, list) or not all(isinstance(item, dict) for item in result):
-            raise AnkiConnectProtocolError(
-                f"AnkiConnect {action} result is not a list of objects",
-                user_message=f"AnkiConnect returned invalid {action} response.",
             )
         return result
 
