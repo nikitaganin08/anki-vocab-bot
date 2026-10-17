@@ -1,7 +1,7 @@
 .PHONY: backend-dev frontend-dev backend-test frontend-test test build-frontend sync-anki import-anki backfill-chunks android-apk docker-build docker-up docker-down
 
 backend-dev:
-	cd backend && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+	cd backend && DISABLE_REMINDERS=1 uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 frontend-dev:
 	cd frontend && npm run dev

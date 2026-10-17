@@ -240,3 +240,15 @@ def test_preview_intervals_monotonic(session: Session) -> None:
         assert list(intervals) == [1, 2, 3, 4]
         assert intervals[1] <= intervals[2] <= intervals[3] <= intervals[4]
     assert preview_intervals(scheduler, new, NOW)[3] == 600
+
+
+def test_grade_tolerates_subsecond_drift_in_expected_due(session: Session) -> None:
+    settings = get_app_settings(session)
+    card = _add(session, "drift")
+    grade_card(session, settings, card, _grade(card), NOW)
+
+    grade = _grade(card)
+    grade.expected_due_at = card.srs_due_at + timedelta(milliseconds=500)
+    grade_card(session, settings, card, grade, NOW + timedelta(minutes=11))
+
+    assert card.srs_reps == 2

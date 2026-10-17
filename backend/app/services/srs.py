@@ -149,7 +149,10 @@ def grade_card(
 ) -> Card:
     expected = as_utc(grade.expected_due_at) if grade.expected_due_at else None
     current = as_utc(card.srs_due_at) if card.srs_due_at else None
-    if expected != current:
+    # Tolerate sub-second drift from clients that round timestamps (JS Date keeps ms).
+    if (expected is None) != (current is None) or (
+        expected is not None and abs(expected - current) > timedelta(seconds=1)
+    ):
         raise StaleReviewError(f"card {card.id} was already graded")
 
     now = as_utc(now)

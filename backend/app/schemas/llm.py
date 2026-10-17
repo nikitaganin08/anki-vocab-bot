@@ -4,7 +4,15 @@ import json
 import re
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 
 from app.models.card import EntryType, SourceLanguage
 
@@ -126,11 +134,29 @@ class CardChunk(BaseModel):
         return self
 
 
+def _drop_invalid_chunks(value: Any) -> Any:
+    # One malformed chunk should not reject an otherwise valid card.
+    if not isinstance(value, list):
+        return value
+    valid: list[CardChunk] = []
+    for item in value:
+        try:
+            valid.append(CardChunk.model_validate(item))
+        except ValidationError:
+            continue
+    return valid[:5]
+
+
 class ChunksResponse(BaseModel):
     chunks: list[CardChunk] = Field(max_length=5)
     example: str
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("chunks", mode="before")
+    @classmethod
+    def drop_invalid_chunks(cls, value: Any) -> Any:
+        return _drop_invalid_chunks(value)
 
     @field_validator("example")
     @classmethod
@@ -155,6 +181,11 @@ class AcceptedLlmResponse(BaseModel):
     frequency_note: str | None = None
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("chunks", mode="before")
+    @classmethod
+    def drop_invalid_chunks(cls, value: Any) -> Any:
+        return _drop_invalid_chunks(value)
 
     @field_validator("canonical_text")
     @classmethod

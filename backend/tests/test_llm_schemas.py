@@ -264,13 +264,18 @@ def test_accepts_chunks_with_inflected_target() -> None:
     assert result.chunks[0].translation == "разуверился в нём"
 
 
-def test_rejects_chunk_target_not_in_text() -> None:
-    with pytest.raises(ValueError):
-        parse_llm_response(
-            _give_up_payload(
-                chunks=[{"text": "quit smoking", "target": "give up", "translation": "бросить"}]
-            )
+def test_drops_invalid_chunk_and_keeps_card() -> None:
+    result = parse_llm_response(
+        _give_up_payload(
+            chunks=[
+                {"text": "quit smoking", "target": "give up", "translation": "бросить"},
+                {"text": "give up smoking", "target": "give up", "translation": "бросить курить"},
+            ]
         )
+    )
+
+    assert isinstance(result, AcceptedLlmResponse)
+    assert [chunk.text for chunk in result.chunks] == ["give up smoking"]
 
 
 def test_accepts_single_example_and_empty_chunks() -> None:
