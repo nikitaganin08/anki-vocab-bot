@@ -49,13 +49,17 @@ def _outcomes(scheduler: fsrs.Scheduler, card: Card, now: datetime) -> dict[int,
     # review_card works on a copy, so the stored card is untouched.
     fsrs_card = load_fsrs_card(card)
     out = {rating.value: scheduler.review_card(fsrs_card, rating, now)[0] for rating in fsrs.Rating}
-    # Anki's ordering for review outcomes: Good >= Hard + 1 day, Easy >= Good + 1 day.
+    # Anki's ordering for review outcomes: Good >= Hard + 1 day, Easy >= Good + 1 day,
+    # never past the scheduler's maximum interval.
+    cap = now + timedelta(days=scheduler.maximum_interval)
     for lower, higher in (
         (fsrs.Rating.Hard, fsrs.Rating.Good),
         (fsrs.Rating.Good, fsrs.Rating.Easy),
     ):
         if out[lower].state == out[higher].state == fsrs.State.Review:
-            out[higher].due = max(out[higher].due, out[lower].due + timedelta(days=1))
+            bumped = out[lower].due + timedelta(days=1)
+            if bumped > out[higher].due:
+                out[higher].due = min(bumped, cap)
     return out
 
 

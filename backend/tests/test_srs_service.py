@@ -291,3 +291,20 @@ def test_review_intervals_strictly_ordered_and_graded_as_previewed(
 
     grade_card(session, settings, card, _grade(card, rating=3), NOW)
     assert as_utc(card.srs_due_at) == NOW + timedelta(seconds=intervals[3])
+
+
+def test_ordered_intervals_never_exceed_maximum(session: Session) -> None:
+    settings = get_app_settings(session)
+    scheduler = build_scheduler(settings)
+    card = _schedule(
+        session,
+        _add(session, "ancient"),
+        State.Review,
+        NOW,
+        stability=60000.0,
+        last_review=NOW - timedelta(days=36500),
+    )
+
+    intervals = preview_intervals(scheduler, card, NOW)
+
+    assert max(intervals.values()) <= scheduler.maximum_interval * 86400
