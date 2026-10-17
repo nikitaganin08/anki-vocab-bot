@@ -24,7 +24,18 @@ def test_parser_returns_valid_items_stripped() -> None:
 
 
 def test_parser_accepts_general_american_ipa() -> None:
-    good = ["/ˈsoʊbɝ/", "/ˌpɝːsəˈvɪr/", "/ˈtʃɛr/", "/ˈbæk ən ˈfɔːrθ/", "/ˈɡɑːnrə/"]
+    good = [
+        "/ˈsoʊbɝ/",
+        "/ˌpɝːsəˈvɪr/",
+        "/ˈtʃɛr/",
+        "/ˈbæk ən ˈfɔːrθ/",
+        "/ˈɡɑːnrə/",
+        "/waɪər/",  # aɪə is American, not the British centring ɪə
+        "/ɪnˈtaɪər/",
+        "/ˈleɪər/",
+        "/ɪmˈplɔɪər/",
+        "/ˈaʊər/",
+    ]
     payload = _payload(*({"id": i, "transcription": v} for i, v in enumerate(good)))
 
     assert list(parse_transcriptions_response(payload, set(range(len(good)))).values()) == good
