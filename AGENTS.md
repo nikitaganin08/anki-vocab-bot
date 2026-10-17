@@ -327,6 +327,13 @@ Deck import (`app/scripts/import_anki.py`, one-off): notes of `English::Inbox` a
 
 Transcription backfill (`app/scripts/backfill_transcription.py`, one-off, to be deleted after the production run): `python -m app.scripts.backfill_transcription [--limit N] [--dry-run] [--batch-size 20]` sends cards in batches of 20 to the LLM (`OpenRouterClient.generate_transcriptions`) for General American IPA of `canonical_text` and updates only `cards.transcription` (plus `updated_at` via `onupdate`), committing per batch. An item is applied only if its id was requested and the value is one pair of slashes around plain IPA, 3 to 120 chars, without Cyrillic, brackets, parentheses, digits, syllable dots or the British vowels ɒ, əʊ, ɪə, eə, ʊə; otherwise it counts as failed and the card is left untouched. Idempotent; `--dry-run` prints old -> new for the first 30 changes and writes nothing. Cards already synced to Anki keep their old transcription there.
 
+## Backups
+
+- `deploy/backup/backup.sh` runs daily from the VPS user's cron (`17 4 * * *`): consistent SQLite online copy, `integrity_check`, gzip into `~/backups/wordloop/app-<timestamp>.db.gz`, 14 days kept (log: `backup.log` next to them). The deploy workflow keeps the scripts in `/opt/anki-vocab-bot/backup/`; the cron entry itself is installed once by hand.
+- Restore: `/opt/anki-vocab-bot/backup/restore.sh ~/backups/wordloop/app-<timestamp>.db.gz` (checks the copy, stops the app, keeps the current database as `app.db.before-restore`, starts the app).
+- `make pull-backups` copies the server's backups to `~/Backups/wordloop` on the dev machine (off-server copy; `BACKUP_HOST` overrides the ssh host).
+- `.env` (tokens, keys) is not backed up; keep the secrets in a password manager.
+
 ## Configuration
 
 Required environment variables:
