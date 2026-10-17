@@ -68,7 +68,10 @@ The app receives words and stable expressions from Telegram, generates learning 
 - Production deploy is triggered by GitHub Actions on push to `master`
 - The deploy workflow lives in `.github/workflows/deploy.yml`
 - GitHub Actions builds and pushes the Docker image, then deploys it on the VPS over SSH
-- Edge nginx is managed outside this repository (separate VPS infra stack)
+- Edge nginx (domain, TLS, other sites) lives outside this repository in `/opt/nginx` on the VPS;
+  this repo owns only its `/anki/` routes in `deploy/nginx/anki.conf`, which the deploy workflow
+  copies to `/opt/nginx/snippets/anki.conf` and applies with `nginx -t` + reload (restoring the
+  previous file if the test fails)
 - In production, admin access is expected through Telegram Web App auth tied to the allowed Telegram user
 - Docker uses a multi-stage build:
   - frontend build stage
@@ -189,10 +192,11 @@ The React frontend includes:
 
 The UI reads only from backend JSON endpoints.
 
-Production exposure defaults (via external nginx policy):
-- public: Telegram webhook endpoint, Anki sync API endpoints, health check
-- restricted by Telegram Web App auth: webapp paths and card list/delete/import API used by the webapp
-- denied externally by default: other backend API paths
+Production exposure (`deploy/nginx/anki.conf`):
+- `/anki/telegram/*` → Mini App static files and the webhook (secret token)
+- `/anki/api/*` → every backend API route; each authenticates itself (Telegram Web App init data
+  or the bearer token), except the health check
+- other backend paths (e.g. FastAPI docs) are not exposed
 
 ## Anki Integration
 
