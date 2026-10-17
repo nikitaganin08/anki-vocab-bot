@@ -163,6 +163,20 @@ def test_session_respects_daily_limits(session: Session) -> None:
     assert [item.card.canonical_text for item in items] == ["learning due"]
 
 
+def test_session_include_backlog_ignores_cap(session: Session) -> None:
+    settings = get_app_settings(session)
+    settings.reviews_per_day = 1
+    for i in range(3):
+        _schedule(session, _add(session, f"review {i}"), State.Review, NOW - timedelta(days=1))
+    _add(session, "new one")
+
+    capped = build_session(session, settings, NOW)
+    backlog = build_session(session, settings, NOW, include_backlog=True)
+
+    assert [item.intro for item in capped] == [False, True]
+    assert [item.intro for item in backlog] == [False, False, False, True]
+
+
 def test_session_skips_not_learning_cards(session: Session) -> None:
     _add(session, "rare new", is_learning=False)
     _schedule(

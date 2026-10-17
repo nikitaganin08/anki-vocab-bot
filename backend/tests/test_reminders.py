@@ -50,6 +50,8 @@ def _summary(**overrides: Any) -> ReviewSummary:
         heatmap=[0] * 98,
         forecast_tomorrow=0,
         forecast_week_avg=0,
+        due_all=10,
+        days_away=0,
     )
     values.update(overrides)
     return ReviewSummary(**values)
@@ -104,18 +106,22 @@ def test_paused_after_seven_ignored(session: Session) -> None:
 def test_text_has_counts_and_no_streak_word() -> None:
     assert len(REMINDER_TEMPLATES) == 12
     for index in range(len(REMINDER_TEMPLATES)):
-        text = build_reminder_text(_summary(), None, None, index, None)
+        text = build_reminder_text(_summary(), None, index, None)
         assert "12 карточек" in text
         assert "4 мин" in text
         assert "серия" not in text.casefold()
         assert "streak" not in text.casefold()
 
-    assert "1 карточка" in build_reminder_text(
-        _summary(due_today=1, new_today=0), None, None, 0, None
-    )
-    anchored = build_reminder_text(_summary(), "после кофе", ("___ smoking", "бросить"), 0, None)
+    assert "1 карточка" in build_reminder_text(_summary(due_today=1, new_today=0), None, 0, None)
+    anchored = build_reminder_text(_summary(), "после кофе", 0, None)
     assert anchored.startswith("После кофе — ")
-    assert "___ smoking — бросить" in anchored
+
+
+def test_reminder_text_has_no_warmup() -> None:
+    text = build_reminder_text(_summary(due_today=15, new_today=2, est_minutes=6), None, 0, None)
+
+    assert text == "На сегодня 17 карточек, ~6 мин."
+    assert "Разминка" not in text
 
 
 @dataclass
@@ -196,7 +202,7 @@ def test_monday_includes_weekly_block(
 
     text = bot.sent[0]["text"]
     assert text.startswith("После кофе — ")
-    assert "Разминка: ___ smoking — бросить курить" in text
+    assert "Разминка" not in text
     assert "Итоги недели" in text
 
 

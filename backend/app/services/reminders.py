@@ -16,7 +16,7 @@ from app.models.app_settings import AppSettings
 from app.models.review_log import ReviewLogEntry
 from app.services.app_settings import get_app_settings
 from app.services.review_stats import ReviewSummary, build_summary
-from app.services.srs import DAY_START_HOUR, as_utc, build_session
+from app.services.srs import DAY_START_HOUR, as_utc
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,6 @@ def _cards(count: int) -> str:
 def build_reminder_text(
     summary: ReviewSummary,
     anchor: str | None,
-    warmup: tuple[str, str] | None,
     template_index: int,
     weekly: str | None,
 ) -> str:
@@ -78,12 +77,7 @@ def build_reminder_text(
     )
     if anchor:
         text = f"{anchor[:1].upper()}{anchor[1:]} — {text[:1].lower()}{text[1:]}"
-    blocks = [text]
-    if warmup is not None:
-        blocks.append(f"Разминка: {warmup[0]} — {warmup[1]}")
-    if weekly:
-        blocks.append(weekly)
-    return "\n\n".join(blocks)
+    return f"{text}\n\n{weekly}" if weekly else text
 
 
 def _weekly_block(summary: ReviewSummary) -> str:
@@ -134,18 +128,8 @@ async def send_reminder_if_due(
                 session.commit()
             return False
 
-        warmup = next(
-            (
-                (item.prompt.masked, item.prompt.hint_translation)
-                for item in build_session(session, settings, now)
-                if not item.intro and item.prompt.kind == "chunk"
-            ),
-            None,
-        )
         weekly = _weekly_block(summary) if today.weekday() == 0 else None
-        text = build_reminder_text(
-            summary, settings.reminder_anchor, warmup, today.toordinal(), weekly
-        )
+        text = build_reminder_text(summary, settings.reminder_anchor, today.toordinal(), weekly)
         config = get_settings()
         await bot.send_message(
             config.telegram_allowed_user_id,

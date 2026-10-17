@@ -61,8 +61,11 @@ def get_summary(session: SessionDep) -> ReviewSummary:
 def get_review_session(
     session: SessionDep,
     size: Annotated[int, Query(ge=1, le=20)] = 10,
+    include_backlog: bool = False,
 ) -> ReviewSessionResponse:
-    items = build_session(session, get_app_settings(session), datetime.now(UTC), size)
+    items = build_session(
+        session, get_app_settings(session), datetime.now(UTC), size, include_backlog
+    )
     return ReviewSessionResponse(
         items=[
             ReviewSessionItemResponse(

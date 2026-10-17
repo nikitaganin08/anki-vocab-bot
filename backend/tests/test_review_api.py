@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 from fastapi.testclient import TestClient
+from fsrs import Card as FsrsCard
+from fsrs import State
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.card import Card
 from app.models.review_log import ReviewLogEntry
+from app.services.app_settings import get_app_settings
 
 from .conftest import make_card, telegram_headers
 
@@ -72,6 +77,28 @@ def test_session_hides_expected_answer(client: TestClient, session: Session) -> 
         "hint_letter": "g",
     }
     assert client.get("/api/review/session?size=21", headers=telegram_headers()).status_code == 422
+
+
+def test_session_endpoint_include_backlog(client: TestClient, session: Session) -> None:
+    get_app_settings(session).reviews_per_day = 0
+    due = datetime.now(UTC) - timedelta(days=1)
+    card = _add_card(session, srs_state="review", srs_due_at=due)
+    card.srs_card_json = FsrsCard(
+        card_id=card.id,
+        state=State.Review,
+        step=None,
+        stability=10.0,
+        difficulty=5.0,
+        due=due,
+        last_review=due - timedelta(days=10),
+    ).to_json()
+    session.commit()
+
+    capped = client.get("/api/review/session", headers=telegram_headers())
+    backlog = client.get("/api/review/session?include_backlog=true", headers=telegram_headers())
+
+    assert capped.json()["items"] == []
+    assert [item["card"]["id"] for item in backlog.json()["items"]] == [card.id]
 
 
 def test_check_then_grade_flow(client: TestClient, session: Session) -> None:

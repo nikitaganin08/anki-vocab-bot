@@ -29,6 +29,7 @@ class ReviewSummary:
     new_today: int
     est_minutes: int
     backlog: int
+    due_all: int  # due learning + review cards, ignoring the daily limit
     retention_30d: float | None
     learned_total: int
     learned_delta_7d: int
@@ -37,6 +38,7 @@ class ReviewSummary:
     heatmap: list[int]
     forecast_tomorrow: int
     forecast_week_avg: int
+    days_away: int | None  # study days since the last answer; None if never answered
 
 
 def _study_day(dt: datetime, tz: ZoneInfo) -> date:
@@ -149,12 +151,14 @@ def build_summary(session: Session, settings: AppSettings, now: datetime) -> Rev
     # One session a day: cards that come due later today are done tomorrow.
     tomorrow = today + timedelta(days=1)
     week = sum(day <= today + timedelta(days=7) for day in upcoming)
+    last_answer = max((as_utc(log.reviewed_at) for log in logs), default=None)
 
     return ReviewSummary(
         due_today=due_today,
         new_today=new_today,
         est_minutes=est_minutes,
         backlog=due_reviews - reviews_today,
+        due_all=due_reviews + due_learning,
         retention_30d=sum(mature) / len(mature) if mature else None,
         learned_total=len(learned),
         learned_delta_7d=len(graduated & learned),
@@ -163,4 +167,5 @@ def build_summary(session: Session, settings: AppSettings, now: datetime) -> Rev
         heatmap=[answers[today - timedelta(days=i)] for i in reversed(range(HEATMAP_DAYS))],
         forecast_tomorrow=sum(day <= tomorrow for day in upcoming),
         forecast_week_avg=round(week / 7),
+        days_away=None if last_answer is None else (today - _study_day(last_answer, tz)).days,
     )

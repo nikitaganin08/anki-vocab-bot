@@ -88,6 +88,7 @@ def test_empty_db_summary(session: Session) -> None:
         new_today=0,
         est_minutes=0,
         backlog=0,
+        due_all=0,
         retention_30d=None,
         learned_total=0,
         learned_delta_7d=0,
@@ -96,6 +97,7 @@ def test_empty_db_summary(session: Session) -> None:
         heatmap=[0] * 98,
         forecast_tomorrow=0,
         forecast_week_avg=0,
+        days_away=None,
     )
 
 
@@ -112,6 +114,31 @@ def test_backlog_beyond_limit(session: Session) -> None:
     assert (summary.due_today, summary.backlog, summary.new_today) == (51, 10, 5)
     # (51 due + 5 new × 2) × default 15 s per answer = 15.25 min.
     assert summary.est_minutes == 16
+
+
+def test_due_all_ignores_limit(session: Session) -> None:
+    for i in range(60):
+        _add(session, f"review {i}", "review", NOW - timedelta(days=1))
+
+    summary = build_summary(session, get_app_settings(session), NOW)
+
+    assert (summary.due_today, summary.due_all) == (50, 60)
+
+
+def test_days_away_counts_study_days(session: Session) -> None:
+    settings = get_app_settings(session)
+    assert build_summary(session, settings, NOW).days_away is None
+
+    card = _add(session, "give up", "review", NOW + timedelta(days=10))
+    # 03:30 in Moscow on the 17th still belongs to the 16th's study day.
+    _log(session, card, datetime(2026, 10, 17, 0, 30, tzinfo=UTC))
+    assert build_summary(session, settings, NOW).days_away == 4
+
+    _log(session, card, datetime(2026, 10, 17, 2, 0, tzinfo=UTC))  # 05:00 in Moscow
+    assert build_summary(session, settings, NOW).days_away == 3
+
+    _log(session, card, NOW - timedelta(hours=1))
+    assert build_summary(session, settings, NOW).days_away == 0
 
 
 def test_retention_counts_only_mature(session: Session) -> None:

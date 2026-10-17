@@ -78,7 +78,11 @@ def _logs_today(session: Session, start: datetime, end: datetime, *conditions: o
 
 
 def build_session(
-    session: Session, settings: AppSettings, now: datetime, size: int = 10
+    session: Session,
+    settings: AppSettings,
+    now: datetime,
+    size: int = 10,
+    include_backlog: bool = False,
 ) -> list[SessionItem]:
     now = as_utc(now)
     start, end = day_window(now, settings.timezone)
@@ -96,7 +100,8 @@ def build_session(
         session, start, end, ReviewLogEntry.state_before == "review"
     )
     reviews: list[Card] = []
-    if reviews_left > 0:
+    # include_backlog ("all at once" after a break) serves every due review.
+    if include_backlog or reviews_left > 0:
         scheduler = build_scheduler(settings)
         due = session.scalars(
             learning_cards.where(Card.srs_state == "review", Card.srs_due_at <= now)
@@ -106,7 +111,7 @@ def build_session(
             key=lambda c: scheduler.get_card_retrievability(load_fsrs_card(c), now),
             reverse=True,
         )
-        reviews = due[:reviews_left]
+        reviews = due if include_backlog else due[:reviews_left]
 
     # A log with no previous state is a card's first answer, i.e. a new card introduced.
     new_left = settings.new_per_day - _logs_today(
