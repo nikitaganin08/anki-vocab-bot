@@ -15,7 +15,7 @@ from app.services.answer_check import Prompt, build_prompt
 
 # ponytail: SRS state on cards (single user); move to user_cards for multi-user
 
-DAY_START_HOUR = 6
+DAY_START_HOUR = 0
 LEARNING_LOOKAHEAD = timedelta(minutes=20)
 
 

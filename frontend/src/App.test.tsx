@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
@@ -61,6 +61,33 @@ const cardsPayload = {
   limit: 20,
 };
 
+const settingsPayload = {
+  timezone: "Europe/Moscow",
+  reminder_hour: 10,
+  reminder_anchor: null,
+  new_per_day: 5,
+  reviews_per_day: 50,
+  desired_retention: 0.9,
+  learn_threshold: 3,
+};
+
+const summaryPayload = {
+  due_today: 0,
+  new_today: 0,
+  est_minutes: 0,
+  backlog: 0,
+  due_all: 0,
+  retention_30d: null,
+  learned_total: 0,
+  learned_delta_7d: 0,
+  streak_days: 0,
+  best_streak_days: 0,
+  heatmap: Array.from({ length: 98 }, () => 0),
+  forecast_tomorrow: 0,
+  forecast_week_avg: 0,
+  days_away: null,
+};
+
 function setTelegramWebApp(initData = "signed-init-data", extra: Partial<TestWebApp> = {}): TestWebApp {
   const webApp: TestWebApp = {
     initData,
@@ -92,6 +119,12 @@ function setupFetchMock(): void {
     if (url.includes("/api/cards")) {
       return jsonResponse(cardsPayload);
     }
+    if (url.includes("/api/review/summary")) {
+      return jsonResponse(summaryPayload);
+    }
+    if (url.includes("/api/settings")) {
+      return jsonResponse(init?.method === "PUT" ? JSON.parse(String(init.body)) : settingsPayload);
+    }
 
     return jsonResponse({ detail: "Not found" }, 404);
   });
@@ -108,6 +141,7 @@ describe("App", () => {
   afterEach(() => {
     clearTelegramWebApp();
     vi.unstubAllGlobals();
+    vi.restoreAllMocks();
     document.documentElement.removeAttribute("style");
     window.history.pushState({}, "", "/");
   });
@@ -222,5 +256,58 @@ describe("App", () => {
         },
       }),
     );
+  });
+
+  describe("device timezone", () => {
+    function mockDeviceTimeZone(timeZone: string | undefined): void {
+      vi.spyOn(Intl, "DateTimeFormat").mockReturnValue({
+        resolvedOptions: () => ({ timeZone }),
+      } as Intl.DateTimeFormat);
+    }
+
+    function calls(path: string, method = "GET"): RequestInit[] {
+      return vi
+        .mocked(global.fetch)
+        .mock.calls.filter(([url, init]) => String(url).includes(path) && (init?.method ?? "GET") === method)
+        .map(([, init]) => init ?? {});
+    }
+
+    function renderHome(): void {
+      setTelegramWebApp();
+      window.history.pushState({}, "", "/telegram/webapp/");
+      render(<App />);
+    }
+
+    it("saves the device timezone when it differs and refreshes the summary", async () => {
+      mockDeviceTimeZone("Asia/Almaty");
+      renderHome();
+
+      await waitFor(() => expect(calls("/api/settings", "PUT")).toHaveLength(1));
+      expect(JSON.parse(String(calls("/api/settings", "PUT")[0].body))).toEqual({
+        ...settingsPayload,
+        timezone: "Asia/Almaty",
+      });
+      // The dashboard refetches its summary once the new timezone is stored.
+      await waitFor(() => expect(calls("/api/review/summary")).toHaveLength(2));
+    });
+
+    it("leaves settings alone when the timezone matches", async () => {
+      mockDeviceTimeZone("Europe/Moscow");
+      renderHome();
+
+      await waitFor(() => expect(calls("/api/settings")).toHaveLength(1));
+      await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+      expect(calls("/api/settings", "PUT")).toHaveLength(0);
+      expect(calls("/api/review/summary")).toHaveLength(1);
+    });
+
+    it.each(["", undefined])("skips the sync when the device timezone is %j", async (timeZone) => {
+      mockDeviceTimeZone(timeZone);
+      renderHome();
+
+      await waitFor(() => expect(calls("/api/review/summary").length).toBeGreaterThan(0));
+      expect(calls("/api/settings")).toHaveLength(0);
+      expect(calls("/api/settings", "PUT")).toHaveLength(0);
+    });
   });
 });

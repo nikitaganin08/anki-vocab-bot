@@ -143,11 +143,10 @@ def test_days_away_counts_study_days(session: Session) -> None:
     assert build_summary(session, settings, NOW).days_away is None
 
     card = _add(session, "give up", "review", NOW + timedelta(days=10))
-    # 03:30 in Moscow on the 17th still belongs to the 16th's study day.
-    _log(session, card, datetime(2026, 10, 17, 0, 30, tzinfo=UTC))
+    _log(session, card, datetime(2026, 10, 16, 20, 30, tzinfo=UTC))  # 23:30 on the 16th, Moscow
     assert build_summary(session, settings, NOW).days_away == 4
 
-    _log(session, card, datetime(2026, 10, 17, 4, 0, tzinfo=UTC))  # 07:00 in Moscow
+    _log(session, card, datetime(2026, 10, 16, 21, 30, tzinfo=UTC))  # 00:30 on the 17th, Moscow
     assert build_summary(session, settings, NOW).days_away == 3
 
     _log(session, card, NOW - timedelta(hours=1))
@@ -215,7 +214,7 @@ def test_learned_delta_counts_first_graduation_only(session: Session) -> None:
 
 def test_forecast_tomorrow_and_week(session: Session) -> None:
     _add(session, "learning soon", "learning", NOW + timedelta(minutes=5))  # due now
-    _add(session, "later today", "review", NOW + timedelta(hours=12))
+    _add(session, "later today", "review", NOW + timedelta(hours=11))  # 23:00 Moscow
     _add(session, "tomorrow", "review", NOW + timedelta(days=1))
     for i in range(5):
         _add(session, f"this week {i}", "review", NOW + timedelta(days=6))
@@ -224,7 +223,7 @@ def test_forecast_tomorrow_and_week(session: Session) -> None:
 
     summary = build_summary(session, get_app_settings(session), NOW)
 
-    # Review cards due later today count today (study day starts at 06:00), like Anki.
+    # Review cards due later today count today (study day starts at midnight), like Anki.
     assert summary.due_today == 2
     assert (summary.forecast_tomorrow, summary.forecast_week_avg) == (1, 1)
 

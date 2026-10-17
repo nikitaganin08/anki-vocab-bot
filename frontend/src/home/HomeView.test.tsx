@@ -70,15 +70,15 @@ describe("HomeView", () => {
   });
 
   it("captions the heatmap and lays rows out Monday to Sunday", async () => {
-    // 03:00 on Thursday 2026-10-22 still belongs to Wednesday's study day.
+    // 00:30 on Thursday 2026-10-22 already belongs to Thursday's study day (starts at midnight).
     vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date(2026, 9, 22, 3, 0));
+    vi.setSystemTime(new Date(2026, 9, 22, 0, 30));
     renderHome(summary());
 
     expect(await screen.findByText("Активность")).toBeInTheDocument();
     const heatmap = screen.getByRole("img", { name: "Активность за 14 недель" });
-    // Today (Wednesday, row 3) is the last of 98 cells, so the first one is a Thursday (row 4).
-    expect((heatmap.children[0] as HTMLElement).style.gridRowStart).toBe("4");
+    // Today (Thursday, row 4) is the last of 98 cells, so the first one is a Friday (row 5).
+    expect((heatmap.children[0] as HTMLElement).style.gridRowStart).toBe("5");
     expect((heatmap.children[1] as HTMLElement).style.gridRowStart).toBe("");
     vi.useRealTimers();
   });
