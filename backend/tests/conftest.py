@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Generator
 from dataclasses import dataclass
 
@@ -17,6 +18,9 @@ from app.main import app
 from app.models.card import AnkiSyncStatus, Card
 
 from .telegram_webapp_test_helpers import build_telegram_init_data
+
+# Keep the FastAPI lifespan from starting the reminder loop in tests.
+os.environ["DISABLE_REMINDERS"] = "1"
 
 TELEGRAM_BOT_TOKEN = "telegram-bot-token"
 TELEGRAM_ALLOWED_USER_ID = 42
