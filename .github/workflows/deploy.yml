@@ -108,6 +108,8 @@ jobs:
           post setMyShortDescription '{"short_description":"Английские слова связками: карточка за секунду и повторение по FSRS прямо в Telegram."}'
           post setMyDescription '{"description":"Пришли слово, фразовый глагол или идиому — на английском или русском. Wordloop сделает карточку: перевод, транскрипция и живые связки вроде «give up smoking». Потом напомнит повторить, когда слово начнёт забываться.\n\n/review — повторить слова\n/admin — словарь, статистика и настройки\n/find — найти слово по описанию"}'
           commands='{"commands":[{"command":"review","description":"Повторить слова"},{"command":"admin","description":"Словарь, статистика и настройки"},{"command":"find","description":"Найти слово по описанию"}]}'
+          # A stale private-chat scope would shadow the default list in private chats.
+          post deleteMyCommands '{"scope":{"type":"all_private_chats"}}'
           post setMyCommands "$commands"
 
       - name: Verify Telegram webhook
