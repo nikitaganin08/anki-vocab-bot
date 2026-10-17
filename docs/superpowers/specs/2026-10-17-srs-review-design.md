@@ -45,7 +45,7 @@ keeps it for 12+ weeks; metrics from `review_logs` show it.
 - rename `eligible_for_anki` → `is_learning` (batch_alter_table).
 
 `review_logs` (new):
-`id, card_id FK (cascade), reviewed_at, rating (1-4), auto_rating, overridden bool, prompt_kind (intro|chunk|translation), prompt_index, typed_answer, verdict (correct|typo|wrong|skipped), hint_used bool, response_ms, retrievability float null, card_before_json (for undo), state_before`.
+`id, card_id FK (cascade), reviewed_at, rating (1-4), auto_rating, overridden bool, prompt_kind (chunk|translation), prompt_index, typed_answer, verdict (correct|typo|wrong|skipped), hint_used bool, response_ms, retrievability float null, card_before_json (for undo), state_before`.
 Intro screens are not logged as reviews (FSRS sees the first typed answer).
 
 `app_settings` (new, single row id=1):
@@ -55,7 +55,7 @@ Intro screens are not logged as reviews (FSRS sees the first typed answer).
 
 Accepted result adds `chunks`: 0–5 items `{text, target, translation}`:
 - `text` English, 2–6 words, frequent natural usage of `canonical_text` (collocation, typical object/complement, fixed frame); `target` is the exact substring of `text` that realises `canonical_text` (may be inflected); `translation` Russian.
-- Return `[]` when no frequent chunks exist (rare/technical words). Function words are rejected as input.
+- Return `[]` when no frequent chunks exist (rare/technical words). Function words are rejected as input. Invalid chunks are dropped one by one; they never reject the whole card.
 - `examples` becomes 1–3 items (prompt asks for exactly 1; old 3-example cards stay valid). The "≥2 examples reference canonical" check becomes "every chunk `target` is in its `text`, and the example or ≥1 chunk references canonical".
 - Prompt adds: reject function words (articles, pronouns, auxiliaries, prepositions on their own).
 
@@ -70,9 +70,9 @@ Backfill pass for existing cards (one-off script, deleted after run): asks only 
 ## Review API (Mini App auth, same `require_telegram_webapp_user`)
 
 - `GET /api/review/summary` → today goal (due capped by limits, new remaining, est. minutes from median `response_ms`), retention 30d (share of non-Again answers on cards with `elapsed ≥ 7d`), learned total (`srs_state=review`) + delta 7d, streak + best streak (day counts if ≥5 typed answers; 2 freeze days per week), heatmap last 14 weeks, forecast (tomorrow, 7-day average), `backlog` (due beyond limit).
-- `GET /api/review/session?size=10` → next round: due learning/relearning first; then due reviews ordered by retrievability desc (warm-up); new cards interleaved (intro + typed later), respecting daily limits. Each item: card payload + `prompt` `{kind, index, masked, hint_translation, expected_len}`.
-- `POST /api/review/{id}/check` `{typed, prompt_kind, prompt_index, hint_used}` → `{verdict, expected, diff, auto_rating, intervals: {1..4: seconds}}`. Stateless; no DB write.
-- `POST /api/review/{id}/grade` `{rating, auto_rating, overridden, typed, prompt_kind, prompt_index, verdict, hint_used, response_ms}` → schedules with py-fsrs, writes `review_logs`, returns next due.
+- `GET /api/review/session?size=10` → next round: due learning/relearning first; then due reviews ordered by retrievability desc (warm-up); new cards interleaved (intro + typed later), respecting daily limits. Each item: card payload, `intro`, `srs_due_at`, `prompt` `{kind, index, masked, hint_translation, expected_length, hint_letter}` (the expected answer itself is not sent).
+- `POST /api/review/{id}/check` `{typed, prompt_kind, prompt_index, hint_used}` → `{verdict, expected, auto_rating, intervals: {1..4: seconds}}` (the client renders the diff). Stateless; no DB write.
+- `POST /api/review/{id}/grade` `{rating, auto_rating, overridden, typed, prompt_kind, prompt_index, verdict, hint_used, response_ms, expected_due_at}` → schedules with py-fsrs, writes `review_logs`, returns next due. `expected_due_at` echoes the session's `srs_due_at` (±1 s), otherwise 409 — guards against double-taps.
 - `POST /api/review/undo` → restores `card_before_json` of the latest log row and deletes it.
 - `GET/PUT /api/settings`; `PATCH /api/cards/{id}` `{is_learning}`.
 
@@ -93,7 +93,7 @@ Input UX: autofocus, Enter submits, `autocorrect/autocapitalize/spellcheck` off,
 ## Anki import (`app/scripts/import_anki.py`, local, one-off)
 
 Via AnkiConnect: `findNotes deck:"English::Inbox"`, `notesInfo`, `cardsInfo`, `getReviewsOfCards` (latest review time). For each note:
-- tag `avb-card-<id>` → existing backend card; else a card with the same normalized canonical text; otherwise create via the normal card pipeline from the `Word` field (LLM fills explanation, chunks, IPA; Anki translation kept as first translation variant if the LLM's differs).
+- tag `avb-card-<id>` → existing backend card (marked synced with the note id, so `sync_anki` never re-adds it); else a card with the same normalized canonical text; otherwise create via the normal card pipeline from the `Word` field (LLM fills explanation, chunks, IPA; Anki translation kept as first translation variant if the LLM's differs).
 - FSRS state from Anki card: new → none; learning / relearning → `Learning` / `Relearning` step 0, due now; review → `Review` with `stability = max(interval days, 1)`, `difficulty = clamp(5 + (2.5 − ease) × 4, 1, 10)`, `last_review` = latest Anki review (fallback: now − interval), `due = last_review + interval`; suspended → `is_learning=False`.
 - Reps/lapses copied from Anki; the card is marked `synced` with the Anki note id, so `sync_anki` does not push it again.
 Goes through a token-protected endpoint `POST /api/anki/import` (same bearer token as sync).
