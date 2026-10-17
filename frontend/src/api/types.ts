@@ -117,8 +117,6 @@ export interface ReviewPrompt {
   index: number;
   masked: string;
   hint_translation: string;
-  // First letter, then "_" per letter; spaces stay spaces ("g___ __").
-  first_letter_hint: string;
 }
 
 export interface ReviewSessionItem {

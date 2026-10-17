@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 import sqlalchemy as sa
 from fsrs import Card as FsrsCard
-from fsrs import State
+from fsrs import Scheduler, State
 from sqlalchemy.orm import Session
 
 from app.models.card import Card
@@ -26,6 +26,7 @@ from app.services.srs import (
 from .conftest import make_card
 
 NOW = datetime(2026, 10, 20, 9, 0, tzinfo=UTC)
+DAY = 86400
 
 
 def _add(session: Session, name: str, **overrides: object) -> Card:
@@ -113,7 +114,7 @@ def test_new_card_good_goes_to_learning(session: Session) -> None:
     grade_card(session, get_app_settings(session), card, _grade(card), NOW)
 
     assert card.srs_state == "learning"
-    assert as_utc(card.srs_due_at) == NOW + timedelta(minutes=10)
+    assert as_utc(card.srs_due_at) == NOW + timedelta(days=1)
     assert card.srs_reps == 1
 
 
@@ -126,7 +127,7 @@ def test_grade_after_reload_from_db(session: Session) -> None:
     card = session.get(Card, card.id)
     assert card is not None
     assert card.srs_due_at is not None and card.srs_due_at.tzinfo is None  # SQLite drops tz
-    grade_card(session, settings, card, _grade(card), NOW + timedelta(minutes=11))
+    grade_card(session, settings, card, _grade(card), NOW + timedelta(days=1))
 
     assert _log_count(session) == 2
     assert card.srs_state == "review"
@@ -254,7 +255,78 @@ def test_preview_intervals_monotonic(session: Session) -> None:
         intervals = preview_intervals(scheduler, card, NOW)
         assert list(intervals) == [1, 2, 3, 4]
         assert intervals[1] <= intervals[2] <= intervals[3] <= intervals[4]
-    assert preview_intervals(scheduler, new, NOW)[3] == 600
+
+
+def test_new_card_intervals_follow_learning_steps(session: Session) -> None:
+    intervals = preview_intervals(
+        build_scheduler(get_app_settings(session)), _add(session, "give up"), NOW
+    )
+
+    assert (intervals[1], intervals[3], intervals[4]) == (60, DAY, 2 * DAY)
+
+
+def test_learning_card_good_graduates_and_easy_doubles_good(session: Session) -> None:
+    settings = get_app_settings(session)
+    card = _add(session, "give up")
+    grade_card(session, settings, card, _grade(card), NOW)  # learning step 1: due in 1 day
+    later = NOW + timedelta(days=1)
+
+    intervals = preview_intervals(build_scheduler(settings), card, later)
+    assert intervals[3] >= DAY
+    assert intervals[4] == 2 * intervals[3]
+
+    grade_card(session, settings, card, _grade(card), later)
+    assert card.srs_state == "review"
+    assert as_utc(card.srs_due_at) == later + timedelta(seconds=intervals[3])
+
+
+@pytest.mark.parametrize("graded_before", [0, 1])
+def test_grade_easy_stores_previewed_due(session: Session, graded_before: int) -> None:
+    settings = get_app_settings(session)
+    card = _add(session, "give up")
+    for _ in range(graded_before):
+        grade_card(session, settings, card, _grade(card), NOW)
+    later = NOW + timedelta(days=graded_before)
+
+    intervals = preview_intervals(build_scheduler(settings), card, later)
+    grade_card(session, settings, card, _grade(card, rating=4), later)
+
+    assert card.srs_state == "review"
+    assert as_utc(card.srs_due_at) == later + timedelta(seconds=intervals[4])
+
+
+@pytest.mark.parametrize(
+    ("stability", "elapsed_days", "difficulty"),
+    [(10.0, 10, 5.0), (1.0, 1, 1.0), (0.3, 30, 10.0)],
+)
+def test_review_easy_between_good_plus_day_and_double_good(
+    session: Session, stability: float, elapsed_days: int, difficulty: float
+) -> None:
+    card = _schedule(
+        session,
+        _add(session, "take on"),
+        State.Review,
+        NOW,
+        stability=stability,
+        difficulty=difficulty,
+        last_review=NOW - timedelta(days=elapsed_days),
+    )
+
+    intervals = preview_intervals(build_scheduler(get_app_settings(session)), card, NOW)
+
+    assert intervals[3] + DAY <= intervals[4] <= 2 * intervals[3]
+
+
+def test_review_easy_clamped_to_double_good(session: Session) -> None:
+    # A huge easy bonus (w16) makes raw FSRS Easy far more than twice Good.
+    parameters = list(build_scheduler(get_app_settings(session)).parameters)
+    parameters[16] = 6.0
+    scheduler = Scheduler(parameters=parameters, enable_fuzzing=False)
+    card = _schedule(session, _add(session, "take on"), State.Review, NOW)
+
+    intervals = preview_intervals(scheduler, card, NOW)
+
+    assert intervals[4] == 2 * intervals[3]
 
 
 def test_grade_tolerates_subsecond_drift_in_expected_due(session: Session) -> None:

@@ -32,7 +32,13 @@ def day_window(now: datetime, tz_name: str) -> tuple[datetime, datetime]:
 
 
 def build_scheduler(settings: AppSettings) -> fsrs.Scheduler:
-    return fsrs.Scheduler(desired_retention=settings.desired_retention, enable_fuzzing=False)
+    # Anki-like steps: a new card comes back in 1 minute, then in 1 day.
+    return fsrs.Scheduler(
+        desired_retention=settings.desired_retention,
+        learning_steps=(timedelta(minutes=1), timedelta(days=1)),
+        relearning_steps=(timedelta(minutes=10),),
+        enable_fuzzing=False,
+    )
 
 
 def load_fsrs_card(card: Card) -> fsrs.Card:
@@ -60,6 +66,14 @@ def _outcomes(scheduler: fsrs.Scheduler, card: Card, now: datetime) -> dict[int,
             bumped = out[lower].due + timedelta(days=1)
             if bumped > out[higher].due:
                 out[higher].due = min(bumped, cap)
+    # Easy is twice Good once Good is a day or more away: exactly that for new/learning
+    # cards, at most that for review ones (2 x Good >= Good + 1 day keeps the order).
+    good = out[fsrs.Rating.Good].due - now
+    if good >= timedelta(days=1):
+        doubled = min(now + 2 * good, cap)
+        easy = out[fsrs.Rating.Easy]
+        learning = fsrs_card.state == fsrs.State.Learning
+        easy.due = doubled if learning else min(easy.due, doubled)
     return out
 
 

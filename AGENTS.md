@@ -107,13 +107,15 @@ The app receives words and stable expressions from Telegram, generates learning 
 
 ## Review (SRS)
 
-- Server-side scheduling with `fsrs.Scheduler(desired_retention=app_settings.desired_retention, enable_fuzzing=False)`, default learning steps (1m, 10m) and relearning step (10m).
+- Server-side scheduling with `fsrs.Scheduler(desired_retention=app_settings.desired_retention, learning_steps=(1m, 1d), relearning_steps=(10m,), enable_fuzzing=False)`: a new card is Again 1m, Good 1 day, Easy 2 days.
+- Easy vs Good (`_outcomes`, shared by preview and grade): for a new/learning card whose Good is ≥ 1 day away, Easy = 2 × Good; for review cards FSRS Easy is capped at 2 × Good; review outcomes keep Good ≥ Hard + 1 day, Easy ≥ Good + 1 day.
 - SRS state lives on `cards` (`srs_card_json` = `fsrs.Card.to_json()`, `srs_due_at`, `srs_state`, `srs_reps`, `srs_lapses`); every graded answer is appended to `review_logs` (with the card state before, for undo). Intro screens of new cards are not logged.
 - All datetimes are UTC; values read from SQLite are naive and go through `as_utc()`.
 - The day starts at 04:00 in `app_settings.timezone` (default `Europe/Moscow`); daily limits (`new_per_day` 5, `reviews_per_day` 50) are counted per that window. Due reviews beyond the limit are reported as `backlog`.
 - Session order: due learning/relearning cards, then due reviews by retrievability (highest first), then new learning cards (intro first, typed later).
 - Prompt: a usage chunk with its `target` masked as `___` plus the chunk translation, rotating chunks per review; cards without chunks prompt with the Russian translations and expect `canonical_text`.
 - Answer checking (`app/services/answer_check.py`): NFKC, casefold, curly apostrophes, trailing punctuation, ЙЦУКЕН→QWERTY layout fix; one Damerau-Levenshtein edit when the expected answer has 5+ chars is a `typo` (counts as correct).
+- Question screen: "Что это за слово?" reveals the card's English explanation (the back side has none) and sets `hint_used`.
 - Auto rating: wrong → Again (1); correct/typo with hint → Hard (2); correct/typo → Good (3). Easy (4) only by user choice.
 - A grade carries the `srs_due_at` the client saw; a mismatch (e.g. double tap) returns 409 and logs nothing.
 
@@ -247,7 +249,7 @@ Validation rules:
 - `PATCH /api/cards/{card_id}` (`{is_learning}`)
 - `DELETE /api/cards/{card_id}`
 - `GET /api/review/summary` (today goal, backlog, `due_all`, `days_away`, retention 30d, learned, streak, heatmap, forecast)
-- `GET /api/review/session?size=10&include_backlog=false` (next round; the expected answer is not sent, only `first_letter_hint`; `include_backlog=true` ignores the daily review cap)
+- `GET /api/review/session?size=10&include_backlog=false` (next round; the expected answer is not sent; `include_backlog=true` ignores the daily review cap)
 - `POST /api/review/{card_id}/check` (verdict, expected answer, auto rating, intervals; no DB write)
 - `POST /api/review/{card_id}/grade` (409 on a stale `expected_due_at`)
 - `POST /api/review/undo`

@@ -8,7 +8,7 @@ const SPEAKER_PATHS = [
   "M6 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h2l3.5-4.5A.8.8 0 0 1 11 5v14a.8.8 0 0 1-1.5.5L6 15",
 ];
 
-// Shared by the intro (I1) and the back side; `full` adds word family and explanation.
+// Shared by the intro (I1) and the back side; `full` adds the word family.
 export function CardDetails({ card, full = false }: { card: Card; full?: boolean }): JSX.Element {
   return (
     <div className="surface-panel review-card">
@@ -51,7 +51,6 @@ export function CardDetails({ card, full = false }: { card: Card; full?: boolean
             .join(" · ")}
         </p>
       ) : null}
-      {full ? <p className="review-explanation">{card.explanation}</p> : null}
     </div>
   );
 }
