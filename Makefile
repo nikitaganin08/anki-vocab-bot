@@ -1,4 +1,4 @@
-.PHONY: backend-dev frontend-dev backend-test frontend-test test build-frontend sync-anki import-anki backfill-chunks android-apk docker-build docker-up docker-down
+.PHONY: backend-dev frontend-dev backend-test frontend-test test build-frontend sync-anki import-anki backfill-chunks docker-build docker-up docker-down
 
 backend-dev:
 	cd backend && DISABLE_REMINDERS=1 uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -25,9 +25,6 @@ import-anki:
 
 backfill-chunks:
 	cd backend && uv run python -m app.scripts.backfill_chunks
-
-android-apk:
-	cd android && ANDROID_HOME="$${ANDROID_HOME:-/opt/homebrew/share/android-sdk}" JAVA_HOME="$$(/usr/libexec/java_home -v 19 2>/dev/null || /usr/libexec/java_home -v 17 2>/dev/null || /usr/libexec/java_home -v 21 2>/dev/null || /usr/libexec/java_home)" ./gradlew :app:assembleDebug
 
 docker-build:
 	docker build -t anki-vocab-bot:local .

@@ -76,8 +76,6 @@ BatchImportItemStatus = Literal[
     "upstream_error",
 ]
 
-MobileLookupStatus = BatchImportItemStatus
-
 
 class CardBatchImportRequest(BaseModel):
     source_texts: list[str] = Field(min_length=1, max_length=50)
@@ -104,46 +102,6 @@ class CardBatchImportSummaryResponse(BaseModel):
 class CardBatchImportResponse(BaseModel):
     items: list[CardBatchImportItemResponse]
     summary: CardBatchImportSummaryResponse
-
-
-class MobileLookupRequest(BaseModel):
-    text: str
-    send_to_telegram: bool = False
-
-
-class MobileCardPreview(BaseModel):
-    card_id: int
-    canonical_text: str
-    transcription: str | None
-    translation_variants: list[str]
-    word_family: list[WordFamilyItem]
-    explanation: str
-    examples: list[str]
-    frequency: int
-    frequency_note: str | None
-    is_learning: bool
-
-    @classmethod
-    def from_card(cls, c: Card) -> "MobileCardPreview":
-        return cls(
-            card_id=c.id,
-            canonical_text=c.canonical_text,
-            transcription=c.transcription,
-            translation_variants=c.translation_variants_json,
-            word_family=c.word_family_json or [],
-            explanation=c.explanation,
-            examples=c.examples_json[:3],
-            frequency=c.frequency,
-            frequency_note=c.frequency_note,
-            is_learning=c.is_learning,
-        )
-
-
-class MobileLookupResponse(BaseModel):
-    status: MobileLookupStatus
-    message: str
-    preview: MobileCardPreview | None
-    telegram_sent: bool
 
 
 class AnkiPendingCardResponse(BaseModel):

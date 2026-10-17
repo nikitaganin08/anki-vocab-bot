@@ -14,8 +14,5 @@ backend/data/*.db
 backend/data/*.db-*
 frontend/node_modules/
 frontend/dist/
-android/.gradle/
-android/local.properties
-android/**/build/
 .env
 site.conf

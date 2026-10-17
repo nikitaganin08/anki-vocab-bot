@@ -15,7 +15,7 @@ from app.schemas.llm import AcceptedLlmResponse
 from app.scripts.import_anki import collect_import_items
 from app.services.anki_import import fsrs_card_from_anki, import_anki_note
 
-from .conftest import make_card, mobile_headers
+from .conftest import anki_headers, make_card
 
 NOW = datetime(2026, 10, 20, 9, 0, tzinfo=UTC)
 LAST_REVIEW = datetime(2026, 10, 10, 9, 0, tzinfo=UTC)
@@ -184,7 +184,7 @@ def test_import_endpoint_requires_token(client: TestClient, session: Session) ->
     payload = _item(backend_card_id=card.id).model_dump(mode="json")
 
     assert client.post("/api/anki/import", json=payload).status_code == 401
-    resp = client.post("/api/anki/import", json=payload, headers=mobile_headers())
+    resp = client.post("/api/anki/import", json=payload, headers=anki_headers())
 
     assert resp.status_code == 200
     assert resp.json() == {"status": "linked", "card_id": card.id}

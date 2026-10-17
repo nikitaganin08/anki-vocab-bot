@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import app.api.deps as deps_mod
-from app.api.deps import get_openrouter_client, get_telegram_sender
+from app.api.deps import get_openrouter_client
 from app.clients.openrouter import OpenRouterError
 from app.main import app
 from app.models.card import AnkiSyncStatus, Card
@@ -17,7 +17,6 @@ from .conftest import (
     TELEGRAM_ALLOWED_USER_ID,
     TELEGRAM_BOT_TOKEN,
     make_card,
-    mobile_headers,
     telegram_headers,
 )
 
@@ -61,14 +60,6 @@ class FakeBatchGenerator:
         if isinstance(outcome, Exception):
             raise outcome
         return outcome
-
-
-@dataclass
-class FakeTelegramSender:
-    calls: list[tuple[str, str | None]] = field(default_factory=list)
-
-    def send_message(self, text: str, parse_mode: str | None = None) -> None:
-        self.calls.append((text, parse_mode))
 
 
 # ---------------------------------------------------------------------------
@@ -333,131 +324,6 @@ def test_batch_import_returns_503_when_llm_not_configured(
 
     assert resp.status_code == 503
     assert resp.json()["detail"] == "LLM is not configured"
-
-
-# ---------------------------------------------------------------------------
-# POST /api/vocab/mobile-lookup
-# ---------------------------------------------------------------------------
-
-
-def test_mobile_lookup_created_returns_preview_and_sends_telegram(
-    client: TestClient,
-    session: Session,
-) -> None:
-    fake_generator = FakeBatchGenerator(
-        outcomes={"look up": _make_accepted_llm_response("look up")}
-    )
-    fake_sender = FakeTelegramSender()
-    app.dependency_overrides[get_openrouter_client] = lambda: fake_generator
-    app.dependency_overrides[get_telegram_sender] = lambda: fake_sender
-
-    resp = client.post(
-        "/api/vocab/mobile-lookup",
-        json={"text": "  look   up ", "send_to_telegram": True},
-        headers=mobile_headers(),
-    )
-
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["status"] == "created"
-    assert data["telegram_sent"] is True
-    assert data["preview"]["canonical_text"] == "look up"
-    assert data["preview"]["translation_variants"] == ["пример один", "пример два"]
-    assert fake_generator.calls == ["look up"]
-    assert len(fake_sender.calls) == 1
-    sent_text, parse_mode = fake_sender.calls[0]
-    assert sent_text.startswith("✅ Added to dictionary\n\n🔍 Word: <b>look up</b>")
-    assert parse_mode == "HTML"
-    assert session.query(Card).count() == 1
-
-
-def test_mobile_lookup_preview_does_not_send_telegram(client: TestClient) -> None:
-    fake_generator = FakeBatchGenerator(
-        outcomes={"look up": _make_accepted_llm_response("look up")}
-    )
-    fake_sender = FakeTelegramSender()
-    app.dependency_overrides[get_openrouter_client] = lambda: fake_generator
-    app.dependency_overrides[get_telegram_sender] = lambda: fake_sender
-
-    resp = client.post(
-        "/api/vocab/mobile-lookup",
-        json={"text": "look up", "send_to_telegram": False},
-        headers=mobile_headers(),
-    )
-
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["status"] == "created"
-    assert data["telegram_sent"] is False
-    assert data["preview"]["canonical_text"] == "look up"
-    assert fake_sender.calls == []
-
-
-def test_mobile_lookup_invalid_input_skips_llm_and_telegram(client: TestClient) -> None:
-    fake_generator = FakeBatchGenerator(outcomes={})
-    fake_sender = FakeTelegramSender()
-    app.dependency_overrides[get_openrouter_client] = lambda: fake_generator
-    app.dependency_overrides[get_telegram_sender] = lambda: fake_sender
-
-    resp = client.post(
-        "/api/vocab/mobile-lookup",
-        json={
-            "text": "one two three four five six seven eight nine",
-            "send_to_telegram": True,
-        },
-        headers=mobile_headers(),
-    )
-
-    assert resp.status_code == 200
-    assert resp.json() == {
-        "status": "invalid_input",
-        "message": "Please send up to 8 words.",
-        "preview": None,
-        "telegram_sent": False,
-    }
-    assert fake_generator.calls == []
-    assert fake_sender.calls == []
-
-
-def test_mobile_lookup_rejected_returns_user_message(client: TestClient) -> None:
-    fake_generator = FakeBatchGenerator(
-        outcomes={
-            "random sentence": RejectedLlmResponse.model_validate(
-                {
-                    "accepted": False,
-                    "message_for_user": "This does not look like a stable lexical unit.",
-                }
-            )
-        }
-    )
-    fake_sender = FakeTelegramSender()
-    app.dependency_overrides[get_openrouter_client] = lambda: fake_generator
-    app.dependency_overrides[get_telegram_sender] = lambda: fake_sender
-
-    resp = client.post(
-        "/api/vocab/mobile-lookup",
-        json={"text": "random sentence", "send_to_telegram": True},
-        headers=mobile_headers(),
-    )
-
-    assert resp.status_code == 200
-    assert resp.json() == {
-        "status": "rejected",
-        "message": "This does not look like a stable lexical unit.",
-        "preview": None,
-        "telegram_sent": False,
-    }
-    assert fake_generator.calls == ["random sentence"]
-    assert fake_sender.calls == []
-
-
-def test_mobile_lookup_requires_bearer_token(client: TestClient) -> None:
-    resp = client.post(
-        "/api/vocab/mobile-lookup",
-        json={"text": "look up", "send_to_telegram": False},
-    )
-
-    assert resp.status_code == 401
 
 
 # ---------------------------------------------------------------------------

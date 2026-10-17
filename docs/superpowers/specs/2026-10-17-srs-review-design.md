@@ -26,7 +26,7 @@ keeps it for 12+ weeks; metrics from `review_logs` show it.
 | Day boundary | 04:00 in the configured timezone (default `Europe/Moscow`). |
 | Limits | 5 new / 50 reviews per day (settings). Due backlog above the review limit is carried over and shown as "отложено". |
 | What is learned | One flag `is_learning` (renamed from `eligible_for_anki`) drives both SRS queue and Anki sync. |
-| Rare words | `frequency >= learn_threshold` (default 3) → learning automatically. Below → saved, not learning; bot asks "Учить?" with inline buttons. Batch import / Android: rare → not learning, toggle in Mini App. |
+| Rare words | `frequency >= learn_threshold` (default 3) → learning automatically. Below → saved, not learning; bot asks "Учить?" with inline buttons. Batch import: rare → not learning, toggle in Mini App. |
 | Card content | `chunks` (0–5 frequent usage chunks `{text, target, translation}`) become the main content; examples reduced to 1 for new cards. |
 | Front side | Chunk with `target` replaced by `___` + chunk translation; chunks rotate per review (`review count % len(chunks)`). No chunks → Russian translation, type the English unit. |
 | Typing | Always required. New cards: intro (full card, "Запомнил") first, typed question later in the same session. |

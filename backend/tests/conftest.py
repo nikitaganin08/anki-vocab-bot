@@ -91,7 +91,7 @@ def telegram_headers() -> dict[str, str]:
     }
 
 
-def mobile_headers() -> dict[str, str]:
+def anki_headers() -> dict[str, str]:
     return {"Authorization": "Bearer sync-token"}
 
 

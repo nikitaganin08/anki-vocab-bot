@@ -8,7 +8,6 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.api.telegram_webapp_auth import parse_and_validate_init_data
 from app.clients.openrouter import OpenRouterClient
-from app.clients.telegram import TelegramBotSender
 from app.core.config import get_settings
 
 _bearer = HTTPBearer()
@@ -34,20 +33,6 @@ def get_openrouter_client() -> OpenRouterClient:
     return OpenRouterClient(
         api_key=settings.openrouter_api_key,
         model=settings.llm_model,
-    )
-
-
-def get_telegram_sender() -> TelegramBotSender:
-    settings = get_settings()
-    if not settings.telegram_bot_token or settings.telegram_allowed_user_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Telegram sender is not configured",
-        )
-
-    return TelegramBotSender(
-        bot_token=settings.telegram_bot_token,
-        chat_id=settings.telegram_allowed_user_id,
     )
 
 
