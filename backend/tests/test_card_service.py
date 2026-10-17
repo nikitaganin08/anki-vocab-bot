@@ -184,3 +184,24 @@ def test_card_service_surfaces_upstream_error(session: Session) -> None:
         apply_source_text(session, generator, "take off")
 
     assert exc_info.value.code == "openrouter_timeout"
+
+
+def test_rare_word_is_not_learning(session: Session) -> None:
+    generator = FakeGenerator(result=make_accepted_response(frequency=2))
+
+    result = apply_source_text(session, generator, "take off")
+
+    assert result.status == "created"
+    assert result.card is not None
+    assert result.card.is_learning is False
+
+
+def test_frequent_word_is_learning(session: Session) -> None:
+    chunks = [{"text": "take off your shoes", "target": "take off", "translation": "снять обувь"}]
+    generator = FakeGenerator(result=make_accepted_response(frequency=3, chunks=chunks))
+
+    result = apply_source_text(session, generator, "take off")
+
+    assert result.card is not None
+    assert result.card.is_learning is True
+    assert result.card.chunks_json == chunks

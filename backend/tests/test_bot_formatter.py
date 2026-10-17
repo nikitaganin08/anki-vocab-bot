@@ -58,7 +58,7 @@ def test_format_card_payload_escapes_html_sensitive_fields() -> None:
     card.canonical_text = "look <up> & go"
     card.transcription = "/lʊk & ɡoʊ/"
     card.explanation = "Use < and & literally."
-    card.examples_json = ["A < B & C.", "Keep > away.", "Plain example."]
+    card.examples_json = ["A < B & C > D.", "Not shown.", "Plain example."]
     card.frequency_note = "Common & useful."
 
     payload = format_card_payload(card)
@@ -68,6 +68,21 @@ def test_format_card_payload_escapes_html_sensitive_fields() -> None:
     assert "Primary translation: <b>меньше &lt; больше</b>" in payload
     assert "Synonyms: <b>A &amp; B</b>" in payload
     assert "Use &lt; and &amp; literally." in payload
-    assert "A &lt; B &amp; C." in payload
-    assert "Keep &gt; away." in payload
+    assert "A &lt; B &amp; C &gt; D." in payload
     assert "Common &amp; useful." in payload
+
+
+def test_format_card_payload_shows_chunks() -> None:
+    card = _make_card(["бросить", "сдаться"])
+    card.chunks_json = [
+        {"text": "give up smoking", "target": "give up", "translation": "бросить курить"},
+        {"text": "never give up", "target": "give up", "translation": "никогда не сдаваться"},
+    ]
+
+    payload = format_card_payload(card)
+
+    assert "🧩 Как используется" in payload
+    assert "give up smoking — бросить курить" in payload
+    assert "never give up — никогда не сдаваться" in payload
+    assert payload.index("Как используется") < payload.index("The plane will take off")
+    assert "Please take off your shoes." not in payload

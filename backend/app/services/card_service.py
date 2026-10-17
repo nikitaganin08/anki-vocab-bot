@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.clients.openrouter import OpenRouterClient
 from app.models.card import Card
 from app.schemas.llm import RejectedLlmResponse
+from app.services.app_settings import get_app_settings
 
 WHITESPACE_PATTERN = re.compile(r"\s+")
 
@@ -66,9 +67,10 @@ def apply_source_text(
         word_family_json=[item.model_dump() for item in llm_result.word_family],
         explanation=llm_result.explanation,
         examples_json=llm_result.examples,
+        chunks_json=[chunk.model_dump() for chunk in llm_result.chunks],
         frequency=llm_result.frequency,
         frequency_note=llm_result.frequency_note,
-        is_learning=llm_result.frequency > 2,
+        is_learning=llm_result.frequency >= get_app_settings(session).learn_threshold,
         llm_model=openrouter_client.model,
     )
     session.add(card)

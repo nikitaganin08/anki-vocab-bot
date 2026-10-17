@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.models.card import AnkiSyncStatus, Card, EntryType, SourceLanguage
-from app.schemas.llm import WordFamilyItem
+from app.schemas.llm import CardChunk, WordFamilyItem
 
 
 class CardResponse(BaseModel):
@@ -21,6 +21,7 @@ class CardResponse(BaseModel):
     word_family: list[WordFamilyItem]
     explanation: str
     examples: list[str]
+    chunks: list[CardChunk]
     frequency: int
     frequency_note: str | None
     is_learning: bool
@@ -45,6 +46,7 @@ class CardResponse(BaseModel):
             word_family=c.word_family_json or [],
             explanation=c.explanation,
             examples=c.examples_json,
+            chunks=c.chunks_json,
             frequency=c.frequency,
             frequency_note=c.frequency_note,
             is_learning=c.is_learning,
@@ -152,6 +154,7 @@ class AnkiPendingCardResponse(BaseModel):
     word_family: list[WordFamilyItem]
     explanation: str
     examples: list[str]
+    chunks: list[CardChunk]
 
     @classmethod
     def from_card(cls, c: Card) -> "AnkiPendingCardResponse":
@@ -164,6 +167,7 @@ class AnkiPendingCardResponse(BaseModel):
             word_family=c.word_family_json or [],
             explanation=c.explanation,
             examples=c.examples_json,
+            chunks=c.chunks_json,
         )
 
 

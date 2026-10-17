@@ -4,8 +4,12 @@ import pytest
 
 from app.clients.anki_connect import AnkiConnectTransportError, AnkiNotePayload
 from app.clients.backend_sync_api import BackendSyncApiError, PendingCard
-from app.schemas.llm import WordFamilyItem
-from app.services.anki_sync import map_card_to_anki_payload, sync_pending_cards
+from app.schemas.llm import CardChunk, WordFamilyItem
+from app.services.anki_sync import (
+    format_anki_example,
+    map_card_to_anki_payload,
+    sync_pending_cards,
+)
 from app.services.pronunciation import PronunciationAudioError
 
 
@@ -51,7 +55,7 @@ def test_map_card_to_anki_payload_uses_required_field_mapping() -> None:
     assert payload.fields["PronunciationAudio"] == "[sound:avb-pronunciation-7.mp3]"
     assert payload.fields["Translation"] == "взлетать, снимать"
     assert payload.fields["Explanation"] == "To leave the ground."
-    assert payload.fields["Example"] == "The plane took off.\nTake off your coat."
+    assert payload.fields["Example"] == "The plane took off."
     assert payload.tags == ["avb-card-7"]
 
 
@@ -71,9 +75,38 @@ def test_map_card_to_anki_payload_appends_word_family_to_example() -> None:
     )
 
     assert payload.fields["Example"] == (
-        "The plane took off.\nTake off your coat.\n\n"
-        "Word family:\naccommodation (noun) - размещение"
+        "The plane took off.\n\nWord family:\naccommodation (noun) - размещение"
     )
+
+
+def test_anki_example_lists_chunks_then_example() -> None:
+    chunks = [
+        CardChunk(text="take off your coat", target="take off", translation="снять пальто"),
+        CardChunk(text="the plane took off", target="took off", translation="самолёт взлетел"),
+    ]
+    family = [WordFamilyItem(word="takeoff", part_of_speech="noun", translation="взлёт")]
+
+    assert format_anki_example(chunks, ["Sales took off.", "Unused."], family) == (
+        "take off your coat — снять пальто\n"
+        "the plane took off — самолёт взлетел\n\n"
+        "Sales took off.\n\n"
+        "Word family:\ntakeoff (noun) - взлёт"
+    )
+
+
+def test_map_card_to_anki_payload_includes_chunks() -> None:
+    card = PendingCard.model_validate(
+        {
+            **_pending_card().model_dump(),
+            "chunks": [
+                {"text": "take off your coat", "target": "take off", "translation": "снять пальто"}
+            ],
+        }
+    )
+
+    payload = map_card_to_anki_payload(card, pronunciation_field="")
+
+    assert payload.fields["Example"] == "take off your coat — снять пальто\n\nThe plane took off."
 
 
 def test_sync_pending_cards_acks_successful_cards() -> None:

@@ -94,6 +94,38 @@ class WordFamilyItem(BaseModel):
         return _ensure_contains_cyrillic(value)
 
 
+class CardChunk(BaseModel):
+    text: str
+    target: str
+    translation: str
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("text")
+    @classmethod
+    def validate_text(cls, value: str) -> str:
+        normalized = _ensure_non_cyrillic(value, "chunk text")
+        if not 2 <= len(normalized.split()) <= 6:
+            raise ValueError("chunk text must contain 2 to 6 words")
+        return normalized
+
+    @field_validator("target")
+    @classmethod
+    def validate_target(cls, value: str) -> str:
+        return _ensure_non_cyrillic(value, "chunk target")
+
+    @field_validator("translation")
+    @classmethod
+    def validate_translation(cls, value: str) -> str:
+        return _ensure_contains_cyrillic(value)
+
+    @model_validator(mode="after")
+    def validate_target_in_text(self) -> "CardChunk":
+        if self.target.casefold() not in self.text.casefold():
+            raise ValueError("chunk target must be a substring of chunk text")
+        return self
+
+
 class AcceptedLlmResponse(BaseModel):
     accepted: Literal[True]
     source_language: SourceLanguage
@@ -105,7 +137,8 @@ class AcceptedLlmResponse(BaseModel):
     translation_variants: list[str] = Field(min_length=2, max_length=3)
     word_family: list[WordFamilyItem] = Field(default_factory=list, max_length=3)
     explanation: str
-    examples: list[str] = Field(min_length=3, max_length=3)
+    examples: list[str] = Field(min_length=1, max_length=3)
+    chunks: list[CardChunk] = Field(default_factory=list, max_length=5)
     frequency: int = Field(ge=0, le=10)
     frequency_note: str | None = None
 
@@ -179,13 +212,9 @@ class AcceptedLlmResponse(BaseModel):
         if not canonical_tokens:
             return self
 
-        aligned_examples_count = sum(
-            1
-            for example in self.examples
-            if _example_references_canonical(example, canonical_tokens)
-        )
-        if aligned_examples_count < 2:
-            raise ValueError("at least two examples must reference canonical_text")
+        candidates = [self.examples[0], *(chunk.text for chunk in self.chunks)]
+        if not any(_example_references_canonical(text, canonical_tokens) for text in candidates):
+            raise ValueError("the example or a chunk must reference canonical_text")
 
         return self
 
