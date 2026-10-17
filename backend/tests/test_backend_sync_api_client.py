@@ -109,3 +109,32 @@ def test_timeout_raises_timeout_error() -> None:
 
     with pytest.raises(BackendSyncApiError, match="timed out"):
         client.get_pending()
+
+
+def test_get_card_audio_returns_bytes() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["Authorization"] == "Bearer sync-token"
+        assert request.url.path == "/api/anki/cards/7/audio"
+        return httpx.Response(200, content=b"mp3", headers={"Content-Type": "audio/mpeg"})
+
+    client = BackendSyncApiClient(
+        base_url="http://localhost:8000",
+        token="sync-token",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    assert client.get_card_audio(7) == b"mp3"
+
+
+def test_get_card_audio_error_carries_detail() -> None:
+    def handler(_: httpx.Request) -> httpx.Response:
+        return httpx.Response(503, json={"detail": "Pronunciation is not configured"})
+
+    client = BackendSyncApiClient(
+        base_url="http://localhost:8000",
+        token="sync-token",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    with pytest.raises(BackendSyncApiError, match="503.*Pronunciation is not configured"):
+        client.get_card_audio(7)

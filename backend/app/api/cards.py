@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_openrouter_client, require_telegram_webapp_user
+from app.api.deps import get_openrouter_client, get_tts_client, require_telegram_webapp_user
 from app.api.schemas import (
     CardBatchImportItemResponse,
     CardBatchImportRequest,
@@ -21,6 +22,9 @@ from app.clients.openrouter import OpenRouterClient, OpenRouterError
 from app.db.session import get_session
 from app.models.card import AnkiSyncStatus, Card, EntryType, SourceLanguage
 from app.services.card_service import apply_source_text
+from app.services.pronunciation import PronunciationAudioError, TtsClient
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api/cards",
@@ -30,6 +34,27 @@ router = APIRouter(
 
 SessionDep = Annotated[Session, Depends(get_session)]
 OpenRouterClientDep = Annotated[OpenRouterClient, Depends(get_openrouter_client)]
+TtsClientDep = Annotated[TtsClient, Depends(get_tts_client)]
+
+
+def card_audio_response(session: Session, card_id: int, tts_client: TtsClient) -> Response:
+    """MP3 of the card's word, synthesized per request; the server keeps no copy."""
+    card = session.get(Card, card_id)
+    if card is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
+    try:
+        audio = tts_client.synthesize(card.canonical_text)
+    except PronunciationAudioError as exc:
+        logger.warning("Pronunciation failed for card %s: %s", card_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=exc.user_message
+        ) from exc
+    # The word never changes for a card id, so the client may cache it for good.
+    return Response(
+        audio,
+        media_type="audio/mpeg",
+        headers={"Cache-Control": "private, max-age=31536000, immutable"},
+    )
 
 
 @router.get("", response_model=CardListResponse)
@@ -139,6 +164,11 @@ def batch_import_cards(
         items=items,
         summary=CardBatchImportSummaryResponse(total=len(payload.source_texts), **summary_counts),
     )
+
+
+@router.get("/{card_id}/audio", response_class=Response)
+def get_card_audio(card_id: int, session: SessionDep, tts_client: TtsClientDep) -> Response:
+    return card_audio_response(session, card_id, tts_client)
 
 
 @router.patch("/{card_id}", response_model=CardResponse)

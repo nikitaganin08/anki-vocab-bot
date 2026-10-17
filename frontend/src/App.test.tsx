@@ -149,7 +149,7 @@ describe("App", () => {
   it("blocks boot outside Telegram", async () => {
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "Откройте панель из Telegram" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Open the app from Telegram" })).toBeInTheDocument();
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
@@ -159,9 +159,9 @@ describe("App", () => {
 
     render(<App />);
 
-    const tabs = within(screen.getByRole("navigation", { name: "Разделы" })).getAllByRole("button");
-    expect(tabs.map((tab) => tab.textContent)).toEqual(["Главная", "Повтор", "Слова", "Настройки"]);
-    expect(screen.getByRole("button", { name: "Главная" })).toHaveAttribute("aria-current", "page");
+    const tabs = within(screen.getByRole("navigation", { name: "Sections" })).getAllByRole("button");
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["Home", "Review", "Words", "Settings"]);
+    expect(screen.getByRole("button", { name: "Home" })).toHaveAttribute("aria-current", "page");
   });
 
   it("switches view and updates query", async () => {
@@ -169,15 +169,15 @@ describe("App", () => {
     window.history.pushState({}, "", "/telegram/webapp/?x=1#tgWebAppData=signed");
 
     render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: "Слова" }));
+    fireEvent.click(screen.getByRole("button", { name: "Words" }));
 
-    expect(await screen.findByRole("heading", { name: "Слова" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Words" })).toBeInTheDocument();
     const params = new URLSearchParams(window.location.search);
     expect(params.get("view")).toBe("cards");
     expect(params.get("x")).toBe("1");
     expect(window.location.pathname).toBe("/telegram/webapp/");
     expect(window.location.hash).toBe("#tgWebAppData=signed");
-    expect(screen.getByRole("button", { name: "Слова" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "Words" })).toHaveAttribute("aria-current", "page");
   });
 
   it("opens review view from ?view=review without tab bar", () => {
@@ -195,7 +195,7 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(screen.getByRole("heading", { name: "Повтор" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Review" })).toBeInTheDocument();
     expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
     expect(backButton.show).toHaveBeenCalled();
 
@@ -236,7 +236,7 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "Слова" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Words" })).toBeInTheDocument();
     expect((await screen.findAllByText("take off")).length).toBeGreaterThan(0);
   });
 
@@ -246,7 +246,7 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "Слова" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Words" })).toBeInTheDocument();
     expect(global.fetch).toHaveBeenCalledWith(
       "/anki/api/cards?offset=0&limit=20",
       expect.objectContaining({

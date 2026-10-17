@@ -8,6 +8,8 @@ from fsrs import State
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.api.deps import is_tts_enabled
+from app.main import app
 from app.models.card import Card
 from app.models.review_log import ReviewLogEntry
 from app.services.app_settings import get_app_settings
@@ -191,6 +193,7 @@ def test_settings_roundtrip_and_validation(client: TestClient) -> None:
         "reviews_per_day": 50,
         "desired_retention": 0.9,
         "learn_threshold": 3,
+        "tts_enabled": False,
     }
 
     updated = {
@@ -202,10 +205,16 @@ def test_settings_roundtrip_and_validation(client: TestClient) -> None:
         "desired_retention": 0.85,
         "learn_threshold": 4,
     }
-    put = client.put("/api/settings", json=updated, headers=telegram_headers())
+    # tts_enabled is read-only: PUT does not need it and ignores a sent value.
+    put = client.put(
+        "/api/settings", json={**updated, "tts_enabled": True}, headers=telegram_headers()
+    )
     assert put.status_code == 200
-    assert put.json() == updated
-    assert client.get("/api/settings", headers=telegram_headers()).json() == updated
+    assert put.json() == {**updated, "tts_enabled": False}
+    assert client.get("/api/settings", headers=telegram_headers()).json() == {
+        **updated,
+        "tts_enabled": False,
+    }
 
     for bad in (
         {"timezone": "Mars/Olympus"},
@@ -219,7 +228,16 @@ def test_settings_roundtrip_and_validation(client: TestClient) -> None:
     ):
         resp = client.put("/api/settings", json={**updated, **bad}, headers=telegram_headers())
         assert resp.status_code == 422, bad
-    assert client.get("/api/settings", headers=telegram_headers()).json() == updated
+    assert client.get("/api/settings", headers=telegram_headers()).json() == {
+        **updated,
+        "tts_enabled": False,
+    }
+
+
+def test_settings_report_tts_enabled_with_key(client: TestClient) -> None:
+    app.dependency_overrides[is_tts_enabled] = lambda: True
+
+    assert client.get("/api/settings", headers=telegram_headers()).json()["tts_enabled"] is True
 
 
 def test_patch_is_learning(client: TestClient, session: Session) -> None:

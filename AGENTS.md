@@ -63,7 +63,8 @@ The app receives words and stable expressions from Telegram, generates learning 
 - `TanStack Query`
 - No router: views are switched by the `?view=` query parameter
 - Theme follows Telegram: `Telegram.WebApp.themeParams` are mapped to CSS variables (`--tg-bg`, `--tg-text`, `--tg-hint`, `--tg-accent`, `--tg-accent-text`, `--tg-surface`) with light fallbacks; flat surfaces, no gradients, one accent button per screen
-- Audio: browser `speechSynthesis` (`en-US`), hidden when unavailable
+- Audio: see "Pronunciation". The speaker plays only on tap (no autoplay, no prefetch); it shows when `GET /api/settings` reports `tts_enabled` or `window.speechSynthesis` exists, and is hidden otherwise
+- UI copy is English, sentence case (`<html lang="en">`); Russian appears only as card data (translations, chunk translations)
 - `npm` for dependency management
 - `npx` only for one-off scaffolding and CLI bootstrap commands
 
@@ -112,11 +113,11 @@ The app receives words and stable expressions from Telegram, generates learning 
 - Due dates of a day or more count from the start of their study day (local midnight), like Anki; intraday learning steps keep their exact time.
 - SRS state lives on `cards` (`srs_card_json` = `fsrs.Card.to_json()`, `srs_due_at`, `srs_state`, `srs_reps`, `srs_lapses`); every graded answer is appended to `review_logs` (with the card state before, for undo). Intro screens of new cards are not logged.
 - All datetimes are UTC; values read from SQLite are naive and go through `as_utc()`.
-- The day starts at midnight in `app_settings.timezone` (default `Europe/Moscow`, then follows the device, see Настройки below); daily limits (`new_per_day` 5, `reviews_per_day` 50) are counted per that window. Due reviews beyond the limit are reported as `backlog`.
+- The day starts at midnight in `app_settings.timezone` (default `Europe/Moscow`, then follows the device, see Settings below); daily limits (`new_per_day` 5, `reviews_per_day` 50) are counted per that window. Due reviews beyond the limit are reported as `backlog`.
 - Session order: due learning/relearning cards, then due reviews by retrievability (highest first), then new learning cards (intro first, typed later).
 - Prompt: a usage chunk with its `target` masked as `___` plus the chunk translation, rotating chunks per review; cards without chunks prompt with the Russian translations and expect `canonical_text`.
 - Answer checking (`app/services/answer_check.py`): NFKC, casefold, curly apostrophes, trailing punctuation, ЙЦУКЕН→QWERTY layout fix; one Damerau-Levenshtein edit when the expected answer has 5+ chars is a `typo` (counts as correct).
-- Question screen: "Что это за слово?" reveals the card's English explanation (the back side has none) and sets `hint_used`.
+- Question screen: chunk prompts show the chunk translation plus the word's own translations; "What's this word?" reveals the card's English explanation and sets `hint_used`.
 - Auto rating: wrong → Again (1); correct/typo with hint → Hard (2); correct/typo → Good (3). Easy (4) only by user choice.
 - A grade carries the `srs_due_at` the client saw; a mismatch (e.g. double tap) returns 409 and logs nothing.
 
@@ -254,8 +255,9 @@ Validation rules:
 - `POST /api/review/{card_id}/check` (verdict, expected answer, auto rating, intervals; no DB write)
 - `POST /api/review/{card_id}/grade` (409 on a stale `expected_due_at`)
 - `POST /api/review/undo`
-- `GET /api/settings`
-- `PUT /api/settings`
+- `GET /api/cards/{card_id}/audio` (MP3 of `canonical_text`, see "Pronunciation")
+- `GET /api/settings` (also read-only `tts_enabled`: `YANDEX_TTS_API_KEY` or `GOOGLE_TTS_API_KEY` is set)
+- `PUT /api/settings` (`tts_enabled` is not required and is ignored)
 
 ### Telegram Webhook API
 
@@ -267,18 +269,20 @@ Validation rules:
 - `POST /api/anki/ack`
 - `POST /api/anki/fail`
 - `POST /api/anki/import` (one Anki note → linked/created card with approximate FSRS state)
+- `GET /api/anki/cards/{card_id}/audio` (same MP3 as the Web App route)
 
 The Anki sync API uses bearer token authentication.
 
 ## Telegram Web App
 
-Views are switched by `?view=` (`history.replaceState`, other params and the hash kept); unknown or missing values open `home`. The bot's `/review` command and reminders open `?view=review`. Screen content and Russian copy follow the "Mini App" section of `docs/superpowers/specs/2026-10-17-srs-review-design.md`.
+Views are switched by `?view=` (`history.replaceState`, other params and the hash kept); unknown or missing values open `home`. The bot's `/review` command and reminders open `?view=review`. Screen content and the English UI copy follow the "Mini App" section of `docs/superpowers/specs/2026-10-17-srs-review-design.md`.
 
-- Bottom tab bar (`src/components/TabBar.tsx`): Главная (`home`), Повтор (`review`), Слова (`cards`), Настройки (`settings`). Hidden during a review; the Telegram BackButton leaves the review to Главная.
-- Главная (`src/home/`): today's goal with "Начать" and "Быстро: 5 карточек" (ends after 5 graded cards), retention and learned tiles, 14-week heatmap, streak line (only from 3 days), forecast, backlog. After 3+ study days away with cards due it shows "С возвращением" instead: "5 минут" (card cap from today's pace), "Обычная сессия", "Всё сразу (N)" (`include_backlog=true`).
-- Повтор (`src/review/`): `useReviewSession` drives the flow in rounds of 10 (5 for «Быстро») from `GET /api/review/session`. New cards show an intro ("Запомнил"), and the typed question for that card comes two items later in the same round. Question → `check` → back side with the diff, card details and four grade buttons "Снова / Трудно / Хорошо / Легко" (auto rating highlighted; after a wrong answer "Мой ответ верный" forces Good) → `grade`. `grade` echoes `srs_due_at` verbatim as `expected_due_at`; a 409 refetches the round. After each round: "Раунд готов" with progress to the daily goal; an empty session shows "Готово на сегодня".
-- Настройки (`src/settings/`): daily limits, desired retention, reminder hour and anchor, learn threshold, timezone; saved with `PUT /api/settings`. On each Mini App load the shell saves the device timezone (`Intl.DateTimeFormat().resolvedOptions().timeZone`) when it differs from the stored one; a zone picked by hand in Настройки is replaced on the next load if the device reports another.
-- Слова (`src/pages/CardsPage.tsx`): cards list with search and filters (including `is_learning`), batch import, deletion, and a per-card "Учим" toggle (`PATCH /api/cards/{card_id}`).
+- Bottom tab bar (`src/components/TabBar.tsx`): Home (`home`), Review (`review`), Words (`cards`), Settings (`settings`). Hidden during a review; the Telegram BackButton leaves the review to Home.
+- Home (`src/home/`): today's goal with "Start" and "Quick: 5 cards" (ends after 5 graded cards), retention and learned tiles, 14-week heatmap, streak line (only from 3 days), forecast, backlog. After 3+ study days away with cards due it shows "Welcome back" instead: "5 minutes" (card cap from today's pace), "Regular session", "All at once (N)" (`include_backlog=true`).
+- Review (`src/review/`): `useReviewSession` drives the flow in rounds of 10 (5 for "Quick") from `GET /api/review/session`. New cards show an intro ("New word" chip, full card, "Got it"), and the typed question for that card comes two items later in the same round. Question → `check` → back side with the diff, the full card and four grade buttons "Again / Hard / Good / Easy" (auto rating highlighted; after a wrong answer "My answer was right" forces Good) → `grade`. `grade` echoes `srs_due_at` verbatim as `expected_due_at`; a 409 refetches the round. After each round: "Round complete" with progress to the daily goal; an empty session shows "Done for today".
+- Full card (`CardDetails` in `src/review/IntroCard.tsx`, intro and back side): word + speaker + IPA → translations → explanation (full English definition) → "Usage" chunks → one example → word family, one form per line ("distinguishable (adjective) — различимый").
+- Settings (`src/settings/`): daily limits, desired retention, reminder hour and anchor, learn threshold, timezone; saved with `PUT /api/settings`. On each Mini App load the shell saves the device timezone (`Intl.DateTimeFormat().resolvedOptions().timeZone`) when it differs from the stored one; a zone picked by hand in Settings is replaced on the next load if the device reports another.
+- Words (`src/pages/CardsPage.tsx`): cards list with search and filters (including `is_learning`), batch import, deletion, and a per-card "Learning" toggle (`PATCH /api/cards/{card_id}`).
 
 The UI reads only from backend JSON endpoints.
 
@@ -303,10 +307,20 @@ Production exposure (`deploy/nginx/anki.conf`):
 Mapping:
 - `Word` -> `canonical_text_normalized` (lowercased, whitespace-collapsed `canonical_text`)
 - `Transcription` -> `transcription`
-- `PronunciationAudio` -> `[sound:avb-pronunciation-<card_id>.mp3]` generated locally during `sync_anki`
+- `PronunciationAudio` -> `[sound:avb-pronunciation-<card_id>.mp3]`; `sync_anki` downloads the MP3 from `GET /api/anki/cards/{card_id}/audio` and uploads it to Anki media. Best-effort: on any audio failure (including 503 before a TTS key is set) the note is still added with an empty field and the card is acked; the run logs one warning with the cause and stops requesting audio
 - `Translation` -> comma-joined translations
 - `Explanation` -> `explanation`
 - `Example` -> chunk lines (`text — translation`), blank line, first English example, then the word family block
+
+## Pronunciation
+
+- Two providers behind one interface (`app/services/pronunciation.py`: `TtsClient.synthesize(text) -> bytes`, `PronunciationAudioError` on any failure): `YandexTtsClient` (Yandex SpeechKit v1) and `GoogleTtsClient` (Google Cloud Text-to-Speech). Proxied by the backend: `GET /api/cards/{card_id}/audio` (Web App auth) and `GET /api/anki/cards/{card_id}/audio` (bearer token) synthesize `canonical_text` per request and return `audio/mpeg` with `Cache-Control: private, max-age=31536000, immutable`. Nothing is stored on the server
+- Provider selection (`get_tts_client` in `app/api/deps.py`): `YANDEX_TTS_API_KEY` set -> Yandex; else `GOOGLE_TTS_API_KEY` set -> Google; both set -> Yandex wins. `tts_enabled` is true when either key is set
+- Inert until a key is set: 503 `Pronunciation is not configured`; unknown card 404; provider failure 502 (cause logged)
+- Yandex request: `POST https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize`, header `Authorization: Api-Key <key>`, form fields `text`, `lang=en-US`, `voice` (default `john`, the only English voice), `format=mp3`; no `folderId` with a service-account API key; the response body is raw MP3. Not verified live yet: `lang=en-US` with `john` is documented only on the SpeechKit voices page
+- Yandex setup: Yandex Cloud account, billing account, service account with role `ai.speechkit-tts.user`, an API key for it; put `YANDEX_TTS_API_KEY` in `/opt/anki-vocab-bot/.env`, then `docker compose up -d app`
+- Mini App: the first tap per card fetches the MP3 once per page load (object URL kept in memory, double taps share the request) and plays it with `new Audio`; on any failure, or without the key, it falls back to `speechSynthesis` (`en-US`, an English voice when listed), else stays silent
+- Cost: Yandex SpeechKit is about 1342 RUB per 1M characters including VAT (the whole 1.1k-word deck is about 20 RUB). Google Chirp 3 HD has a free tier of 1M characters per month (a word is ~10 characters); set a quota on the Text-to-Speech API in the GCP console so a bug cannot run up a bill
 
 Deck import (`app/scripts/import_anki.py`, one-off): notes of `English::Inbox` are posted to `POST /api/anki/import`; tagged notes link to their card, others are matched by canonical text or created via the LLM pipeline. Review cards get stability = interval, difficulty from ease, due = last review + interval; suspended notes are not learning; imported cards are marked `synced` so `sync_anki` does not push them again.
 
@@ -320,11 +334,14 @@ Required environment variables:
 - `TELEGRAM_WEBAPP_URL`
 - `OPENROUTER_API_KEY`
 - `ANKI_SYNC_TOKEN`
-- `ANKI_PRONUNCIATION_VOICE` (default: `en-US-EmmaNeural`)
 - `DATABASE_URL` (default: `sqlite:///backend/data/app.db`)
 - `LLM_MODEL` (default: `google/gemini-2.5-flash-lite`)
 
 Optional:
+- `YANDEX_TTS_API_KEY` (Yandex SpeechKit; takes precedence over Google when both are set)
+- `YANDEX_TTS_VOICE` (default: `john`, the only English voice)
+- `GOOGLE_TTS_API_KEY` (Google Cloud Text-to-Speech; with neither key set, pronunciation endpoints return 503)
+- `GOOGLE_TTS_VOICE` (default: `en-US-Chirp3-HD-Aoede`; the language code is taken from the name)
 - `DISABLE_REMINDERS=1` turns off the reminder loop (set in tests)
 
 Review preferences (timezone, reminder hour, limits, retention, learn threshold) live in `app_settings`, edited via `PUT /api/settings`.

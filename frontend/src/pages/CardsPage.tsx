@@ -44,26 +44,26 @@ function toPositiveInt(value: string | null, fallback: number): number {
 }
 
 const ENTRY_TYPES: Record<EntryType, string> = {
-  word: "слово",
-  phrasal_verb: "фразовый глагол",
-  collocation: "словосочетание",
-  idiom: "идиома",
-  expression: "выражение",
+  word: "word",
+  phrasal_verb: "phrasal verb",
+  collocation: "collocation",
+  idiom: "idiom",
+  expression: "expression",
 };
 
 const ANKI_STATUSES: Record<AnkiSyncStatus, string> = {
-  pending: "ждёт синхронизации",
-  synced: "в Anki",
-  failed: "ошибка синхронизации",
+  pending: "waiting for sync",
+  synced: "in Anki",
+  failed: "sync failed",
 };
 
 const BATCH_STATUSES: Record<CardBatchImportItemStatus, string> = {
-  created: "добавлено",
-  duplicate_source: "уже есть (тот же ввод)",
-  duplicate_canonical: "уже есть (та же форма)",
-  rejected: "отклонено",
-  invalid_input: "неверный ввод",
-  upstream_error: "ошибка LLM",
+  created: "added",
+  duplicate_source: "already saved (same input)",
+  duplicate_canonical: "already saved (same form)",
+  rejected: "rejected",
+  invalid_input: "invalid input",
+  upstream_error: "LLM error",
 };
 
 function parseBatchInput(rawValue: string): string[] {
@@ -121,7 +121,7 @@ function mergeBatchResponses(
 }
 
 function formatCardTimestamp(value: string): string {
-  return new Intl.DateTimeFormat("ru", {
+  return new Intl.DateTimeFormat("en", {
     month: "short",
     day: "numeric",
     hour: "2-digit",
@@ -232,7 +232,7 @@ export function CardsPage(): JSX.Element {
           setBatchProgress({ processed, total: sourceTexts.length });
         } catch (error) {
           const message =
-            error instanceof ApiError ? error.message : "ошибка запроса";
+            error instanceof ApiError ? error.message : "request failed";
           return { response: aggregateResponse, fatalErrorMessage: message };
         }
       }
@@ -255,7 +255,7 @@ export function CardsPage(): JSX.Element {
   const startBatchImport = (): void => {
     const sourceTexts = parseBatchInput(batchInput);
     if (sourceTexts.length === 0) {
-      setBatchValidationError("Вставьте хотя бы одно слово или выражение.");
+      setBatchValidationError("Paste at least one word or expression.");
       setBatchFatalError(null);
       setBatchResponse(null);
       setBatchProgress(null);
@@ -290,20 +290,20 @@ export function CardsPage(): JSX.Element {
   return (
     <section className="cards-page">
       <header className="page-title-block">
-        <h2>Слова</h2>
-        <p>Сохранённые карточки: импорт, поиск, фильтры и удаление.</p>
+        <h2>Words</h2>
+        <p>Saved cards: import, search, filter, and delete.</p>
       </header>
 
       <section className="surface-panel batch-panel">
         <div className="section-heading">
           <div>
-            <p className="section-label">Импорт списком</p>
-            <h3>Одно слово или выражение на строку</h3>
+            <p className="section-label">Batch import</p>
+            <h3>One word or expression per line</h3>
           </div>
-          <span className="info-chip">По {BATCH_CHUNK_SIZE} за запрос</span>
+          <span className="info-chip">{BATCH_CHUNK_SIZE} per request</span>
         </div>
 
-        <label htmlFor="batch-import-input">Список</label>
+        <label htmlFor="batch-import-input">List</label>
         <textarea
           id="batch-import-input"
           name="batch-import-input"
@@ -320,7 +320,7 @@ export function CardsPage(): JSX.Element {
             disabled={batchImportMutation.isPending}
             onClick={startBatchImport}
           >
-            {batchImportMutation.isPending ? "Импортируем…" : "Импортировать"}
+            {batchImportMutation.isPending ? "Importing…" : "Import"}
           </button>
         </div>
 
@@ -330,24 +330,24 @@ export function CardsPage(): JSX.Element {
 
         {batchProgress ? (
           <p className="batch-message">
-            Обработано {batchProgress.processed}/{batchProgress.total}
+            Processed {batchProgress.processed}/{batchProgress.total}
           </p>
         ) : null}
 
         {batchFatalError ? (
-          <p className="batch-message batch-message-error">Импорт остановлен: {batchFatalError}</p>
+          <p className="batch-message batch-message-error">Import stopped: {batchFatalError}</p>
         ) : null}
 
         {batchResponse ? (
           <div className="batch-results">
             <div className="batch-summary-grid">
-              <p>Всего обработано: {batchResponse.summary.total}</p>
-              <p>Добавлено: {batchResponse.summary.created}</p>
-              <p>Уже есть (тот же ввод): {batchResponse.summary.duplicate_source}</p>
-              <p>Уже есть (та же форма): {batchResponse.summary.duplicate_canonical}</p>
-              <p>Отклонено: {batchResponse.summary.rejected}</p>
-              <p>Неверный ввод: {batchResponse.summary.invalid_input}</p>
-              <p>Ошибки LLM: {batchResponse.summary.upstream_error}</p>
+              <p>Total processed: {batchResponse.summary.total}</p>
+              <p>Added: {batchResponse.summary.created}</p>
+              <p>Already saved (same input): {batchResponse.summary.duplicate_source}</p>
+              <p>Already saved (same form): {batchResponse.summary.duplicate_canonical}</p>
+              <p>Rejected: {batchResponse.summary.rejected}</p>
+              <p>Invalid input: {batchResponse.summary.invalid_input}</p>
+              <p>LLM errors: {batchResponse.summary.upstream_error}</p>
             </div>
 
             {batchResponse.items.length > 0 ? (
@@ -358,8 +358,8 @@ export function CardsPage(): JSX.Element {
                       <strong>{item.source_text}</strong>
                       <span className="info-chip">{BATCH_STATUSES[item.status]}</span>
                     </div>
-                    <p>Форма: {item.canonical_text ?? "—"}</p>
-                    <p>Сообщение: {item.message ?? "—"}</p>
+                    <p>Form: {item.canonical_text ?? "—"}</p>
+                    <p>Message: {item.message ?? "—"}</p>
                   </article>
                 ))}
               </div>
@@ -376,22 +376,22 @@ export function CardsPage(): JSX.Element {
         <summary>
           <div className="section-heading">
             <div>
-              <p className="section-label">Поиск и фильтры</p>
-              <h3>Сузить список</h3>
+              <p className="section-label">Search and filters</p>
+              <h3>Narrow the list</h3>
             </div>
-            <span className="info-chip">{filtersOpen ? "Фильтры включены" : "Все карточки"}</span>
+            <span className="info-chip">{filtersOpen ? "Filters on" : "All cards"}</span>
           </div>
         </summary>
 
         <div className="filters-panel-body">
           <div className="search-row">
-            <label htmlFor="cards-search">Поиск</label>
+            <label htmlFor="cards-search">Search</label>
             <input
               id="cards-search"
               name="search"
               type="search"
               value={searchDraft}
-              placeholder="Слово или исходный текст"
+              placeholder="Word or source text"
               onChange={(event) => setSearchDraft(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
@@ -404,30 +404,30 @@ export function CardsPage(): JSX.Element {
               className="secondary-button"
               onClick={() => updateParams({ search: searchDraft.trim() || null })}
             >
-              Найти
+              Find
             </button>
           </div>
 
           <div className="filter-grid">
             <label>
-              Язык ввода
+              Input language
               <select
                 value={sourceLanguage}
                 onChange={(event) => updateParams({ source_language: event.target.value || null })}
               >
-                <option value="">Все</option>
+                <option value="">All</option>
                 <option value="en">EN</option>
                 <option value="ru">RU</option>
               </select>
             </label>
 
             <label>
-              Тип
+              Type
               <select
                 value={entryType}
                 onChange={(event) => updateParams({ entry_type: event.target.value || null })}
               >
-                <option value="">Все</option>
+                <option value="">All</option>
                 {Object.entries(ENTRY_TYPES).map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
@@ -437,12 +437,12 @@ export function CardsPage(): JSX.Element {
             </label>
 
             <label>
-              Статус Anki
+              Anki status
               <select
                 value={ankiStatus}
                 onChange={(event) => updateParams({ anki_sync_status: event.target.value || null })}
               >
-                <option value="">Все</option>
+                <option value="">All</option>
                 {Object.entries(ANKI_STATUSES).map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
@@ -452,7 +452,7 @@ export function CardsPage(): JSX.Element {
             </label>
 
             <label>
-              Учим
+              Learning
               <select
                 value={learning}
                 onChange={(event) =>
@@ -461,9 +461,9 @@ export function CardsPage(): JSX.Element {
                   })
                 }
               >
-                <option value="all">Все</option>
-                <option value="true">да</option>
-                <option value="false">нет</option>
+                <option value="all">All</option>
+                <option value="true">yes</option>
+                <option value="false">no</option>
               </select>
             </label>
           </div>
@@ -471,29 +471,29 @@ export function CardsPage(): JSX.Element {
       </details>
 
       {cardsQuery.isLoading ? (
-        <LoadingState message="Загружаем карточки…" />
+        <LoadingState message="Loading cards…" />
       ) : cardsQuery.isError ? (
         <ErrorState error={cardsQuery.error} onRetry={() => void cardsQuery.refetch()} />
       ) : cardsQuery.data && cardsQuery.data.items.length === 0 ? (
-        <EmptyState title="Ничего не найдено" message="Измените запрос или сбросьте фильтры." />
+        <EmptyState title="Nothing found" message="Change the search or clear the filters." />
       ) : (
         <>
           {deleteMutation.isError ? (
-            <ErrorState title="Не удалось удалить" error={deleteMutation.error} />
+            <ErrorState title="Couldn't delete" error={deleteMutation.error} />
           ) : null}
           {learningMutation.isError ? (
-            <ErrorState title="Не удалось сохранить «Учим»" error={learningMutation.error} />
+            <ErrorState title="Couldn't save “Learning”" error={learningMutation.error} />
           ) : null}
 
           <div className="list-header">
             <div>
-              <p className="section-label">Карточки</p>
+              <p className="section-label">Cards</p>
               <h3>
-                {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} из {total}
+                {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
               </h3>
             </div>
             <span className="info-chip">
-              Стр. {page} / {totalPages}
+              Page {page} / {totalPages}
             </span>
           </div>
 
@@ -502,7 +502,7 @@ export function CardsPage(): JSX.Element {
               <article className="card-item" key={card.id}>
                 <div className="card-item-topline">
                   <div className="card-heading">
-                    <p className="section-label">Карточка</p>
+                    <p className="section-label">Card</p>
                     <h3>{card.canonical_text}</h3>
                   </div>
                   <span className={`status-pill status-${card.anki_sync_status}`}>
@@ -514,43 +514,43 @@ export function CardsPage(): JSX.Element {
 
                 <div className="card-meta-grid">
                   <p>
-                    <span>Ввод</span>
+                    <span>Input</span>
                     <strong>{card.source_text}</strong>
                   </p>
                   <p>
-                    <span>Тип</span>
+                    <span>Type</span>
                     <strong>{ENTRY_TYPES[card.entry_type]}</strong>
                   </p>
                   <p>
-                    <span>Язык</span>
+                    <span>Language</span>
                     <strong>{card.source_language.toUpperCase()}</strong>
                   </p>
                   <p>
-                    <span>Частота</span>
+                    <span>Frequency</span>
                     <strong>{card.frequency}</strong>
                   </p>
                   <label className="learning-toggle">
                     <input
                       type="checkbox"
                       role="switch"
-                      aria-label={`Учим: ${card.canonical_text}`}
+                      aria-label={`Learning: ${card.canonical_text}`}
                       checked={card.is_learning}
                       disabled={learningMutation.isPending}
                       onChange={(event) =>
                         learningMutation.mutate({ id: card.id, isLearning: event.target.checked })
                       }
                     />
-                    Учим
+                    Learning
                   </label>
                   <p>
-                    <span>Добавлена</span>
+                    <span>Added</span>
                     <strong>{formatCardTimestamp(card.created_at)}</strong>
                   </p>
                 </div>
 
                 <div className="card-content-grid">
                   <section className="card-content-panel">
-                    <h4>Переводы</h4>
+                    <h4>Translations</h4>
                     <ul className="translation-list">
                       {card.translation_variants.map((translation) => (
                         <li key={translation}>{translation}</li>
@@ -559,7 +559,7 @@ export function CardsPage(): JSX.Element {
                   </section>
 
                   <section className="card-content-panel">
-                    <h4>Однокоренные</h4>
+                    <h4>Word family</h4>
                     {card.word_family.length > 0 ? (
                       <ul className="word-family-list">
                         {card.word_family.map((item) => (
@@ -574,12 +574,12 @@ export function CardsPage(): JSX.Element {
                   </section>
 
                   <section className="card-content-panel">
-                    <h4>Объяснение</h4>
+                    <h4>Explanation</h4>
                     <p>{card.explanation}</p>
                   </section>
 
                   <section className="card-content-panel">
-                    <h4>Примеры</h4>
+                    <h4>Examples</h4>
                     <ul className="example-list">
                       {card.examples.map((example) => (
                         <li key={example}>{example}</li>
@@ -598,7 +598,7 @@ export function CardsPage(): JSX.Element {
                       setPendingDeleteCard(card);
                     }}
                   >
-                    Удалить
+                    Delete
                   </button>
                 </div>
               </article>
@@ -612,7 +612,7 @@ export function CardsPage(): JSX.Element {
               disabled={page <= 1}
               onClick={() => updateParams({ page: String(page - 1) }, false)}
             >
-              Назад
+              Previous
             </button>
             <button
               type="button"
@@ -620,7 +620,7 @@ export function CardsPage(): JSX.Element {
               disabled={page >= totalPages}
               onClick={() => updateParams({ page: String(page + 1) }, false)}
             >
-              Далее
+              Next
             </button>
           </footer>
         </>
@@ -629,9 +629,9 @@ export function CardsPage(): JSX.Element {
       {pendingDeleteCard ? (
         <div className="modal-backdrop" role="presentation">
           <section className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-card-title">
-            <p className="section-label">Удаление</p>
-            <h3 id="delete-card-title">Удалить «{pendingDeleteCard.canonical_text}»?</h3>
-            <p>Карточка будет удалена из словаря.</p>
+            <p className="section-label">Delete</p>
+            <h3 id="delete-card-title">Delete “{pendingDeleteCard.canonical_text}”?</h3>
+            <p>The card will be removed from your dictionary.</p>
 
             <div className="confirm-dialog-actions">
               <button
@@ -643,7 +643,7 @@ export function CardsPage(): JSX.Element {
                   setPendingDeleteCard(null);
                 }}
               >
-                Отмена
+                Cancel
               </button>
               <button
                 type="button"
@@ -651,7 +651,7 @@ export function CardsPage(): JSX.Element {
                 disabled={deleteMutation.isPending}
                 onClick={() => deleteMutation.mutate(pendingDeleteCard.id)}
               >
-                {deleteMutation.isPending ? "Удаляем…" : "Удалить карточку"}
+                {deleteMutation.isPending ? "Deleting…" : "Delete card"}
               </button>
             </div>
           </section>

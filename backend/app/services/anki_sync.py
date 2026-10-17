@@ -1,13 +1,12 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 from app.clients.anki_connect import AnkiConnectClient, AnkiConnectError, AnkiNotePayload
 from app.clients.backend_sync_api import BackendSyncApiClient, BackendSyncApiError, PendingCard
 from app.schemas.llm import CardChunk, WordFamilyItem
 from app.services.pronunciation import (
-    EdgeTtsPronunciationGenerator,
-    PronunciationAudioError,
     build_pronunciation_filename,
     build_pronunciation_sound_field,
 )
@@ -15,6 +14,8 @@ from app.services.pronunciation import (
 ANKI_DECK_NAME = "English::Inbox"
 ANKI_NOTE_TYPE = "VocabularyCard"
 CARD_TAG_PREFIX = "avb-card"
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -64,11 +65,11 @@ def sync_pending_cards(
     *,
     backend_client: BackendSyncApiClient,
     anki_client: AnkiConnectClient,
-    pronunciation_generator: EdgeTtsPronunciationGenerator,
     limit: int = 50,
 ) -> SyncSummary:
     pending_cards = backend_client.get_pending(limit=limit)
     summary = SyncSummary(total=len(pending_cards))
+    audio_down = False  # after one TTS failure, skip audio for the rest of the run
 
     for card in pending_cards:
         existing_note_ids = anki_client.find_notes_by_tag(build_card_tag(card.id))
@@ -77,19 +78,22 @@ def sync_pending_cards(
             summary.synced += 1
             continue
 
+        # Audio is best-effort (503 until a TTS key is set): the note matters more.
+        audio_bytes: bytes | None = None
+        if not audio_down:
+            try:
+                audio_bytes = backend_client.get_card_audio(card.id)
+            except BackendSyncApiError as exc:
+                audio_down = True
+                logger.warning("Adding notes without pronunciation audio: %s", exc)
+
         try:
-            filename = build_pronunciation_filename(card.id)
-            audio_bytes = pronunciation_generator.generate_audio(card.canonical_text)
-            anki_client.store_media_file(filename, audio_bytes)
-            payload = map_card_to_anki_payload(
-                card,
-                pronunciation_field=build_pronunciation_sound_field(card.id),
-            )
+            pronunciation_field = ""
+            if audio_bytes is not None:
+                anki_client.store_media_file(build_pronunciation_filename(card.id), audio_bytes)
+                pronunciation_field = build_pronunciation_sound_field(card.id)
+            payload = map_card_to_anki_payload(card, pronunciation_field=pronunciation_field)
             anki_note_id = anki_client.add_note(payload)
-        except PronunciationAudioError as exc:
-            _report_failure(backend_client, card.id, exc.user_message)
-            summary.failed += 1
-            continue
         except AnkiConnectError as exc:
             _report_failure(backend_client, card.id, _format_anki_error_message(exc))
             summary.failed += 1

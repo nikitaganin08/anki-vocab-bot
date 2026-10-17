@@ -56,7 +56,7 @@ async function readErrorMessage(response: Response): Promise<string> {
     // Not JSON: fall through to the raw text.
   }
 
-  return text.length > 0 ? text : `Ошибка запроса (${response.status})`;
+  return text.length > 0 ? text : `Request failed (${response.status})`;
 }
 
 async function request<T>(path: string, method = "GET", body?: unknown): Promise<T> {
@@ -109,6 +109,19 @@ export async function deleteCard(cardId: number): Promise<void> {
 
 export async function setCardLearning(cardId: number, isLearning: boolean): Promise<Card> {
   return request(`/api/cards/${cardId}`, "PATCH", { is_learning: isLearning });
+}
+
+// `version` (the word) only busts the HTTP cache: card ids can be reused after a delete and
+// the audio is cached for a year; the backend ignores it.
+export async function getCardAudio(cardId: number, version: string): Promise<Blob> {
+  const url = `${resolveApiPath(`/api/cards/${cardId}/audio`)}?v=${encodeURIComponent(version)}`;
+  const response = await fetch(url, {
+    headers: buildHeaders({}),
+  });
+  if (!response.ok) {
+    throw new ApiError(await readErrorMessage(response), response.status);
+  }
+  return response.blob();
 }
 
 export async function getReviewSummary(): Promise<ReviewSummary> {

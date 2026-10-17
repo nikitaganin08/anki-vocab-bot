@@ -15,7 +15,7 @@ export interface CheckedAnswer {
 
 export interface Round {
   number: number;
-  // Session items; "Запомнил" on an intro inserts a typed copy of it.
+  // Session items; "Got it" on an intro inserts a typed copy of it.
   queue: ReviewSessionItem[];
   pos: number;
   // Typed questions in the round: each intro yields exactly one, so the denominator never grows.
@@ -58,7 +58,7 @@ export function useReviewSession(mode: ReviewMode) {
   // An empty round means nothing is left today (limits may have been hit since the dashboard).
   async function fetchRound(onItems: (items: ReviewSessionItem[]) => Partial<State>): Promise<void> {
     setState((s) => ({ ...s, phase: "loading", busy: false }));
-    // A capped session asks only for what is left of the cap, so the round (and its "k из T")
+    // A capped session asks only for what is left of the cap, so the round (and its "k of T")
     // ends at the cap; once the cap is reached, further rounds are regular ones.
     const capLeft = (mode.capCards ?? 0) - gradedTotal.current;
     const size = capLeft > 0 ? Math.min(ROUND_SIZE, capLeft) : ROUND_SIZE;

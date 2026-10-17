@@ -1,4 +1,5 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, checkAnswer, getReviewSession, getReviewSummary, gradeCard } from "../api/client";
@@ -99,9 +100,16 @@ function checked(overrides: Partial<CheckResponse> = {}): CheckResponse {
   };
 }
 
-function renderReview(mode: ReviewMode = {}): ReturnType<typeof vi.fn> {
+// The ["settings"] cache is seeded, as the app has it by the time a card shows.
+function renderReview(mode: ReviewMode = {}, ttsEnabled = false): ReturnType<typeof vi.fn> {
   const onExit = vi.fn();
-  render(<ReviewView mode={mode} onExit={onExit} />);
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  queryClient.setQueryData(["settings"], { tts_enabled: ttsEnabled });
+  render(
+    <QueryClientProvider client={queryClient}>
+      <ReviewView mode={mode} onExit={onExit} />
+    </QueryClientProvider>,
+  );
   return onExit;
 }
 
@@ -113,10 +121,10 @@ async function press(element: HTMLElement): Promise<void> {
 }
 
 async function answer(typed: string): Promise<void> {
-  fireEvent.change(await screen.findByRole("textbox", { name: "Ответ" }), {
+  fireEvent.change(await screen.findByRole("textbox", { name: "Answer" }), {
     target: { value: typed },
   });
-  await press(screen.getByRole("button", { name: "Проверить" }));
+  await press(screen.getByRole("button", { name: "Check" }));
 }
 
 async function grade(label: RegExp): Promise<void> {
@@ -146,30 +154,32 @@ describe("ReviewView", () => {
     ]);
     renderReview();
 
-    expect(await screen.findByText("Новое")).toBeInTheDocument();
+    expect(await screen.findByText("New word")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "give" })).toBeInTheDocument();
     expect(screen.getByText("давать, дарить")).toBeInTheDocument();
+    expect(screen.getByText("To hand something to someone.")).toBeInTheDocument();
     expect(screen.getByText("give up")).toBeInTheDocument();
     expect(screen.getByText("She gave me a book.")).toBeInTheDocument();
+    expect(screen.getByText("giver (noun) — даритель")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-    const remembered = screen.getByRole("button", { name: "Запомнил" });
+    const remembered = screen.getByRole("button", { name: "Got it" });
     expect(remembered).toHaveClass("primary-button");
     fireEvent.click(remembered);
 
     expect(await screen.findByText("___ off")).toBeInTheDocument();
-    expect(screen.getByText("Раунд 1 · 1 из 3")).toBeInTheDocument();
+    expect(screen.getByText("Round 1 · 1 of 3")).toBeInTheDocument();
     await answer("take");
-    await grade(/^Хорошо/);
+    await grade(/^Good/);
 
     // The intro card comes back as a typed question two positions after its intro.
     expect(await screen.findByText("___ up")).toBeInTheDocument();
-    expect(screen.getByText("Раунд 1 · 2 из 3")).toBeInTheDocument();
+    expect(screen.getByText("Round 1 · 2 of 3")).toBeInTheDocument();
     await answer("give");
-    await grade(/^Хорошо/);
+    await grade(/^Good/);
     expect(mockedGrade).toHaveBeenLastCalledWith(1, expect.objectContaining({ expected_due_at: null }));
 
     expect(await screen.findByText("___ sense")).toBeInTheDocument();
-    expect(screen.getByText("Раунд 1 · 3 из 3")).toBeInTheDocument();
+    expect(screen.getByText("Round 1 · 3 of 3")).toBeInTheDocument();
   });
 
   it("check shows diff and highlights auto rating", async () => {
@@ -178,11 +188,11 @@ describe("ReviewView", () => {
     renderReview();
 
     expect(await screen.findByText("сдаться")).toBeInTheDocument();
-    expect(screen.getByText("~5 мин")).toBeInTheDocument();
+    expect(screen.getByText("~5 min")).toBeInTheDocument();
     await answer("gve");
 
-    const diff = (await screen.findByText(/^Ты:/)).closest("p");
-    expect(diff).toHaveTextContent("Ты: gve → верно: give");
+    const diff = (await screen.findByText(/^You:/)).closest("p");
+    expect(diff).toHaveTextContent("You: gve → correct: give");
     expect(screen.getByText("gve")).toHaveClass("verdict-typed");
     expect(screen.getByText("gve").tagName).toBe("S");
     expect(screen.getByText("give", { selector: "span" })).toHaveClass("verdict-expected");
@@ -193,17 +203,16 @@ describe("ReviewView", () => {
       hint_used: false,
     });
 
-    const again = screen.getByRole("button", { name: /^Снова/ });
+    const again = screen.getByRole("button", { name: /^Again/ });
     expect(again).toHaveClass("primary-button");
-    expect(again).toHaveTextContent("<1 м");
-    expect(screen.getByRole("button", { name: /^Трудно/ })).toHaveClass("secondary-button");
-    expect(screen.getByRole("button", { name: /^Хорошо/ })).toHaveTextContent("10 м");
-    expect(screen.getByRole("button", { name: /^Легко/ })).toHaveTextContent("4 д");
-    expect(screen.getByText("Оценка выбрана автоматически, можно поменять")).toBeInTheDocument();
-    expect(screen.getByText("Как используется")).toBeInTheDocument();
-    expect(screen.getByText(/giver/)).toBeInTheDocument();
-    // The back side has no explanation: it is only shown on demand on the question.
-    expect(screen.queryByText("To hand something to someone.")).not.toBeInTheDocument();
+    expect(again).toHaveTextContent("<1m");
+    expect(screen.getByRole("button", { name: /^Hard/ })).toHaveClass("secondary-button");
+    expect(screen.getByRole("button", { name: /^Good/ })).toHaveTextContent("10m");
+    expect(screen.getByRole("button", { name: /^Easy/ })).toHaveTextContent("4d");
+    expect(screen.getByText("Rating picked automatically — you can change it")).toBeInTheDocument();
+    expect(screen.getByText("Usage")).toBeInTheDocument();
+    expect(screen.getByText("giver (noun) — даритель")).toBeInTheDocument();
+    expect(screen.getByText("To hand something to someone.")).toBeInTheDocument();
   });
 
   it("grade advances to next card", async () => {
@@ -211,10 +220,10 @@ describe("ReviewView", () => {
     renderReview();
 
     await answer("give");
-    expect(await screen.findByText("✓ верно")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Мой ответ верный" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Хорошо/ })).toHaveClass("primary-button");
-    await grade(/^Хорошо/);
+    expect(await screen.findByText("✓ correct")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "My answer was right" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Good/ })).toHaveClass("primary-button");
+    await grade(/^Good/);
 
     expect(mockedGrade).toHaveBeenCalledWith(
       1,
@@ -230,7 +239,7 @@ describe("ReviewView", () => {
       }),
     );
     expect(await screen.findByText("___ off")).toBeInTheDocument();
-    expect(screen.getByText("Раунд 1 · 2 из 2")).toBeInTheDocument();
+    expect(screen.getByText("Round 1 · 2 of 2")).toBeInTheDocument();
   });
 
   it("sends srs_due_at verbatim", async () => {
@@ -239,7 +248,7 @@ describe("ReviewView", () => {
     renderReview();
 
     await answer("give");
-    await grade(/^Легко/);
+    await grade(/^Easy/);
 
     const body = mockedGrade.mock.calls[0][1];
     expect(body.expected_due_at).toBe(dueAt);
@@ -255,10 +264,10 @@ describe("ReviewView", () => {
     renderReview({ includeBacklog: true });
 
     await answer("give");
-    await grade(/^Хорошо/);
+    await grade(/^Good/);
 
     expect(await screen.findByText("___ off")).toBeInTheDocument();
-    expect(screen.getByText("Раунд 1 · 1 из 1")).toBeInTheDocument();
+    expect(screen.getByText("Round 1 · 1 of 1")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(mockedSession).toHaveBeenCalledTimes(2);
     expect(mockedSession).toHaveBeenLastCalledWith({ size: 10, includeBacklog: true });
@@ -268,10 +277,10 @@ describe("ReviewView", () => {
     mockedSession.mockResolvedValue([]);
     const onExit = renderReview();
 
-    expect(await screen.findByRole("heading", { name: "Готово на сегодня" })).toBeInTheDocument();
-    expect(screen.getByText("Завтра ~14 карточек")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Done for today" })).toBeInTheDocument();
+    expect(screen.getByText("Tomorrow ~14 cards")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-    const close = screen.getByRole("button", { name: "Закрыть" });
+    const close = screen.getByRole("button", { name: "Close" });
     expect(close).toHaveClass("primary-button");
     expect(screen.getAllByRole("button")).toHaveLength(1);
     fireEvent.click(close);
@@ -289,20 +298,20 @@ describe("ReviewView", () => {
     const onExit = renderReview();
 
     await answer("give");
-    await grade(/^Хорошо/);
+    await grade(/^Good/);
 
-    expect(await screen.findByRole("heading", { name: "✓ Раунд готов" })).toBeInTheDocument();
-    expect(screen.getByText("Сегодня 12 из 20")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "✓ Round complete" })).toBeInTheDocument();
+    expect(screen.getByText("Today 12 of 20")).toBeInTheDocument();
     const progress = screen.getByRole("progressbar");
     expect(progress).toHaveAttribute("value", "12");
     expect(progress).toHaveAttribute("max", "20");
-    expect(screen.getByText("Осталось ~4 мин")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "На сегодня хватит" })).toHaveClass("secondary-button");
+    expect(screen.getByText("~4 min left")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Done for today" })).toHaveClass("secondary-button");
     expect(mockedSession).toHaveBeenLastCalledWith({ size: 10, includeBacklog: false });
 
-    fireEvent.click(screen.getByRole("button", { name: "Ещё раунд" }));
+    fireEvent.click(screen.getByRole("button", { name: "Another round" }));
     expect(await screen.findByText("___ off")).toBeInTheDocument();
-    expect(screen.getByText("Раунд 2 · 1 из 1")).toBeInTheDocument();
+    expect(screen.getByText("Round 2 · 1 of 1")).toBeInTheDocument();
     expect(onExit).not.toHaveBeenCalled();
   });
 
@@ -313,10 +322,10 @@ describe("ReviewView", () => {
     const onExit = renderReview({ capCards: 1 });
 
     await answer("give");
-    await grade(/^Хорошо/);
+    await grade(/^Good/);
 
-    expect(await screen.findByRole("heading", { name: "✓ Раунд готов" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "На сегодня хватит" }));
+    expect(await screen.findByRole("heading", { name: "✓ Round complete" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Done for today" }));
     expect(onExit).toHaveBeenCalled();
   });
 
@@ -327,23 +336,23 @@ describe("ReviewView", () => {
       .mockResolvedValueOnce([item(4, "keep", "___ calm")]);
     renderReview({ capCards: 3 });
 
-    expect(await screen.findByText("Раунд 1 · 1 из 2")).toBeInTheDocument();
+    expect(await screen.findByText("Round 1 · 1 of 2")).toBeInTheDocument();
     expect(mockedSession).toHaveBeenLastCalledWith({ size: 3, includeBacklog: false });
     await answer("give");
-    await grade(/^Хорошо/);
+    await grade(/^Good/);
     await answer("take");
-    await grade(/^Хорошо/);
+    await grade(/^Good/);
 
-    expect(await screen.findByRole("heading", { name: "✓ Раунд готов" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "✓ Round complete" })).toBeInTheDocument();
     expect(mockedSession).toHaveBeenLastCalledWith({ size: 1, includeBacklog: false });
-    fireEvent.click(screen.getByRole("button", { name: "Ещё раунд" }));
-    expect(await screen.findByText("Раунд 2 · 1 из 1")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Another round" }));
+    expect(await screen.findByText("Round 2 · 1 of 1")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute("max", "1");
     await answer("make");
-    await grade(/^Хорошо/);
+    await grade(/^Good/);
 
     // The cap is reached: the round ends, and any further round is a regular one.
-    expect(await screen.findByRole("heading", { name: "✓ Раунд готов" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "✓ Round complete" })).toBeInTheDocument();
     expect(mockedSession).toHaveBeenLastCalledWith({ size: 10, includeBacklog: false });
   });
 
@@ -353,7 +362,7 @@ describe("ReviewView", () => {
     renderReview();
 
     await answer("giv");
-    await press(await screen.findByRole("button", { name: "Мой ответ верный" }));
+    await press(await screen.findByRole("button", { name: "My answer was right" }));
 
     expect(mockedGrade).toHaveBeenCalledWith(
       1,
@@ -361,17 +370,27 @@ describe("ReviewView", () => {
     );
   });
 
+  it("chunk question also shows the word's own translation", async () => {
+    mockedSession.mockResolvedValue([item(1, "give", "___ up")]);
+    renderReview();
+
+    expect(await screen.findByText("___ up")).toBeInTheDocument();
+    expect(screen.getByText("сдаться")).toBeInTheDocument();
+    expect(screen.getByText("давать, дарить")).toHaveClass("review-word-translation");
+  });
+
   it("explanation on demand marks hint_used", async () => {
     mockedSession.mockResolvedValue([item(1, "give", "___ up")]);
     mockedCheck.mockResolvedValue(checked({ auto_rating: 2 }));
     renderReview();
 
-    const input = await screen.findByRole("textbox", { name: "Ответ" });
+    const input = await screen.findByRole("textbox", { name: "Answer" });
     expect(input).toHaveAttribute("maxlength", "200");
-    expect(screen.queryByText(/первая буква/)).not.toBeInTheDocument();
+    expect(input).toHaveAttribute("placeholder", "Type the missing part");
+    expect(screen.queryByText(/first letter/i)).not.toBeInTheDocument();
     expect(screen.queryByText("g___")).not.toBeInTheDocument();
     expect(screen.queryByText("To hand something to someone.")).not.toBeInTheDocument();
-    const reveal = screen.getByRole("button", { name: "Что это за слово?" });
+    const reveal = screen.getByRole("button", { name: "What's this word?" });
     reveal.focus();
     fireEvent.click(reveal);
     expect(screen.getByText("To hand something to someone.")).toBeInTheDocument();
@@ -379,7 +398,7 @@ describe("ReviewView", () => {
     await answer("give");
     expect(mockedCheck).toHaveBeenCalledWith(1, expect.objectContaining({ hint_used: true }));
 
-    const hard = await screen.findByRole("button", { name: /^Трудно/ });
+    const hard = await screen.findByRole("button", { name: /^Hard/ });
     expect(hard).toHaveClass("primary-button");
     await press(hard);
     expect(mockedGrade).toHaveBeenCalledWith(
@@ -392,7 +411,7 @@ describe("ReviewView", () => {
     mockedSession.mockResolvedValue([item(1, "give", "___ up")]);
     renderReview();
 
-    const input = await screen.findByRole("textbox", { name: "Ответ" });
+    const input = await screen.findByRole("textbox", { name: "Answer" });
     expect(input).toHaveFocus();
     expect(input).toHaveAttribute("autocomplete", "off");
     expect(input).toHaveAttribute("autocapitalize", "none");
@@ -404,20 +423,141 @@ describe("ReviewView", () => {
     });
 
     expect(mockedCheck).toHaveBeenCalledWith(1, expect.objectContaining({ typed: "пшму" }));
-    await grade(/^Хорошо/);
+    await grade(/^Good/);
     expect(mockedGrade).toHaveBeenCalledWith(1, expect.objectContaining({ typed: "пшму" }));
   });
 
-  it("hides audio without speechSynthesis", async () => {
-    mockedSession.mockResolvedValue([item(1, "give", "___ up", { intro: true, srs_due_at: null })]);
+  it("full card order: translations, explanation, usage, example, one line per family form", async () => {
+    const family = [
+      { word: "distinguishable", part_of_speech: "adjective", translation: "различимый" },
+      { word: "distinction", part_of_speech: "noun", translation: "различие" },
+    ];
+    const reviewItem = item(1, "distinguish", "___ up");
+    reviewItem.card.word_family = family;
+    mockedSession.mockResolvedValue([reviewItem]);
+    renderReview();
+
+    await answer("distinguish");
+    const panel = (await screen.findByRole("heading", { name: "distinguish" })).closest("div.review-card");
+    const text = panel!.textContent!;
+    const order = ["давать, дарить", "To hand something to someone.", "Usage", "She gave me a book.", "distinguishable"];
+    const positions = order.map((part) => text.indexOf(part));
+    expect(positions.every((pos) => pos >= 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+
+    const lines = within(panel as HTMLElement).getAllByRole("listitem").slice(-2);
+    expect(lines.map((line) => line.textContent)).toEqual([
+      "distinguishable (adjective) — различимый",
+      "distinction (noun) — различие",
+    ]);
+    expect(text).not.toContain("·");
+  });
+
+  it("asks for English on a translation prompt", async () => {
+    mockedSession.mockResolvedValue([
+      item(1, "give", "давать", { prompt: { kind: "translation", index: 0, masked: "давать", hint_translation: "" } }),
+    ]);
+    renderReview();
+
+    expect(await screen.findByRole("textbox", { name: "Answer" })).toHaveAttribute("placeholder", "Type in English");
+  });
+});
+
+describe("pronunciation", () => {
+  // jsdom has no createObjectURL; stubAudio installs one and afterEach removes it again.
+  const urlWithObjectUrl = URL as { createObjectURL?: (blob: Blob) => string };
+
+  beforeEach(() => {
+    mockedSummary.mockReset().mockResolvedValue(summary());
+    mockedSession.mockReset().mockResolvedValue([item(21, "give", "___ up", { intro: true, srs_due_at: null })]);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete urlWithObjectUrl.createObjectURL;
+  });
+
+  it("hides the speaker without server audio and speechSynthesis", async () => {
+    expect("speechSynthesis" in window).toBe(false);
     renderReview();
 
     expect(await screen.findByRole("heading", { name: "give" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Произнести" })).not.toBeInTheDocument();
-    cleanup();
+    expect(screen.queryByRole("button", { name: "Play pronunciation" })).not.toBeInTheDocument();
+  });
 
+  it("speaks the word in en-US on tap only, with an English voice", async () => {
     const speak = vi.fn();
-    vi.stubGlobal("speechSynthesis", { speak, cancel: vi.fn() });
+    const usVoice = { lang: "en-US", name: "Samantha" };
+    vi.stubGlobal("speechSynthesis", {
+      speak,
+      cancel: vi.fn(),
+      getVoices: () => [{ lang: "ru-RU", name: "Milena" }, { lang: "en-GB", name: "Daniel" }, usVoice],
+    });
+    vi.stubGlobal(
+      "SpeechSynthesisUtterance",
+      class {
+        lang = "";
+        voice: unknown = null;
+        constructor(readonly text: string) {}
+      },
+    );
+    renderReview();
+
+    const speaker = await screen.findByRole("button", { name: "Play pronunciation" });
+    expect(speak).not.toHaveBeenCalled();
+
+    fireEvent.click(speaker);
+    expect(speak).toHaveBeenCalledTimes(1);
+    expect(speak).toHaveBeenCalledWith(expect.objectContaining({ text: "give", lang: "en-US", voice: usVoice }));
+  });
+
+  function stubAudio(play: () => Promise<void>): string[] {
+    const sources: string[] = [];
+    vi.stubGlobal(
+      "Audio",
+      class {
+        constructor(src: string) {
+          sources.push(src);
+        }
+        play = play;
+      },
+    );
+    urlWithObjectUrl.createObjectURL = () => "blob:give";
+    return sources;
+  }
+
+  it("plays server audio on tap with one authorized request per card", async () => {
+    vi.stubGlobal("Telegram", { WebApp: { initData: "signed-init-data" } });
+    const fetchMock = vi.fn(async () => new Response(new Blob(["mp3"]), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const play = vi.fn(() => Promise.resolve());
+    const sources = stubAudio(play);
+    mockedSession.mockResolvedValue([item(31, "give", "___ up", { intro: true, srs_due_at: null })]);
+    renderReview({}, true);
+
+    // Shown without speechSynthesis; nothing is fetched or played before a tap.
+    const speaker = await screen.findByRole("button", { name: "Play pronunciation" });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    // A double tap shares one request and plays once (no echo).
+    fireEvent.click(speaker);
+    fireEvent.click(speaker);
+    await waitFor(() => expect(play).toHaveBeenCalledTimes(1));
+    // Once loaded, a tap plays at once from memory.
+    fireEvent.click(speaker);
+    expect(play).toHaveBeenCalledTimes(2);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // The word in the URL busts the HTTP cache when a card id is reused after a delete.
+    expect(fetchMock).toHaveBeenCalledWith("/api/cards/31/audio?v=give", {
+      headers: { "X-Telegram-Init-Data": "signed-init-data" },
+    });
+    expect(sources).toEqual(["blob:give", "blob:give"]);
+  });
+
+  it("falls back to speechSynthesis when server audio fails", async () => {
+    const speak = vi.fn();
+    vi.stubGlobal("speechSynthesis", { speak, cancel: vi.fn(), getVoices: () => [] });
     vi.stubGlobal(
       "SpeechSynthesisUtterance",
       class {
@@ -425,19 +565,29 @@ describe("ReviewView", () => {
         constructor(readonly text: string) {}
       },
     );
-    renderReview();
+    const fetchMock = vi.fn(async () => new Response('{"detail":"TTS failed"}', { status: 502 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const play = vi.fn(() => Promise.resolve());
+    stubAudio(play);
+    mockedSession.mockResolvedValue([item(32, "give", "___ up", { intro: true, srs_due_at: null })]);
+    renderReview({}, true);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Произнести" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Play pronunciation" }));
+
+    await waitFor(() => expect(speak).toHaveBeenCalledTimes(1));
     expect(speak).toHaveBeenCalledWith(expect.objectContaining({ text: "give", lang: "en-US" }));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(play).not.toHaveBeenCalled();
   });
 });
 
 describe("formatInterval", () => {
   it("rounds before picking the unit", () => {
-    expect(formatInterval(30)).toBe("<1 м");
-    expect(formatInterval(600)).toBe("10 м");
-    expect(formatInterval(3570)).toBe("1 ч");
-    expect(formatInterval(86000)).toBe("1 д");
-    expect(formatInterval(345600)).toBe("4 д");
+    expect(formatInterval(30)).toBe("<1m");
+    expect(formatInterval(600)).toBe("10m");
+    expect(formatInterval(3570)).toBe("1h");
+    expect(formatInterval(43200)).toBe("12h");
+    expect(formatInterval(86000)).toBe("1d");
+    expect(formatInterval(345600)).toBe("4d");
   });
 });

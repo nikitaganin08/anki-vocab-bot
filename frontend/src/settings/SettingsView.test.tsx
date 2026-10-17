@@ -43,19 +43,19 @@ describe("SettingsView", () => {
     mockedSave.mockImplementation(async (body) => body);
     renderSettings();
 
-    const newPerDay = await screen.findByLabelText("Новых в день");
+    const newPerDay = await screen.findByLabelText("New cards per day");
     expect(newPerDay).toHaveValue(10);
-    expect(screen.getByLabelText("Повторений в день")).toHaveValue(200);
-    expect(screen.getByLabelText("Целевое удержание")).toHaveValue("0.9");
-    expect(screen.getByLabelText("Напоминание (час)")).toHaveValue(9);
-    expect(screen.getByLabelText("Привязка")).toHaveValue("");
-    expect(screen.getByLabelText("Порог «учить» (0–10)")).toHaveValue(3);
-    expect(screen.getByLabelText("Часовой пояс")).toHaveValue("Europe/Moscow");
+    expect(screen.getByLabelText("Reviews per day")).toHaveValue(200);
+    expect(screen.getByLabelText("Target retention")).toHaveValue("0.9");
+    expect(screen.getByLabelText("Reminder (hour)")).toHaveValue(9);
+    expect(screen.getByLabelText("Reminder anchor")).toHaveValue("");
+    expect(screen.getByLabelText("Learn threshold (0–10)")).toHaveValue(3);
+    expect(screen.getByLabelText("Time zone")).toHaveValue("Europe/Moscow");
 
     fireEvent.change(newPerDay, { target: { value: "15" } });
-    fireEvent.change(screen.getByLabelText("Целевое удержание"), { target: { value: "0.88" } });
-    fireEvent.change(screen.getByLabelText("Привязка"), { target: { value: "  после кофе " } });
-    fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
+    fireEvent.change(screen.getByLabelText("Target retention"), { target: { value: "0.88" } });
+    fireEvent.change(screen.getByLabelText("Reminder anchor"), { target: { value: "  после кофе " } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(mockedSave).toHaveBeenCalledTimes(1));
     expect(mockedSave.mock.calls[0][0]).toEqual({
@@ -64,7 +64,7 @@ describe("SettingsView", () => {
       desired_retention: 0.88,
       reminder_anchor: "после кофе",
     });
-    expect(await screen.findByText("Сохранено")).toBeInTheDocument();
+    expect(await screen.findByText("Saved")).toBeInTheDocument();
   });
 
   it("keeps a stored retention outside the list", async () => {
@@ -72,12 +72,12 @@ describe("SettingsView", () => {
     mockedSave.mockImplementation(async (body) => body);
     renderSettings();
 
-    const retention = await screen.findByLabelText("Целевое удержание");
+    const retention = await screen.findByLabelText("Target retention");
     expect(retention).toHaveValue("0.97");
     expect(screen.getByRole("option", { name: "97 %" })).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Новых в день"), { target: { value: "7" } });
-    fireEvent.click(screen.getByRole("button", { name: "Сохранить" }));
+    fireEvent.change(screen.getByLabelText("New cards per day"), { target: { value: "7" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => expect(mockedSave).toHaveBeenCalledTimes(1));
     expect(mockedSave.mock.calls[0][0]).toEqual({ ...settings, desired_retention: 0.97, new_per_day: 7 });
@@ -87,11 +87,11 @@ describe("SettingsView", () => {
     mockedSave.mockRejectedValue(new ApiError("Value error, unknown timezone 'Mars/Base'", 422));
     renderSettings();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Сохранить" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Save" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Value error, unknown timezone 'Mars/Base'",
     );
-    expect(screen.queryByText("Сохранено")).not.toBeInTheDocument();
+    expect(screen.queryByText("Saved")).not.toBeInTheDocument();
   });
 });

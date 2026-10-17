@@ -3,26 +3,26 @@ import { CardDetails } from "./IntroCard";
 import type { CheckedAnswer } from "./useReviewSession";
 
 const GRADES = [
-  { rating: 1, label: "Снова" },
-  { rating: 2, label: "Трудно" },
-  { rating: 3, label: "Хорошо" },
-  { rating: 4, label: "Легко" },
+  { rating: 1, label: "Again" },
+  { rating: 2, label: "Hard" },
+  { rating: 3, label: "Good" },
+  { rating: 4, label: "Easy" },
 ];
 
-// Round first, then pick the unit: 3570 s is "1 ч", not "60 м".
+// Round first, then pick the unit: 3570 s is "1h", not "60m".
 export function formatInterval(seconds: number): string {
   if (seconds < 60) {
-    return "<1 м";
+    return "<1m";
   }
   const minutes = Math.round(seconds / 60);
   if (minutes < 60) {
-    return `${minutes} м`;
+    return `${minutes}m`;
   }
   const hours = Math.round(seconds / 3600);
   if (hours < 24) {
-    return `${hours} ч`;
+    return `${hours}h`;
   }
-  return `${Math.round(seconds / 86400)} д`;
+  return `${Math.round(seconds / 86400)}d`;
 }
 
 // Marks the part between the common prefix and suffix: enough to show where the slip is.
@@ -62,25 +62,25 @@ export function AnswerCard({ card, answer, busy, onGrade }: AnswerCardProps): JS
   return (
     <section className="review-screen">
       {result.verdict === "correct" ? (
-        <p className="review-verdict">✓ верно</p>
+        <p className="review-verdict">✓ correct</p>
       ) : result.verdict === "wrong" ? (
         <p className="review-verdict">
-          Ты: <s className="verdict-typed">{typed}</s> → верно:{" "}
+          You: <s className="verdict-typed">{typed}</s> → correct:{" "}
           <span className="verdict-expected">{result.expected}</span>
         </p>
       ) : (
         <p className="review-verdict">
-          Ты: <Diff text={typed} other={result.expected} /> → верно:{" "}
+          You: <Diff text={typed} other={result.expected} /> → correct:{" "}
           <Diff text={result.expected} other={typed} />
-          <span className="info-chip">опечатка</span>
+          <span className="info-chip">typo</span>
         </p>
       )}
 
-      <CardDetails card={card} full />
+      <CardDetails card={card} />
 
       {result.verdict === "wrong" ? (
         <button type="button" className="link-button" disabled={busy} onClick={() => onGrade(3, true)}>
-          Мой ответ верный
+          My answer was right
         </button>
       ) : null}
       <div className="grade-grid">
@@ -98,7 +98,7 @@ export function AnswerCard({ card, answer, busy, onGrade }: AnswerCardProps): JS
           </button>
         ))}
       </div>
-      <p className="section-label">Оценка выбрана автоматически, можно поменять</p>
+      <p className="section-label">Rating picked automatically — you can change it</p>
     </section>
   );
 }

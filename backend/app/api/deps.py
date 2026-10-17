@@ -9,6 +9,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.api.telegram_webapp_auth import parse_and_validate_init_data
 from app.clients.openrouter import OpenRouterClient
 from app.core.config import get_settings
+from app.services.pronunciation import GoogleTtsClient, TtsClient, YandexTtsClient
 
 _bearer = HTTPBearer()
 
@@ -33,6 +34,24 @@ def get_openrouter_client() -> OpenRouterClient:
     return OpenRouterClient(
         api_key=settings.openrouter_api_key,
         model=settings.llm_model,
+    )
+
+
+def is_tts_enabled() -> bool:
+    settings = get_settings()
+    return bool(settings.yandex_tts_api_key or settings.google_tts_api_key)
+
+
+def get_tts_client() -> TtsClient:
+    # Yandex wins when both keys are set (Google needs billing that is unavailable in Russia).
+    settings = get_settings()
+    if settings.yandex_tts_api_key:
+        return YandexTtsClient(api_key=settings.yandex_tts_api_key, voice=settings.yandex_tts_voice)
+    if settings.google_tts_api_key:
+        return GoogleTtsClient(api_key=settings.google_tts_api_key, voice=settings.google_tts_voice)
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Pronunciation is not configured",
     )
 
 

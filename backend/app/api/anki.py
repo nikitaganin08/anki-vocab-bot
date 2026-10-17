@@ -3,10 +3,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.cards import TtsClientDep, card_audio_response
 from app.api.deps import get_openrouter_client, require_anki_token
 from app.api.schemas import (
     AnkiAckRequest,
@@ -49,6 +50,11 @@ def get_pending(
         .all()
     )
     return [AnkiPendingCardResponse.from_card(c) for c in cards]
+
+
+@router.get("/cards/{card_id}/audio", response_class=Response)
+def get_card_audio(card_id: int, session: SessionDep, tts_client: TtsClientDep) -> Response:
+    return card_audio_response(session, card_id, tts_client)
 
 
 @router.post("/ack", status_code=status.HTTP_204_NO_CONTENT)

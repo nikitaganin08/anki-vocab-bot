@@ -7,7 +7,7 @@ import { Heatmap } from "./Heatmap";
 
 export interface ReviewMode {
   includeBacklog?: boolean;
-  // The session ends after this many graded cards ("Быстро", "5 минут").
+  // The session ends after this many graded cards ("Quick", "5 minutes").
   capCards?: number;
 }
 
@@ -15,18 +15,11 @@ interface HomeViewProps {
   onStart: (mode: ReviewMode) => void;
 }
 
-const CARD_FORMS: Record<string, string> = {
-  one: "карточка",
-  few: "карточки",
-  many: "карточек",
-  other: "карточки",
-};
-
 export function cardsLabel(count: number): string {
-  return `${count} ${CARD_FORMS[new Intl.PluralRules("ru").select(count)]}`;
+  return `${count} ${count === 1 ? "card" : "cards"}`;
 }
 
-// "5 минут": as many cards as fit in 5 minutes at today's pace, at least 5.
+// "5 minutes": as many cards as fit in 5 minutes at today's pace, at least 5.
 function fiveMinuteCap(summary: ReviewSummary): number {
   const perCard = summary.est_minutes / Math.max(summary.due_today + summary.new_today, 1);
   return perCard > 0 ? Math.max(5, Math.ceil(5 / perCard)) : 5;
@@ -37,13 +30,13 @@ function GoalCard({ summary, onStart }: { summary: ReviewSummary } & HomeViewPro
   return (
     <section className="surface-panel home-card">
       <h2>
-        Цель на сегодня: {cardsLabel(goal)} · ~{summary.est_minutes} мин
+        Today's goal: {cardsLabel(goal)} · ~{summary.est_minutes} min
       </h2>
       <button type="button" className="primary-button" onClick={() => onStart({})}>
-        Начать
+        Start
       </button>
       <button type="button" className="secondary-button" onClick={() => onStart({ capCards: 5 })}>
-        Быстро: 5 карточек
+        Quick: 5 cards
       </button>
     </section>
   );
@@ -52,24 +45,24 @@ function GoalCard({ summary, onStart }: { summary: ReviewSummary } & HomeViewPro
 function WelcomeBack({ summary, onStart }: { summary: ReviewSummary } & HomeViewProps): JSX.Element {
   return (
     <section className="surface-panel home-card">
-      <h2>С возвращением</h2>
-      <p className="section-label">Как сегодня?</p>
+      <h2>Welcome back</h2>
+      <p className="section-label">How about today?</p>
       <button
         type="button"
         className="primary-button"
         onClick={() => onStart({ capCards: fiveMinuteCap(summary) })}
       >
-        5 минут
+        5 minutes
       </button>
       <button type="button" className="secondary-button" onClick={() => onStart({})}>
-        Обычная сессия
+        Regular session
       </button>
       <button
         type="button"
         className="secondary-button"
         onClick={() => onStart({ includeBacklog: true })}
       >
-        Всё сразу ({summary.due_all})
+        All at once ({summary.due_all})
       </button>
     </section>
   );
@@ -85,7 +78,7 @@ export function HomeView({ onStart }: HomeViewProps): JSX.Element {
     return <ErrorState error={error} onRetry={() => void refetch()} />;
   }
   if (!data) {
-    return <LoadingState title="Главная" message="Загружаем цель на сегодня…" />;
+    return <LoadingState title="Home" message="Loading today's goal…" />;
   }
 
   const welcomeBack = data.days_away !== null && data.days_away >= 3 && data.due_all > 0;
@@ -102,31 +95,31 @@ export function HomeView({ onStart }: HomeViewProps): JSX.Element {
 
       <div className="stat-grid">
         <section className="surface-panel stat-tile">
-          <span className="section-label">Удержание за 30 дн.</span>
+          <span className="section-label">Retention (30 days)</span>
           <strong>{retention}</strong>
-          <span className="section-label">цель 90%</span>
+          <span className="section-label">goal 90%</span>
         </section>
         <section className="surface-panel stat-tile">
-          <span className="section-label">Выучено</span>
+          <span className="section-label">Learned</span>
           <strong>{data.learned_total}</strong>
-          <span className="section-label">+{data.learned_delta_7d} за неделю</span>
+          <span className="section-label">+{data.learned_delta_7d} this week</span>
         </section>
       </div>
 
       <section className="surface-panel home-activity">
-        <span className="section-label">Активность</span>
+        <span className="section-label">Activity</span>
         <Heatmap counts={data.heatmap} />
         {data.streak_days >= 3 ? (
           <p className="section-label">
-            серия {data.streak_days} дн. · лучшая {data.best_streak_days}
+            streak {data.streak_days} days · best {data.best_streak_days}
           </p>
         ) : null}
       </section>
 
       <p className="section-label">
-        Завтра ~{data.forecast_tomorrow} · неделя ~{data.forecast_week_avg}/день
+        Tomorrow ~{data.forecast_tomorrow} · week ~{data.forecast_week_avg}/day
       </p>
-      {data.backlog > 0 ? <p className="section-label">Отложено: {data.backlog}</p> : null}
+      {data.backlog > 0 ? <p className="section-label">Postponed: {data.backlog}</p> : null}
     </div>
   );
 }
