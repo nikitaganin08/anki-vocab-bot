@@ -97,13 +97,18 @@ jobs:
           echo "$response"
           echo "$response" | grep -q '"ok":true'
 
-      - name: Set Telegram bot commands
+      - name: Set Telegram bot profile and commands
+        # Telegram rate-limits profile edits; a failure here must not fail the deploy.
+        continue-on-error: true
         run: |
           set -euo pipefail
+          api="https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}"
+          post() { curl -sS --fail "$api/$1" -H "Content-Type: application/json" -d "$2" | grep -q '"ok":true'; }
+          post setMyName '{"name":"Wordloop"}'
+          post setMyShortDescription '{"short_description":"Английские слова связками: карточка за секунду и повторение по FSRS прямо в Telegram."}'
+          post setMyDescription '{"description":"Пришли слово, фразовый глагол или идиому — на английском или русском. Wordloop сделает карточку: перевод, транскрипция и живые связки вроде «give up smoking». Потом напомнит повторить, когда слово начнёт забываться.\n\n/review — повторить слова\n/admin — словарь, статистика и настройки\n/find — найти слово по описанию"}'
           commands='{"commands":[{"command":"review","description":"Повторить слова"},{"command":"admin","description":"Словарь, статистика и настройки"},{"command":"find","description":"Найти слово по описанию"}]}'
-          response=$(curl -sS --fail "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/setMyCommands" \
-            -H "Content-Type: application/json" -d "$commands")
-          echo "$response" | grep -q '"ok":true'
+          post setMyCommands "$commands"
 
       - name: Verify Telegram webhook
         run: |
