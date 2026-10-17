@@ -22,7 +22,7 @@ from app.clients.openrouter import OpenRouterClient, OpenRouterError
 from app.db.session import get_session
 from app.models.card import AnkiSyncStatus, Card, EntryType, SourceLanguage
 from app.services.card_service import apply_source_text
-from app.services.pronunciation import GoogleTtsClient, PronunciationAudioError
+from app.services.pronunciation import PronunciationAudioError, TtsClient
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +34,10 @@ router = APIRouter(
 
 SessionDep = Annotated[Session, Depends(get_session)]
 OpenRouterClientDep = Annotated[OpenRouterClient, Depends(get_openrouter_client)]
-TtsClientDep = Annotated[GoogleTtsClient, Depends(get_tts_client)]
+TtsClientDep = Annotated[TtsClient, Depends(get_tts_client)]
 
 
-def card_audio_response(session: Session, card_id: int, tts_client: GoogleTtsClient) -> Response:
+def card_audio_response(session: Session, card_id: int, tts_client: TtsClient) -> Response:
     """MP3 of the card's word, synthesized per request; the server keeps no copy."""
     card = session.get(Card, card_id)
     if card is None:

@@ -19,14 +19,22 @@ Review (SRS):
   `PATCH /api/cards/{id}` (`is_learning` toggle).
 
 Pronunciation:
-- Google Cloud Text-to-Speech, proxied by the backend: `GET /api/cards/{id}/audio` (Web App
-  auth) and `GET /api/anki/cards/{id}/audio` (bearer token) return an MP3 of `canonical_text`,
-  synthesized per request; nothing is stored on the server.
-- Set `GOOGLE_TTS_API_KEY` (optional `GOOGLE_TTS_VOICE`, default `en-US-Chirp3-HD-Aoede`) in
-  `.env`; without it the endpoints return 503, `GET /api/settings` reports
-  `tts_enabled: false` and the Mini App uses device `speechSynthesis`.
-- Chirp 3 HD is free up to 1M characters per month; set a quota for the Text-to-Speech API in
-  the GCP console.
+- Yandex SpeechKit or Google Cloud Text-to-Speech, proxied by the backend:
+  `GET /api/cards/{id}/audio` (Web App auth) and `GET /api/anki/cards/{id}/audio` (bearer token)
+  return an MP3 of `canonical_text`, synthesized per request; nothing is stored on the server.
+- Provider selection: `YANDEX_TTS_API_KEY` set -> Yandex (optional `YANDEX_TTS_VOICE`, default
+  `john`, the only English SpeechKit voice); else `GOOGLE_TTS_API_KEY` set -> Google (optional
+  `GOOGLE_TTS_VOICE`, default `en-US-Chirp3-HD-Aoede`). If both are set, Yandex wins. With
+  neither, the endpoints return 503, `GET /api/settings` reports `tts_enabled: false` and the
+  Mini App uses device `speechSynthesis`.
+- Yandex price: about 1342 RUB per 1M characters including VAT; the whole 1.1k-word deck is
+  about 20 RUB. Yandex setup: create a Yandex Cloud account and a billing account, create a
+  service account with the role `ai.speechkit-tts.user`, create an API key for it, put
+  `YANDEX_TTS_API_KEY` in `/opt/anki-vocab-bot/.env` on the VPS, then `docker compose up -d app`.
+- Not verified live yet: `lang=en-US` with voice `john` is documented only on the SpeechKit
+  voices page. Check one `GET /api/cards/{id}/audio` after setting the key.
+- Google: Chirp 3 HD is free up to 1M characters per month; set a quota for the
+  Text-to-Speech API in the GCP console. Needs a billing account.
 - The day starts at midnight in `app_settings.timezone` (default `Europe/Moscow`); the Mini App
   saves the device timezone on load when it differs (manual override in Settings).
 - A daily reminder loop runs in the FastAPI lifespan when `TELEGRAM_BOT_TOKEN` is set; set
@@ -64,7 +72,7 @@ Idempotency policy:
 - if found, sync acknowledges the existing note id instead of creating duplicate
 - pronunciation audio is downloaded from `GET /api/anki/cards/<card_id>/audio` and uploaded to
   Anki media as `avb-pronunciation-<card_id>.mp3`; best-effort: on any audio failure (e.g. 503
-  before `GOOGLE_TTS_API_KEY` is set) the note is added with an empty `PronunciationAudio`
+  before a TTS key is set) the note is added with an empty `PronunciationAudio`
   field, one warning with the cause is logged and the rest of the run skips audio
 
 ## Anki import

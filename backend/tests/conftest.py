@@ -33,6 +33,8 @@ class TelegramSettingsStub:
     anki_sync_token: str | None = "sync-token"
     google_tts_api_key: str | None = None
     google_tts_voice: str = "en-US-Chirp3-HD-Aoede"
+    yandex_tts_api_key: str | None = None
+    yandex_tts_voice: str = "john"
 
 
 @pytest.fixture

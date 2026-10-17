@@ -213,7 +213,7 @@ class AppSettingsPayload(BaseModel):
 
 
 class AppSettingsResponse(AppSettingsPayload):
-    tts_enabled: bool  # read-only: GOOGLE_TTS_API_KEY is set
+    tts_enabled: bool  # read-only: YANDEX_TTS_API_KEY or GOOGLE_TTS_API_KEY is set
 
 
 class AnkiAckRequest(BaseModel):

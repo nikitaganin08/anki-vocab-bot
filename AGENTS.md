@@ -256,7 +256,7 @@ Validation rules:
 - `POST /api/review/{card_id}/grade` (409 on a stale `expected_due_at`)
 - `POST /api/review/undo`
 - `GET /api/cards/{card_id}/audio` (MP3 of `canonical_text`, see "Pronunciation")
-- `GET /api/settings` (also read-only `tts_enabled`: `GOOGLE_TTS_API_KEY` is set)
+- `GET /api/settings` (also read-only `tts_enabled`: `YANDEX_TTS_API_KEY` or `GOOGLE_TTS_API_KEY` is set)
 - `PUT /api/settings` (`tts_enabled` is not required and is ignored)
 
 ### Telegram Webhook API
@@ -307,17 +307,20 @@ Production exposure (`deploy/nginx/anki.conf`):
 Mapping:
 - `Word` -> `canonical_text_normalized` (lowercased, whitespace-collapsed `canonical_text`)
 - `Transcription` -> `transcription`
-- `PronunciationAudio` -> `[sound:avb-pronunciation-<card_id>.mp3]`; `sync_anki` downloads the MP3 from `GET /api/anki/cards/{card_id}/audio` and uploads it to Anki media. Best-effort: on any audio failure (including 503 before the key is set) the note is still added with an empty field and the card is acked; the run logs one warning with the cause and stops requesting audio
+- `PronunciationAudio` -> `[sound:avb-pronunciation-<card_id>.mp3]`; `sync_anki` downloads the MP3 from `GET /api/anki/cards/{card_id}/audio` and uploads it to Anki media. Best-effort: on any audio failure (including 503 before a TTS key is set) the note is still added with an empty field and the card is acked; the run logs one warning with the cause and stops requesting audio
 - `Translation` -> comma-joined translations
 - `Explanation` -> `explanation`
 - `Example` -> chunk lines (`text — translation`), blank line, first English example, then the word family block
 
 ## Pronunciation
 
-- Google Cloud Text-to-Speech (`app/services/pronunciation.py`, `GoogleTtsClient`), proxied by the backend: `GET /api/cards/{card_id}/audio` (Web App auth) and `GET /api/anki/cards/{card_id}/audio` (bearer token) synthesize `canonical_text` per request and return `audio/mpeg` with `Cache-Control: private, max-age=31536000, immutable`. Nothing is stored on the server
-- Inert until `GOOGLE_TTS_API_KEY` is set: 503 `Pronunciation is not configured`; unknown card 404; Google failure 502 (cause logged)
+- Two providers behind one interface (`app/services/pronunciation.py`: `TtsClient.synthesize(text) -> bytes`, `PronunciationAudioError` on any failure): `YandexTtsClient` (Yandex SpeechKit v1) and `GoogleTtsClient` (Google Cloud Text-to-Speech). Proxied by the backend: `GET /api/cards/{card_id}/audio` (Web App auth) and `GET /api/anki/cards/{card_id}/audio` (bearer token) synthesize `canonical_text` per request and return `audio/mpeg` with `Cache-Control: private, max-age=31536000, immutable`. Nothing is stored on the server
+- Provider selection (`get_tts_client` in `app/api/deps.py`): `YANDEX_TTS_API_KEY` set -> Yandex; else `GOOGLE_TTS_API_KEY` set -> Google; both set -> Yandex wins. `tts_enabled` is true when either key is set
+- Inert until a key is set: 503 `Pronunciation is not configured`; unknown card 404; provider failure 502 (cause logged)
+- Yandex request: `POST https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize`, header `Authorization: Api-Key <key>`, form fields `text`, `lang=en-US`, `voice` (default `john`, the only English voice), `format=mp3`; no `folderId` with a service-account API key; the response body is raw MP3. Not verified live yet: `lang=en-US` with `john` is documented only on the SpeechKit voices page
+- Yandex setup: Yandex Cloud account, billing account, service account with role `ai.speechkit-tts.user`, an API key for it; put `YANDEX_TTS_API_KEY` in `/opt/anki-vocab-bot/.env`, then `docker compose up -d app`
 - Mini App: the first tap per card fetches the MP3 once per page load (object URL kept in memory, double taps share the request) and plays it with `new Audio`; on any failure, or without the key, it falls back to `speechSynthesis` (`en-US`, an English voice when listed), else stays silent
-- Cost: Chirp 3 HD has a free tier of 1M characters per month (a word is ~10 characters); set a quota on the Text-to-Speech API in the GCP console so a bug cannot run up a bill
+- Cost: Yandex SpeechKit is about 1342 RUB per 1M characters including VAT (the whole 1.1k-word deck is about 20 RUB). Google Chirp 3 HD has a free tier of 1M characters per month (a word is ~10 characters); set a quota on the Text-to-Speech API in the GCP console so a bug cannot run up a bill
 
 Deck import (`app/scripts/import_anki.py`, one-off): notes of `English::Inbox` are posted to `POST /api/anki/import`; tagged notes link to their card, others are matched by canonical text or created via the LLM pipeline. Review cards get stability = interval, difficulty from ease, due = last review + interval; suspended notes are not learning; imported cards are marked `synced` so `sync_anki` does not push them again.
 
@@ -335,7 +338,9 @@ Required environment variables:
 - `LLM_MODEL` (default: `google/gemini-2.5-flash-lite`)
 
 Optional:
-- `GOOGLE_TTS_API_KEY` (Google Cloud Text-to-Speech; unset = pronunciation endpoints return 503)
+- `YANDEX_TTS_API_KEY` (Yandex SpeechKit; takes precedence over Google when both are set)
+- `YANDEX_TTS_VOICE` (default: `john`, the only English voice)
+- `GOOGLE_TTS_API_KEY` (Google Cloud Text-to-Speech; with neither key set, pronunciation endpoints return 503)
 - `GOOGLE_TTS_VOICE` (default: `en-US-Chirp3-HD-Aoede`; the language code is taken from the name)
 - `DISABLE_REMINDERS=1` turns off the reminder loop (set in tests)
 

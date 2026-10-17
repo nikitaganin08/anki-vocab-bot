@@ -43,6 +43,8 @@ class Settings(BaseSettings):
     llm_model: str = Field(default="google/gemini-2.5-flash-lite", alias="LLM_MODEL")
     google_tts_api_key: str | None = Field(default=None, alias="GOOGLE_TTS_API_KEY")
     google_tts_voice: str = Field(default="en-US-Chirp3-HD-Aoede", alias="GOOGLE_TTS_VOICE")
+    yandex_tts_api_key: str | None = Field(default=None, alias="YANDEX_TTS_API_KEY")
+    yandex_tts_voice: str = Field(default="john", alias="YANDEX_TTS_VOICE")
 
     model_config = SettingsConfigDict(
         env_file=str(REPO_ROOT / ".env"),

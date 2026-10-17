@@ -78,7 +78,7 @@ def sync_pending_cards(
             summary.synced += 1
             continue
 
-        # Audio is best-effort (503 until GOOGLE_TTS_API_KEY is set): the note matters more.
+        # Audio is best-effort (503 until a TTS key is set): the note matters more.
         audio_bytes: bytes | None = None
         if not audio_down:
             try:
