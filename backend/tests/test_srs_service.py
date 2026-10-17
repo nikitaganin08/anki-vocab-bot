@@ -425,3 +425,32 @@ def test_day_scale_due_dates_are_available_from_start_of_study_day(session: Sess
 
     assert served == {review_today.id, interday.id}
     assert build_summary(session, settings, NOW).due_today == 2
+
+
+def test_daily_cap_takes_most_overdue_reviews_first(session: Session) -> None:
+    settings = get_app_settings(session)
+    settings.reviews_per_day = 1
+    session.commit()
+    overdue = _schedule(
+        session, _add(session, "overdue"), State.Review, NOW - timedelta(days=10), stability=5.0
+    )
+    _schedule(session, _add(session, "later today"), State.Review, NOW + timedelta(hours=8))
+
+    served = [item.card.id for item in build_session(session, settings, NOW, size=10)]
+
+    assert served == [overdue.id]
+
+
+def test_lookahead_does_not_cross_into_next_study_day(session: Session) -> None:
+    settings = get_app_settings(session)
+    before_four = datetime(2026, 10, 21, 0, 50, tzinfo=UTC)  # 03:50 Moscow
+    _schedule(
+        session,
+        _add(session, "after four"),
+        State.Learning,
+        before_four + timedelta(minutes=15),  # 04:05 Moscow, next study day
+        last_review=before_four - timedelta(minutes=5),
+    )
+
+    assert build_session(session, settings, before_four, size=10) == []
+    assert build_summary(session, settings, before_four).due_today == 0

@@ -92,12 +92,12 @@ def is_due(card: Card, now: datetime, start: datetime, end: datetime) -> bool:
     are due all day; intraday learning steps keep their exact time (+ look-ahead).
     """
     due = as_utc(card.srs_due_at)
-    if card.srs_state == "review":
-        return due < end
-    if due <= now + LEARNING_LOOKAHEAD:
+    if due >= end:
+        return False
+    if card.srs_state == "review" or due <= now + LEARNING_LOOKAHEAD:
         return True
     last_review = load_fsrs_card(card).last_review
-    return due < end and (last_review is None or as_utc(last_review) < start)
+    return last_review is None or as_utc(last_review) < start
 
 
 @dataclass(slots=True)
@@ -152,12 +152,15 @@ def build_session(
         due = session.scalars(
             learning_cards.where(Card.srs_state == "review", Card.srs_due_at < end)
         ).all()
-        due = sorted(
-            due,
+        # The daily cap takes the most overdue first so nothing starves in the backlog;
+        # the round itself starts with the easiest (warm-up).
+        due = sorted(due, key=lambda c: (as_utc(c.srs_due_at), c.id))
+        picked = due if include_backlog else due[:reviews_left]
+        reviews = sorted(
+            picked,
             key=lambda c: scheduler.get_card_retrievability(load_fsrs_card(c), now),
             reverse=True,
         )
-        reviews = due if include_backlog else due[:reviews_left]
 
     # A log with no previous state is a card's first answer, i.e. a new card introduced.
     new_left = settings.new_per_day - _logs_today(

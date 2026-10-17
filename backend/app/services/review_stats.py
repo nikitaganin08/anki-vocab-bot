@@ -104,8 +104,9 @@ def build_summary(session: Session, settings: AppSettings, now: datetime) -> Rev
                 due_reviews += 1
             else:
                 due_learning += 1
-        else:
-            upcoming.append(_study_day(as_utc(card.srs_due_at), tz))
+        elif (day := _study_day(as_utc(card.srs_due_at), tz)) > today:
+            # Intraday learning steps due later today are neither due now nor tomorrow.
+            upcoming.append(day)
 
     today_logs = [log for log in logs if start <= as_utc(log.reviewed_at) < end]
     reviews_done = sum(log.state_before == "review" for log in today_logs)

@@ -227,3 +227,11 @@ def test_forecast_tomorrow_and_week(session: Session) -> None:
     # Review cards due later today count today (study day starts at 04:00), like Anki.
     assert summary.due_today == 2
     assert (summary.forecast_tomorrow, summary.forecast_week_avg) == (1, 1)
+
+
+def test_forecast_skips_learning_steps_due_later_today(session: Session) -> None:
+    _add(session, "hard step", "learning", NOW + timedelta(hours=6))  # still today, intraday
+
+    summary = build_summary(session, get_app_settings(session), NOW)
+
+    assert (summary.due_today, summary.forecast_tomorrow) == (0, 0)
