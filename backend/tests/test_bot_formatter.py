@@ -28,7 +28,7 @@ def _make_card(translations: list[str]) -> Card:
         ],
         frequency=4,
         frequency_note="Common in everyday English.",
-        eligible_for_anki=True,
+        is_learning=True,
         llm_model="test-model",
     )
 

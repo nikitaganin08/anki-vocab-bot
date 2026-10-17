@@ -29,7 +29,7 @@ def get_pending(
     cards = (
         session.execute(
             select(Card)
-            .where(Card.eligible_for_anki == True)  # noqa: E712
+            .where(Card.is_learning == True)  # noqa: E712
             .where(Card.anki_sync_status.in_(retryable_statuses))
             # New cards first, so permanently failing ones cannot starve the queue.
             .order_by(Card.anki_sync_status == AnkiSyncStatus.FAILED, Card.created_at.asc())

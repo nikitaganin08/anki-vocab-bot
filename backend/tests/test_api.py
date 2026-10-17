@@ -1,125 +1,25 @@
 from __future__ import annotations
 
-from collections.abc import Generator
 from dataclasses import dataclass, field
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-from sqlalchemy.pool import StaticPool
 
 import app.api.deps as deps_mod
-from app.api.deps import get_openrouter_client, get_telegram_sender, require_anki_token
+from app.api.deps import get_openrouter_client, get_telegram_sender
 from app.clients.openrouter import OpenRouterError
-from app.db.base import Base
-from app.db.session import get_session
 from app.main import app
 from app.models.card import AnkiSyncStatus, Card
 from app.schemas.llm import AcceptedLlmResponse, RejectedLlmResponse
 
-from .telegram_webapp_test_helpers import build_telegram_init_data
-
-TELEGRAM_BOT_TOKEN = "telegram-bot-token"
-TELEGRAM_ALLOWED_USER_ID = 42
-
-
-@dataclass
-class TelegramSettingsStub:
-    telegram_bot_token: str = TELEGRAM_BOT_TOKEN
-    telegram_allowed_user_id: int = TELEGRAM_ALLOWED_USER_ID
-    anki_sync_token: str | None = "sync-token"
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def session() -> Generator[Session, None, None]:
-    engine = create_engine(
-        "sqlite+pysqlite:///:memory:",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    with Session(engine) as s:
-        yield s
-    engine.dispose()
-
-
-def _session_override(session: Session):  # type: ignore[no-untyped-def]
-    """Return a FastAPI dependency that always yields the given session."""
-
-    def _override() -> Generator[Session, None, None]:
-        yield session
-
-    return _override
-
-
-@pytest.fixture
-def client(session: Session) -> Generator[TestClient, None, None]:
-    app.dependency_overrides[get_session] = _session_override(session)
-    original_get_settings = deps_mod.get_settings
-    deps_mod.get_settings = lambda: TelegramSettingsStub()
-    try:
-        yield TestClient(app)
-    finally:
-        deps_mod.get_settings = original_get_settings
-        app.dependency_overrides.clear()
-
-
-@pytest.fixture
-def authed_client(session: Session) -> Generator[TestClient, None, None]:
-    """Client with both session and anki auth overridden."""
-    app.dependency_overrides[get_session] = _session_override(session)
-    app.dependency_overrides[require_anki_token] = lambda: None
-    original_get_settings = deps_mod.get_settings
-    deps_mod.get_settings = lambda: TelegramSettingsStub()
-    try:
-        yield TestClient(app)
-    finally:
-        deps_mod.get_settings = original_get_settings
-        app.dependency_overrides.clear()
-
-
-def telegram_headers() -> dict[str, str]:
-    return {
-        "X-Telegram-Init-Data": build_telegram_init_data(
-            bot_token=TELEGRAM_BOT_TOKEN,
-            user_id=TELEGRAM_ALLOWED_USER_ID,
-        )
-    }
-
-
-def mobile_headers() -> dict[str, str]:
-    return {"Authorization": "Bearer sync-token"}
-
-
-def _make_card(**overrides: object) -> Card:
-    defaults: dict[str, object] = dict(
-        source_text="take off",
-        source_language="en",
-        entry_type="phrasal_verb",
-        canonical_text="take off",
-        canonical_text_normalized="take off",
-        transcription="/teɪk ɒf/",
-        translation_variants_json=["взлетать", "снимать", "резко начинаться"],
-        explanation="To leave the ground, or to remove something.",
-        examples_json=[
-            "The plane took off at noon.",
-            "Take off your shoes, please.",
-            "Her career really took off last year.",
-        ],
-        frequency=5,
-        frequency_note="Very common.",
-        eligible_for_anki=True,
-        anki_sync_status=AnkiSyncStatus.PENDING,
-        llm_model="test-model",
-    )
-    defaults.update(overrides)
-    return Card(**defaults)  # type: ignore[arg-type]
+from .conftest import (
+    TELEGRAM_ALLOWED_USER_ID,
+    TELEGRAM_BOT_TOKEN,
+    make_card,
+    mobile_headers,
+    telegram_headers,
+)
 
 
 def _make_accepted_llm_response(
@@ -187,7 +87,7 @@ def test_list_cards_empty(client: TestClient) -> None:
 
 
 def test_list_cards_returns_card(client: TestClient, session: Session) -> None:
-    session.add(_make_card())
+    session.add(make_card())
     session.commit()
 
     resp = client.get("/api/cards", headers=telegram_headers())
@@ -207,7 +107,7 @@ def test_list_cards_returns_card(client: TestClient, session: Session) -> None:
 
 def test_list_cards_pagination(client: TestClient, session: Session) -> None:
     for i in range(5):
-        session.add(_make_card(source_text=f"word{i}", canonical_text_normalized=f"word{i}"))
+        session.add(make_card(source_text=f"word{i}", canonical_text_normalized=f"word{i}"))
     session.commit()
 
     resp = client.get("/api/cards?limit=2&offset=0", headers=telegram_headers())
@@ -224,9 +124,9 @@ def test_list_cards_pagination(client: TestClient, session: Session) -> None:
 
 
 def test_list_cards_filter_source_language(client: TestClient, session: Session) -> None:
-    session.add(_make_card(source_language="en", canonical_text_normalized="take off"))
+    session.add(make_card(source_language="en", canonical_text_normalized="take off"))
     session.add(
-        _make_card(
+        make_card(
             source_text="снять",
             source_language="ru",
             canonical_text="take off ru",
@@ -243,8 +143,8 @@ def test_list_cards_filter_source_language(client: TestClient, session: Session)
 
 
 def test_list_cards_filter_entry_type(client: TestClient, session: Session) -> None:
-    session.add(_make_card(entry_type="word", canonical_text_normalized="word1"))
-    session.add(_make_card(entry_type="idiom", canonical_text_normalized="idiom1"))
+    session.add(make_card(entry_type="word", canonical_text_normalized="word1"))
+    session.add(make_card(entry_type="idiom", canonical_text_normalized="idiom1"))
     session.commit()
 
     resp = client.get("/api/cards?entry_type=idiom", headers=telegram_headers())
@@ -254,8 +154,8 @@ def test_list_cards_filter_entry_type(client: TestClient, session: Session) -> N
 
 
 def test_list_cards_filter_anki_sync_status(client: TestClient, session: Session) -> None:
-    session.add(_make_card(anki_sync_status=AnkiSyncStatus.PENDING, canonical_text_normalized="a"))
-    session.add(_make_card(anki_sync_status=AnkiSyncStatus.SYNCED, canonical_text_normalized="b"))
+    session.add(make_card(anki_sync_status=AnkiSyncStatus.PENDING, canonical_text_normalized="a"))
+    session.add(make_card(anki_sync_status=AnkiSyncStatus.SYNCED, canonical_text_normalized="b"))
     session.commit()
 
     resp = client.get("/api/cards?anki_sync_status=synced", headers=telegram_headers())
@@ -264,21 +164,21 @@ def test_list_cards_filter_anki_sync_status(client: TestClient, session: Session
     assert data["items"][0]["anki_sync_status"] == "synced"
 
 
-def test_list_cards_filter_eligible_for_anki(client: TestClient, session: Session) -> None:
-    session.add(_make_card(eligible_for_anki=True, canonical_text_normalized="a"))
-    session.add(_make_card(eligible_for_anki=False, canonical_text_normalized="b"))
+def test_list_cards_filter_is_learning(client: TestClient, session: Session) -> None:
+    session.add(make_card(is_learning=True, canonical_text_normalized="a"))
+    session.add(make_card(is_learning=False, canonical_text_normalized="b"))
     session.commit()
 
-    resp = client.get("/api/cards?eligible_for_anki=false", headers=telegram_headers())
+    resp = client.get("/api/cards?is_learning=false", headers=telegram_headers())
     data = resp.json()
     assert data["total"] == 1
-    assert data["items"][0]["eligible_for_anki"] is False
+    assert data["items"][0]["is_learning"] is False
 
 
 def test_list_cards_search(client: TestClient, session: Session) -> None:
-    session.add(_make_card(canonical_text="take off", canonical_text_normalized="take off"))
+    session.add(make_card(canonical_text="take off", canonical_text_normalized="take off"))
     session.add(
-        _make_card(
+        make_card(
             source_text="run away",
             canonical_text="run away",
             canonical_text_normalized="run away",
@@ -299,14 +199,14 @@ def test_list_cards_search(client: TestClient, session: Session) -> None:
 
 def test_batch_import_mixed_statuses(client: TestClient, session: Session) -> None:
     session.add(
-        _make_card(
+        make_card(
             source_text="turn down",
             canonical_text="turn down",
             canonical_text_normalized="turn down",
         )
     )
     session.add(
-        _make_card(
+        make_card(
             source_text="seed source",
             canonical_text="break down",
             canonical_text_normalized="break down",
@@ -566,7 +466,7 @@ def test_mobile_lookup_requires_bearer_token(client: TestClient) -> None:
 
 
 def test_delete_card(client: TestClient, session: Session) -> None:
-    card = _make_card()
+    card = make_card()
     session.add(card)
     session.commit()
     session.refresh(card)
@@ -622,28 +522,28 @@ def test_anki_pending_empty(authed_client: TestClient) -> None:
     assert resp.json() == []
 
 
-def test_anki_pending_returns_eligible_cards(authed_client: TestClient, session: Session) -> None:
-    session.add(_make_card(eligible_for_anki=True, anki_sync_status=AnkiSyncStatus.PENDING))
+def test_anki_pending_returns_learning_cards(authed_client: TestClient, session: Session) -> None:
+    session.add(make_card(is_learning=True, anki_sync_status=AnkiSyncStatus.PENDING))
     session.add(
-        _make_card(
-            eligible_for_anki=True,
+        make_card(
+            is_learning=True,
             anki_sync_status=AnkiSyncStatus.FAILED,
             canonical_text="failed word",
             canonical_text_normalized="failed word",
         )
     )
-    # not eligible — should be excluded
+    # not learning — should be excluded
     session.add(
-        _make_card(
-            eligible_for_anki=False,
+        make_card(
+            is_learning=False,
             anki_sync_status=AnkiSyncStatus.PENDING,
             canonical_text_normalized="other",
         )
     )
     # already synced — should be excluded
     session.add(
-        _make_card(
-            eligible_for_anki=True,
+        make_card(
+            is_learning=True,
             anki_sync_status=AnkiSyncStatus.SYNCED,
             canonical_text_normalized="synced",
         )
@@ -666,14 +566,14 @@ def test_anki_pending_puts_new_cards_before_failed_ones(
     session: Session,
 ) -> None:
     session.add(
-        _make_card(
+        make_card(
             anki_sync_status=AnkiSyncStatus.FAILED,
             canonical_text="old failure",
             canonical_text_normalized="old failure",
         )
     )
     session.commit()
-    session.add(_make_card(canonical_text="fresh", canonical_text_normalized="fresh"))
+    session.add(make_card(canonical_text="fresh", canonical_text_normalized="fresh"))
     session.commit()
 
     resp = authed_client.get("/api/anki/pending?limit=1")
@@ -684,8 +584,8 @@ def test_anki_pending_puts_new_cards_before_failed_ones(
 def test_anki_pending_limit(authed_client: TestClient, session: Session) -> None:
     for i in range(5):
         session.add(
-            _make_card(
-                eligible_for_anki=True,
+            make_card(
+                is_learning=True,
                 anki_sync_status=AnkiSyncStatus.PENDING,
                 canonical_text_normalized=f"word{i}",
             )
@@ -703,7 +603,7 @@ def test_anki_pending_limit(authed_client: TestClient, session: Session) -> None
 
 
 def test_anki_ack_updates_card(authed_client: TestClient, session: Session) -> None:
-    card = _make_card()
+    card = make_card()
     session.add(card)
     session.commit()
     session.refresh(card)
@@ -734,7 +634,7 @@ def test_anki_ack_not_found(authed_client: TestClient) -> None:
 
 
 def test_anki_fail_updates_card(authed_client: TestClient, session: Session) -> None:
-    card = _make_card()
+    card = make_card()
     session.add(card)
     session.commit()
     session.refresh(card)

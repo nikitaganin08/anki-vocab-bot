@@ -17,7 +17,7 @@ const PAGE_SIZE = 20;
 // Each item is a sequential LLM call; keep requests well under the proxy timeout.
 const BATCH_CHUNK_SIZE = 5;
 
-type EligibleFilter = "all" | "true" | "false";
+type LearningFilter = "all" | "true" | "false";
 
 interface BatchProgress {
   processed: number;
@@ -118,14 +118,14 @@ function hasActiveFilters(
   sourceLanguage: SourceLanguage | "",
   entryType: EntryType | "",
   ankiStatus: AnkiSyncStatus | "",
-  eligible: EligibleFilter,
+  learning: LearningFilter,
 ): boolean {
   return (
     search.length > 0 ||
     sourceLanguage.length > 0 ||
     entryType.length > 0 ||
     ankiStatus.length > 0 ||
-    eligible !== "all"
+    learning !== "all"
   );
 }
 
@@ -149,7 +149,7 @@ export function CardsPage(): JSX.Element {
   const sourceLanguage = (searchParams.get("source_language") ?? "") as SourceLanguage | "";
   const entryType = (searchParams.get("entry_type") ?? "") as EntryType | "";
   const ankiStatus = (searchParams.get("anki_sync_status") ?? "") as AnkiSyncStatus | "";
-  const eligible = (searchParams.get("eligible_for_anki") ?? "all") as EligibleFilter;
+  const learning = (searchParams.get("is_learning") ?? "all") as LearningFilter;
   const [searchDraft, setSearchDraft] = useState(search);
   const [batchInput, setBatchInput] = useState("");
   const [batchValidationError, setBatchValidationError] = useState<string | null>(null);
@@ -158,7 +158,7 @@ export function CardsPage(): JSX.Element {
   const [batchResponse, setBatchResponse] = useState<CardBatchImportResponse | null>(null);
   const [pendingDeleteCard, setPendingDeleteCard] = useState<Card | null>(null);
   const [filtersExpanded, setFiltersExpanded] = useState(
-    hasActiveFilters(search, sourceLanguage, entryType, ankiStatus, eligible),
+    hasActiveFilters(search, sourceLanguage, entryType, ankiStatus, learning),
   );
 
   useEffect(() => {
@@ -166,7 +166,7 @@ export function CardsPage(): JSX.Element {
   }, [search]);
 
   const cardsQuery = useQuery({
-    queryKey: ["cards", { page, search, sourceLanguage, entryType, ankiStatus, eligible }],
+    queryKey: ["cards", { page, search, sourceLanguage, entryType, ankiStatus, learning }],
     queryFn: () =>
       getCards({
         offset: (page - 1) * PAGE_SIZE,
@@ -175,7 +175,7 @@ export function CardsPage(): JSX.Element {
         source_language: sourceLanguage || undefined,
         entry_type: entryType || undefined,
         anki_sync_status: ankiStatus || undefined,
-        eligible_for_anki: eligible === "all" ? undefined : eligible === "true",
+        is_learning: learning === "all" ? undefined : learning === "true",
       }),
   });
 
@@ -254,7 +254,7 @@ export function CardsPage(): JSX.Element {
 
   const total = cardsQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const filtersOpen = hasActiveFilters(search, sourceLanguage, entryType, ankiStatus, eligible);
+  const filtersOpen = hasActiveFilters(search, sourceLanguage, entryType, ankiStatus, learning);
 
   return (
     <section className="cards-page">
@@ -419,12 +419,12 @@ export function CardsPage(): JSX.Element {
             </label>
 
             <label>
-              Eligible for Anki
+              Learning
               <select
-                value={eligible}
+                value={learning}
                 onChange={(event) =>
                   updateParams({
-                    eligible_for_anki: event.target.value === "all" ? null : event.target.value,
+                    is_learning: event.target.value === "all" ? null : event.target.value,
                   })
                 }
               >
@@ -493,8 +493,8 @@ export function CardsPage(): JSX.Element {
                     <strong>{card.frequency}</strong>
                   </p>
                   <p>
-                    <span>Eligible</span>
-                    <strong>{card.eligible_for_anki ? "yes" : "no"}</strong>
+                    <span>Learning</span>
+                    <strong>{card.is_learning ? "yes" : "no"}</strong>
                   </p>
                   <p>
                     <span>Created</span>

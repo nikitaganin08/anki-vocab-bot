@@ -23,7 +23,7 @@ class CardResponse(BaseModel):
     examples: list[str]
     frequency: int
     frequency_note: str | None
-    eligible_for_anki: bool
+    is_learning: bool
     anki_sync_status: AnkiSyncStatus
     anki_note_id: int | None
     anki_sync_error: str | None
@@ -47,7 +47,7 @@ class CardResponse(BaseModel):
             examples=c.examples_json,
             frequency=c.frequency,
             frequency_note=c.frequency_note,
-            eligible_for_anki=c.eligible_for_anki,
+            is_learning=c.is_learning,
             anki_sync_status=c.anki_sync_status,
             anki_note_id=c.anki_note_id,
             anki_sync_error=c.anki_sync_error,
@@ -118,7 +118,7 @@ class MobileCardPreview(BaseModel):
     examples: list[str]
     frequency: int
     frequency_note: str | None
-    eligible_for_anki: bool
+    is_learning: bool
 
     @classmethod
     def from_card(cls, c: Card) -> "MobileCardPreview":
@@ -132,7 +132,7 @@ class MobileCardPreview(BaseModel):
             examples=c.examples_json[:3],
             frequency=c.frequency,
             frequency_note=c.frequency_note,
-            eligible_for_anki=c.eligible_for_anki,
+            is_learning=c.is_learning,
         )
 
 

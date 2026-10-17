@@ -82,7 +82,7 @@ def test_card_service_creates_new_card(session: Session) -> None:
 
     assert result.status == "created"
     assert result.card is not None
-    assert result.card.eligible_for_anki is True
+    assert result.card.is_learning is True
     assert result.card.source_text == "take off"
     assert result.card.canonical_text_normalized == "take off"
     assert result.card.word_family_json == [
@@ -109,7 +109,7 @@ def test_card_service_returns_duplicate_source_without_llm_call(session: Session
         examples_json=["A", "B", "C"],
         frequency=2,
         frequency_note=None,
-        eligible_for_anki=False,
+        is_learning=False,
         llm_model="seed",
     )
     session.add(existing)
@@ -138,7 +138,7 @@ def test_card_service_returns_duplicate_canonical_after_llm_call(session: Sessio
         examples_json=["A", "B", "C"],
         frequency=2,
         frequency_note=None,
-        eligible_for_anki=False,
+        is_learning=False,
         llm_model="seed",
     )
     session.add(existing)

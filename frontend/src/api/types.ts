@@ -29,7 +29,7 @@ export interface Card {
   examples: string[];
   frequency: number;
   frequency_note: string | null;
-  eligible_for_anki: boolean;
+  is_learning: boolean;
   anki_sync_status: AnkiSyncStatus;
   anki_note_id: number | null;
   anki_sync_error: string | null;
@@ -52,7 +52,7 @@ export interface CardsQuery {
   source_language?: SourceLanguage;
   entry_type?: EntryType;
   anki_sync_status?: AnkiSyncStatus;
-  eligible_for_anki?: boolean;
+  is_learning?: boolean;
 }
 
 export type CardBatchImportItemStatus =

@@ -38,7 +38,7 @@ const cardsPayload = {
       examples: ["e1", "e2", "e3"],
       frequency: 4,
       frequency_note: null,
-      eligible_for_anki: true,
+      is_learning: true,
       anki_sync_status: "pending",
       anki_note_id: null,
       anki_sync_error: null,

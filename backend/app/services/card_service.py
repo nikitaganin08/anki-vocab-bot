@@ -68,7 +68,7 @@ def apply_source_text(
         examples_json=llm_result.examples,
         frequency=llm_result.frequency,
         frequency_note=llm_result.frequency_note,
-        eligible_for_anki=llm_result.frequency > 2,
+        is_learning=llm_result.frequency > 2,
         llm_model=openrouter_client.model,
     )
     session.add(card)
