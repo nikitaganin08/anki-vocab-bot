@@ -87,3 +87,16 @@ def test_build_prompt_falls_back_to_translation() -> None:
     assert prompt.index == 0
     assert prompt.masked == "сдаваться, бросать"
     assert prompt.expected == "give up"
+
+
+def test_build_prompt_skips_targets_wider_than_the_word() -> None:
+    chunks = [
+        {"text": "the sales ledger", "target": "sales ledger", "translation": "книга продаж"},
+        {"text": "check the ledger", "target": "ledger", "translation": "проверить книгу"},
+    ]
+
+    prompt = build_prompt(chunks, ["книга", "реестр"], "ledger", 0)
+
+    assert prompt.kind == "chunk"
+    assert prompt.masked == "check the ___"
+    assert build_prompt(chunks[:1], ["книга", "реестр"], "ledger", 0).kind == "translation"

@@ -89,8 +89,10 @@ def build_prompt(
     canonical_text: str,
     review_count: int,
 ) -> Prompt:
-    # Stored chunks may predate validation; indexes refer to the valid ones (as in CardResponse).
-    valid = valid_chunks(chunks)
+    # Stored chunks may predate validation. A target wider than the word itself
+    # ("general ledger" for "ledger") still shows on the back but is not asked.
+    max_words = len(canonical_text.split())
+    valid = [c for c in valid_chunks(chunks) if len(c.target.split()) <= max_words]
     if valid:
         index = review_count % len(valid)
         chunk = valid[index]
