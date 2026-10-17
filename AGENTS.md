@@ -24,7 +24,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 - Telegram Web App (Mini App) with a review dashboard, the daily review flow, settings, and the card list (import, filter, delete, toggle learning)
 - FSRS review of learning cards with typed answers and usage chunks
 - Daily review reminder from the bot
-- Local sync helper for Anki via AnkiConnect, plus one-off Anki deck import and chunk backfill scripts
+- Local sync helper for Anki via AnkiConnect, plus one-off Anki deck import, chunk backfill and transcription backfill scripts (`app/scripts/backfill_transcription.py` is to be deleted after the production run)
 
 ## Architecture
 
@@ -163,6 +163,7 @@ Validation rules:
   - `idiom`
   - `expression`
 - `canonical_text` must be English
+- `transcription` is General American (US) IPA wrapped in slashes, e.g. `/ˈhɔːnt/` (no square brackets, no syllable dots, stress marks included, US vowels and r-coloured vowels instead of the British ɒ, əʊ, ɪə, eə, ʊə); multi-word units are transcribed word by word inside one pair of slashes; `null` only when the model cannot produce one. The format is a prompt rule, not validated for new cards; `app/scripts/backfill_transcription.py` validates its own output before writing
 - `explanation` must be English
 - `examples` must be English
 - `translation_variants` must contain 2 to 3 Russian translations
@@ -324,6 +325,8 @@ Mapping:
 
 Deck import (`app/scripts/import_anki.py`, one-off): notes of `English::Inbox` are posted to `POST /api/anki/import`; tagged notes link to their card, others are matched by canonical text or created via the LLM pipeline. Review cards get stability = interval, difficulty from ease, due = last review + interval; suspended notes are not learning; imported cards are marked `synced` so `sync_anki` does not push them again.
 
+Transcription backfill (`app/scripts/backfill_transcription.py`, one-off, to be deleted after the production run): `python -m app.scripts.backfill_transcription [--limit N] [--dry-run] [--batch-size 20]` sends cards in batches of 20 to the LLM (`OpenRouterClient.generate_transcriptions`) for General American IPA of `canonical_text` and updates only `cards.transcription` (plus `updated_at` via `onupdate`), committing per batch. An item is applied only if its id was requested and the value is one pair of slashes around plain IPA, 3 to 120 chars, without Cyrillic, brackets, parentheses, digits, syllable dots or the British vowels ɒ, əʊ, ɪə, eə, ʊə; otherwise it counts as failed and the card is left untouched. Idempotent; `--dry-run` prints old -> new for the first 30 changes and writes nothing. Cards already synced to Anki keep their old transcription there.
+
 ## Backups
 
 - `deploy/backup/backup.sh` runs daily from the VPS user's cron (`17 4 * * *`): consistent SQLite online copy, `integrity_check`, gzip into `~/backups/wordloop/app-<timestamp>.db.gz`, 14 days kept (log: `backup.log` next to them). The deploy workflow keeps the scripts in `/opt/anki-vocab-bot/backup/`; the cron entry itself is installed once by hand.
@@ -379,6 +382,7 @@ The repository should maintain a `Makefile` with at least:
 - `make sync-anki`
 - `make import-anki` (one-off Anki deck import)
 - `make backfill-chunks` (one-off chunk backfill for existing cards)
+- `make backfill-transcription` (one-off General American IPA backfill, delete after the run)
 
 ## Testing Scope
 

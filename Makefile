@@ -1,4 +1,4 @@
-.PHONY: pull-backups backend-dev frontend-dev backend-test frontend-test test build-frontend sync-anki import-anki backfill-chunks docker-build docker-up docker-down
+.PHONY: pull-backups backend-dev frontend-dev backend-test frontend-test test build-frontend sync-anki import-anki backfill-chunks backfill-transcription docker-build docker-up docker-down
 
 backend-dev:
 	cd backend && DISABLE_REMINDERS=1 uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -25,6 +25,9 @@ import-anki:
 
 backfill-chunks:
 	cd backend && uv run python -m app.scripts.backfill_chunks
+
+backfill-transcription:
+	cd backend && uv run python -m app.scripts.backfill_transcription
 
 docker-build:
 	docker build -t anki-vocab-bot:local .

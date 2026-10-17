@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-SYSTEM_PROMPT = """You are a strict lexical-unit validator and card generator.
+from app.services.transcription_prompt import IPA_RULES
+
+SYSTEM_PROMPT = (
+    """You are a strict lexical-unit validator and card generator.
 Respond with a single JSON object only.
 Do not include markdown, prose, code fences, or commentary.
 The JSON must exactly match one of two contracts.
@@ -49,9 +52,12 @@ Rules:
 - canonical_text, explanation, examples, and chunk text must be English.
 - canonical_text for verbs and phrasal verbs must be lemma-like English form without
   the infinitive marker "to " (use "shovel away", not "to shovel away").
-- transcription must be the English pronunciation of canonical_text (IPA-style or null).
+- transcription is the pronunciation of canonical_text (null only if you cannot produce one).
 - Never provide transcription for the Russian source term;
   transcription is always for canonical_text.
+"""
+    + IPA_RULES
+    + """
 - translation_variants must contain 2 or 3 Russian items.
 - translation_variants[0] must be the primary Russian translation of canonical_text.
 - translation_variants[1..] must be Russian synonyms or near-synonymous variants
@@ -81,6 +87,7 @@ Rules:
 - If you cannot provide one primary Russian translation
   and at least one Russian synonym/variant, reject.
 - If unsure whether the input is a stable lexical unit, reject it."""
+)
 
 
 def build_llm_messages(source_text: str) -> list[dict[str, str]]:

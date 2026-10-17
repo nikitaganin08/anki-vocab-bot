@@ -61,3 +61,11 @@ def test_prompt_requests_chunks_and_rejects_function_words() -> None:
     assert '"chunks"' in SYSTEM_PROMPT
     assert '"target"' in SYSTEM_PROMPT
     assert "function words" in SYSTEM_PROMPT
+
+
+def test_prompt_requires_general_american_ipa_in_slashes() -> None:
+    assert "General American" in SYSTEM_PROMPT
+    assert "never use square brackets" in SYSTEM_PROMPT
+    assert "always wrapped in slashes" in SYSTEM_PROMPT
+    assert "ɒ, əʊ, ɪə, eə, ʊə" in SYSTEM_PROMPT
+    assert "Never provide transcription for the Russian source term" in SYSTEM_PROMPT
