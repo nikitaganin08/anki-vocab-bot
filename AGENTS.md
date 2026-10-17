@@ -21,8 +21,8 @@ The app receives words and stable expressions from Telegram, generates learning 
 - Input length limit: 1 to 8 tokens
 - The resulting card always targets an English lexical unit
 - The LLM decides whether the input is a valid lexical unit or just a free-form phrase/sentence
-- Telegram Web App for listing, importing, filtering, and deleting cards
-- FSRS review of learning cards with typed answers and usage chunks (backend API; Mini App review UI is a separate frontend PR)
+- Telegram Web App (Mini App) with a review dashboard, the daily review flow, settings, and the card list (import, filter, delete, toggle learning)
+- FSRS review of learning cards with typed answers and usage chunks
 - Daily review reminder from the bot
 - Local sync helper for Anki via AnkiConnect, plus one-off Anki deck import and chunk backfill scripts
 
@@ -61,6 +61,9 @@ The app receives words and stable expressions from Telegram, generates learning 
 - `TypeScript`
 - `Vite`
 - `TanStack Query`
+- No router: views are switched by the `?view=` query parameter
+- Theme follows Telegram: `Telegram.WebApp.themeParams` are mapped to CSS variables (`--tg-bg`, `--tg-text`, `--tg-hint`, `--tg-accent`, `--tg-accent-text`, `--tg-surface`) with light fallbacks; flat surfaces, no gradients, one accent button per screen
+- Audio: browser `speechSynthesis` (`en-US`), hidden when unavailable
 - `npm` for dependency management
 - `npx` only for one-off scaffolding and CLI bootstrap commands
 
@@ -116,7 +119,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 - `app/services/reminders.py` runs a loop every 5 minutes in the FastAPI lifespan (only when `TELEGRAM_BOT_TOKEN` is set and `DISABLE_REMINDERS` is not `1`; single uvicorn worker assumed).
 - One message a day at `reminder_hour` local time when nothing was reviewed today and cards are due; never mentions streaks, no evening reminder.
 - Backoff: after 3 ignored reminders only every other day, after 7 paused until the next review; any review resets the counter.
-- Rotating Russian templates with card count, minutes, optional `reminder_anchor` and a warm-up chunk; Mondays add last week's summary. Inline button "Повторить" opens the Mini App at `?view=review`.
+- Short rotating Russian templates with card count and minutes, optional `reminder_anchor` prefix, no warm-up chunk; Mondays add last week's summary. Inline button "Повторить" opens the Mini App at `?view=review`.
 
 ## LLM Contract
 
@@ -240,8 +243,8 @@ Validation rules:
 
 ### Review and Settings API (Telegram Web App auth)
 
-- `GET /api/review/summary` (today goal, backlog, retention 30d, learned, streak, heatmap, forecast)
-- `GET /api/review/session?size=10` (next round; the expected answer is not sent)
+- `GET /api/review/summary` (today goal, backlog, `due_all`, `days_away`, retention 30d, learned, streak, heatmap, forecast)
+- `GET /api/review/session?size=10&include_backlog=false` (next round; the expected answer is not sent; `include_backlog=true` ignores the daily review cap)
 - `POST /api/review/{card_id}/check` (verdict, expected answer, auto rating, intervals; no DB write)
 - `POST /api/review/{card_id}/grade` (409 on a stale `expected_due_at`)
 - `POST /api/review/undo`
@@ -263,13 +266,13 @@ The Anki sync API uses bearer token authentication.
 
 ## Telegram Web App
 
-The React frontend includes:
-- cards list with search and filters
-- batch import
-- card deletion action
-- `is_learning` filter
+Views are switched by `?view=` (`history.replaceState`, other params kept); unknown or missing values open `home`. The bot's `/review` command and reminders open `?view=review`. Screen content and Russian copy follow the "Mini App" section of `docs/superpowers/specs/2026-10-17-srs-review-design.md`.
 
-Planned (frontend PR after design picks): views switched by `?view=` — `home` (dashboard), `review`, `cards`, `settings`. The bot's `/review` command and reminders open `?view=review`.
+- Bottom tab bar (`src/components/TabBar.tsx`): Главная (`home`), Повтор (`review`), Слова (`cards`), Настройки (`settings`). Hidden during a review; the Telegram BackButton leaves the review to Главная.
+- Главная (`src/home/`): today's goal with "Начать" and "Быстро: 5 карточек", retention and learned tiles, 14-week heatmap, streak line (only from 3 days), forecast, backlog. After 3+ study days away with cards due it shows "С возвращением" instead: "5 минут" (card cap from today's pace), "Обычная сессия", "Всё сразу (N)" (`include_backlog=true`).
+- Повтор (`src/review/`): `useReviewSession` drives the flow in rounds of 10 from `GET /api/review/session`. New cards show an intro ("Запомнил"), and the typed question for that card comes two items later in the same round. Question → `check` → back side with the diff, card details and four grade buttons (auto rating highlighted, "Мой ответ верный" forces Good) → `grade`. `grade` echoes `srs_due_at` verbatim as `expected_due_at`; a 409 refetches the round. After each round: "Раунд готов" with progress to the daily goal; an empty session shows "Готово на сегодня".
+- Настройки (`src/settings/`): daily limits, desired retention, reminder hour and anchor, learn threshold, timezone; saved with `PUT /api/settings`.
+- Слова (`src/pages/CardsPage.tsx`): cards list with search and filters (including `is_learning`), batch import, deletion, and a per-card "Учим" toggle (`PATCH /api/cards/{card_id}`).
 
 The UI reads only from backend JSON endpoints.
 
@@ -361,7 +364,7 @@ Focus areas:
 - FSRS scheduling, session queue limits and the 04:00 day boundary, grade/undo
 - review summary metrics and reminder decisions
 - rare-word confirmation and Anki import state mapping
-- Telegram Web App rendering of API data
+- Telegram Web App rendering of API data and the review flow (intro → typed, check → grade, 409 refetch)
 
 ## Defaults and Constraints
 
