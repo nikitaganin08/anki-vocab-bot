@@ -28,12 +28,25 @@ def _add(
         canonical_text_normalized=name,
         srs_state=state,
         srs_due_at=due,
-        srs_card_json=None if state is None else "{}",
+        srs_card_json=None if state is None else _fsrs_json(state, due),
         **overrides,
     )
     session.add(card)
     session.commit()
     return card
+
+
+def _fsrs_json(state: str, due: datetime | None) -> str:
+    # Last answered an hour ago, i.e. learning cards sit on an intraday step.
+    return FsrsCard(
+        card_id=1,
+        state=State[state.capitalize()],
+        step=None if state == "review" else 0,
+        stability=10.0,
+        difficulty=5.0,
+        due=due,
+        last_review=NOW - timedelta(hours=1),
+    ).to_json()
 
 
 def _log(
@@ -211,6 +224,6 @@ def test_forecast_tomorrow_and_week(session: Session) -> None:
 
     summary = build_summary(session, get_app_settings(session), NOW)
 
-    assert summary.due_today == 1
-    # Cards that come due later today wait for tomorrow's session.
-    assert (summary.forecast_tomorrow, summary.forecast_week_avg) == (2, 1)
+    # Review cards due later today count today (study day starts at 04:00), like Anki.
+    assert summary.due_today == 2
+    assert (summary.forecast_tomorrow, summary.forecast_week_avg) == (1, 1)

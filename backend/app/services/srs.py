@@ -85,6 +85,21 @@ def preview_intervals(scheduler: fsrs.Scheduler, card: Card, now: datetime) -> d
     }
 
 
+def is_due(card: Card, now: datetime, start: datetime, end: datetime) -> bool:
+    """Day-scale due dates count from the start of their study day, as in Anki.
+
+    Review cards and learning cards on an interday step (last answered before today)
+    are due all day; intraday learning steps keep their exact time (+ look-ahead).
+    """
+    due = as_utc(card.srs_due_at)
+    if card.srs_state == "review":
+        return due < end
+    if due <= now + LEARNING_LOOKAHEAD:
+        return True
+    last_review = load_fsrs_card(card).last_review
+    return due < end and (last_review is None or as_utc(last_review) < start)
+
+
 @dataclass(slots=True)
 class SessionItem:
     card: Card
@@ -116,12 +131,15 @@ def build_session(
     start, end = day_window(now, settings.timezone)
     learning_cards = select(Card).where(Card.is_learning == True)  # noqa: E712
 
-    learning = session.scalars(
-        learning_cards.where(
-            Card.srs_state.in_(("learning", "relearning")),
-            Card.srs_due_at <= now + LEARNING_LOOKAHEAD,
-        ).order_by(Card.srs_due_at, Card.id)
-    ).all()
+    learning = [
+        card
+        for card in session.scalars(
+            learning_cards.where(
+                Card.srs_state.in_(("learning", "relearning")), Card.srs_due_at < end
+            ).order_by(Card.srs_due_at, Card.id)
+        )
+        if is_due(card, now, start, end)
+    ]
 
     # Only answers on review-state cards spend the review limit (learning steps don't).
     reviews_left = settings.reviews_per_day - _logs_today(
@@ -132,7 +150,7 @@ def build_session(
     if include_backlog or reviews_left > 0:
         scheduler = build_scheduler(settings)
         due = session.scalars(
-            learning_cards.where(Card.srs_state == "review", Card.srs_due_at <= now)
+            learning_cards.where(Card.srs_state == "review", Card.srs_due_at < end)
         ).all()
         due = sorted(
             due,

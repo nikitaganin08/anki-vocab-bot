@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.models.card import Card
 from app.models.review_log import ReviewLogEntry
 from app.services.app_settings import get_app_settings
+from app.services.review_stats import build_summary
 from app.services.srs import (
     GradeInput,
     StaleReviewError,
@@ -136,8 +137,21 @@ def test_grade_after_reload_from_db(session: Session) -> None:
 def test_session_order_learning_then_reviews_then_new(session: Session) -> None:
     _add(session, "new one")
     _schedule(session, _add(session, "review one"), State.Review, NOW - timedelta(days=1))
-    _schedule(session, _add(session, "learning one"), State.Learning, NOW + timedelta(minutes=5))
-    _schedule(session, _add(session, "learning later"), State.Learning, NOW + timedelta(hours=1))
+    just_now = NOW - timedelta(minutes=5)
+    _schedule(
+        session,
+        _add(session, "learning one"),
+        State.Learning,
+        NOW + timedelta(minutes=5),
+        last_review=just_now,
+    )
+    _schedule(
+        session,
+        _add(session, "learning later"),
+        State.Learning,
+        NOW + timedelta(hours=1),
+        last_review=just_now,
+    )
 
     items = build_session(session, get_app_settings(session), NOW)
 
@@ -149,7 +163,11 @@ def test_session_order_learning_then_reviews_then_new(session: Session) -> None:
 def test_session_respects_daily_limits(session: Session) -> None:
     for i in range(5):
         card = _schedule(
-            session, _add(session, f"intro {i}"), State.Learning, NOW + timedelta(hours=2)
+            session,
+            _add(session, f"intro {i}"),
+            State.Learning,
+            NOW + timedelta(hours=2),
+            last_review=NOW - timedelta(minutes=10),
         )
         _log(session, card, None)
     reviewed = _schedule(session, _add(session, "reviewed"), State.Review, NOW + timedelta(days=3))
@@ -380,3 +398,30 @@ def test_ordered_intervals_never_exceed_maximum(session: Session) -> None:
     intervals = preview_intervals(scheduler, card, NOW)
 
     assert max(intervals.values()) <= scheduler.maximum_interval * 86400
+
+
+def test_day_scale_due_dates_are_available_from_start_of_study_day(session: Session) -> None:
+    settings = get_app_settings(session)
+    later_today = NOW + timedelta(hours=8)  # 20:00 Moscow, same study day
+    tomorrow = NOW + timedelta(hours=20)  # 08:00 Moscow next day
+    review_today = _schedule(session, _add(session, "review today"), State.Review, later_today)
+    _schedule(session, _add(session, "review tomorrow"), State.Review, tomorrow)
+    interday = _schedule(
+        session,
+        _add(session, "interday step"),
+        State.Learning,
+        later_today,
+        last_review=NOW - timedelta(days=1),
+    )
+    _schedule(
+        session,
+        _add(session, "intraday step"),
+        State.Learning,
+        NOW + timedelta(hours=3),
+        last_review=NOW - timedelta(hours=1),
+    )
+
+    served = {item.card.id for item in build_session(session, settings, NOW, size=10)}
+
+    assert served == {review_today.id, interday.id}
+    assert build_summary(session, settings, NOW).due_today == 2

@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.models.app_settings import AppSettings
 from app.models.card import Card
 from app.models.review_log import ReviewLogEntry
-from app.services.srs import DAY_START_HOUR, LEARNING_LOOKAHEAD, as_utc, day_window
+from app.services.srs import DAY_START_HOUR, as_utc, day_window, is_due
 
 HEATMAP_DAYS = 98
 STREAK_MIN_ANSWERS = 5
@@ -78,9 +78,7 @@ def build_summary(session: Session, settings: AppSettings, now: datetime) -> Rev
     start, end = day_window(now, settings.timezone)
     today = _study_day(now, tz)
 
-    cards = session.execute(
-        select(Card.id, Card.is_learning, Card.srs_state, Card.srs_due_at)
-    ).all()
+    cards = session.scalars(select(Card)).all()
     logs = session.execute(
         select(
             ReviewLogEntry.card_id,
@@ -101,13 +99,13 @@ def build_summary(session: Session, settings: AppSettings, now: datetime) -> Rev
         if card.srs_state is None:
             available_new += 1
             continue
-        due = as_utc(card.srs_due_at)
-        if card.srs_state == "review" and due <= now:
-            due_reviews += 1
-        elif card.srs_state != "review" and due <= now + LEARNING_LOOKAHEAD:
-            due_learning += 1
+        if is_due(card, now, start, end):
+            if card.srs_state == "review":
+                due_reviews += 1
+            else:
+                due_learning += 1
         else:
-            upcoming.append(_study_day(due, tz))
+            upcoming.append(_study_day(as_utc(card.srs_due_at), tz))
 
     today_logs = [log for log in logs if start <= as_utc(log.reviewed_at) < end]
     reviews_done = sum(log.state_before == "review" for log in today_logs)
