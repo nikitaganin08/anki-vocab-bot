@@ -362,6 +362,15 @@ describe("ReviewView", () => {
     );
   });
 
+  it("chunk question also shows the word's own translation", async () => {
+    mockedSession.mockResolvedValue([item(1, "give", "___ up")]);
+    renderReview();
+
+    expect(await screen.findByText("___ up")).toBeInTheDocument();
+    expect(screen.getByText("сдаться")).toBeInTheDocument();
+    expect(screen.getByText("давать, дарить")).toHaveClass("review-word-translation");
+  });
+
   it("explanation on demand marks hint_used", async () => {
     mockedSession.mockResolvedValue([item(1, "give", "___ up")]);
     mockedCheck.mockResolvedValue(checked({ auto_rating: 2 }));

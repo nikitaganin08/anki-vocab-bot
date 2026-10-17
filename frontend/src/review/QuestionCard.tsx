@@ -39,6 +39,10 @@ export function QuestionCard({ item, round, estMinutes, busy, onCheck }: Questio
       <section className="surface-panel review-card">
         <p className="review-masked">{prompt.masked}</p>
         {prompt.hint_translation ? <p className="section-label">{prompt.hint_translation}</p> : null}
+        {/* T1: a chunk's own translation can be too figurative to point at the word. */}
+        {prompt.kind === "chunk" ? (
+          <p className="review-word-translation">{item.card.translation_variants.join(", ")}</p>
+        ) : null}
       </section>
 
       <input

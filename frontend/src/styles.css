@@ -368,6 +368,11 @@ progress::-moz-progress-bar {
 }
 
 .review-word h2,
+.review-word-translation {
+  margin-top: 8px;
+  font-size: 16px;
+}
+
 .review-masked {
   font-size: 22px;
   line-height: 1.3;

@@ -117,7 +117,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 - Session order: due learning/relearning cards, then due reviews by retrievability (highest first), then new learning cards (intro first, typed later).
 - Prompt: a usage chunk with its `target` masked as `___` plus the chunk translation, rotating chunks per review; cards without chunks prompt with the Russian translations and expect `canonical_text`.
 - Answer checking (`app/services/answer_check.py`): NFKC, casefold, curly apostrophes, trailing punctuation, ЙЦУКЕН→QWERTY layout fix; one Damerau-Levenshtein edit when the expected answer has 5+ chars is a `typo` (counts as correct).
-- Question screen: "What's this word?" reveals the card's English explanation and sets `hint_used`.
+- Question screen: chunk prompts show the chunk translation plus the word's own translations; "What's this word?" reveals the card's English explanation and sets `hint_used`.
 - Auto rating: wrong → Again (1); correct/typo with hint → Hard (2); correct/typo → Good (3). Easy (4) only by user choice.
 - A grade carries the `srs_due_at` the client saw; a mismatch (e.g. double tap) returns 409 and logs nothing.
 
