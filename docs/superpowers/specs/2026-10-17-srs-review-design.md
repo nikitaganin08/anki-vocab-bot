@@ -92,9 +92,10 @@ Input UX: autofocus, Enter submits, `autocorrect/autocapitalize/spellcheck` off,
 
 ## Anki import (`app/scripts/import_anki.py`, local, one-off)
 
-Via AnkiConnect: `findNotes deck:"English::Inbox"`, `notesInfo`, `cardsInfo`. For each note:
-- tag `avb-card-<id>` → existing backend card; otherwise create via the normal card pipeline from the `Word` field (LLM fills explanation, chunks, IPA; Anki translation kept as first translation variant if the LLM's differs).
-- FSRS state from Anki card: new → none; learning → `Learning`, due from Anki; review → `Review` with `stability = interval days`, `difficulty = clamp(5 + (2.5 − ease) × 4, 1, 10)`, `due` from Anki, `last_review = due − interval`; suspended → `is_learning=False`.
+Via AnkiConnect: `findNotes deck:"English::Inbox"`, `notesInfo`, `cardsInfo`, `getReviewsOfCards` (latest review time). For each note:
+- tag `avb-card-<id>` → existing backend card; else a card with the same normalized canonical text; otherwise create via the normal card pipeline from the `Word` field (LLM fills explanation, chunks, IPA; Anki translation kept as first translation variant if the LLM's differs).
+- FSRS state from Anki card: new → none; learning / relearning → `Learning` / `Relearning` step 0, due now; review → `Review` with `stability = max(interval days, 1)`, `difficulty = clamp(5 + (2.5 − ease) × 4, 1, 10)`, `last_review` = latest Anki review (fallback: now − interval), `due = last_review + interval`; suspended → `is_learning=False`.
+- Reps/lapses copied from Anki; the card is marked `synced` with the Anki note id, so `sync_anki` does not push it again.
 Goes through a token-protected endpoint `POST /api/anki/import` (same bearer token as sync).
 
 ## Testing
