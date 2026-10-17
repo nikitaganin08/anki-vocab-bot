@@ -149,8 +149,8 @@ class TelegramAdminWebAppHandler:
             return
 
         await message.answer(
-            "Open the dictionary panel inside Telegram.",
-            reply_markup=_web_app_keyboard("Open admin panel", self.webapp_url),
+            "Словарь, статистика и настройки.",
+            reply_markup=_web_app_keyboard("Открыть Wordloop", self.webapp_url),
         )
 
 

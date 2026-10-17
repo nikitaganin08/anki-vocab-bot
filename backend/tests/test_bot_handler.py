@@ -285,10 +285,10 @@ def test_admin_handler_sends_webapp_button() -> None:
 
     asyncio.run(handler.handle_message(message))
 
-    assert message.answers == ["Open the dictionary panel inside Telegram."]
+    assert message.answers == ["Словарь, статистика и настройки."]
     markup = message.reply_markups[0]
     assert markup is not None
-    assert markup.inline_keyboard[0][0].text == "Open admin panel"
+    assert markup.inline_keyboard[0][0].text == "Открыть Wordloop"
     assert markup.inline_keyboard[0][0].web_app is not None
     assert markup.inline_keyboard[0][0].web_app.url == "https://bot.example.com/telegram/webapp"
 
