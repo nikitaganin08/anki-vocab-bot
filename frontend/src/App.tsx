@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useState } from "react";
 
+import { getSettings, saveSettings } from "./api/client";
 import { EmptyState } from "./components/PageState";
 import { TabBar } from "./components/TabBar";
 import { HomeView, type ReviewMode } from "./home/HomeView";
@@ -32,6 +33,25 @@ function renderView(
   }
 }
 
+// The study day follows the device timezone: each load replaces the stored zone (also one picked
+// by hand in Настройки) when the device reports another. Failures keep the stored value.
+async function syncDeviceTimezone(queryClient: QueryClient): Promise<void> {
+  try {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (!timezone) {
+      return;
+    }
+    const settings = await getSettings();
+    if (settings.timezone === timezone) {
+      return;
+    }
+    queryClient.setQueryData(["settings"], await saveSettings({ ...settings, timezone }));
+    await queryClient.invalidateQueries({ queryKey: ["review-summary"] });
+  } catch {
+    // Keep the stored timezone.
+  }
+}
+
 export function App(): JSX.Element {
   const telegramContextAvailable = hasTelegramWebAppContext();
   const [view, setView] = useView();
@@ -58,6 +78,12 @@ export function App(): JSX.Element {
     prepareTelegramWebApp();
     applyTelegramTheme();
   }, []);
+
+  useEffect(() => {
+    if (telegramContextAvailable) {
+      void syncDeviceTimezone(queryClient);
+    }
+  }, [queryClient, telegramContextAvailable]);
 
   useEffect(() => (view === "review" ? showBackButton(() => setView("home")) : undefined), [view]);
 

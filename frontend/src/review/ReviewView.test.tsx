@@ -63,7 +63,6 @@ function item(
       index: 0,
       masked,
       hint_translation: "сдаться",
-      first_letter_hint: word[0] + word.slice(1).replace(/\S/g, "_"),
     },
     srs_due_at: "2026-10-17T08:00:00.123456Z",
     ...overrides,
@@ -203,7 +202,8 @@ describe("ReviewView", () => {
     expect(screen.getByText("Оценка выбрана автоматически, можно поменять")).toBeInTheDocument();
     expect(screen.getByText("Как используется")).toBeInTheDocument();
     expect(screen.getByText(/giver/)).toBeInTheDocument();
-    expect(screen.getByText("To hand something to someone.")).toBeInTheDocument();
+    // The back side has no explanation: it is only shown on demand on the question.
+    expect(screen.queryByText("To hand something to someone.")).not.toBeInTheDocument();
   });
 
   it("grade advances to next card", async () => {
@@ -361,17 +361,20 @@ describe("ReviewView", () => {
     );
   });
 
-  it("hint reveals first letter and marks hint_used", async () => {
+  it("explanation on demand marks hint_used", async () => {
     mockedSession.mockResolvedValue([item(1, "give", "___ up")]);
     mockedCheck.mockResolvedValue(checked({ auto_rating: 2 }));
     renderReview();
 
     const input = await screen.findByRole("textbox", { name: "Ответ" });
     expect(input).toHaveAttribute("maxlength", "200");
-    const hint = screen.getByRole("button", { name: "Подсказка: первая буква" });
-    hint.focus();
-    fireEvent.click(hint);
-    expect(screen.getByText("g___")).toBeInTheDocument();
+    expect(screen.queryByText(/первая буква/)).not.toBeInTheDocument();
+    expect(screen.queryByText("g___")).not.toBeInTheDocument();
+    expect(screen.queryByText("To hand something to someone.")).not.toBeInTheDocument();
+    const reveal = screen.getByRole("button", { name: "Что это за слово?" });
+    reveal.focus();
+    fireEvent.click(reveal);
+    expect(screen.getByText("To hand something to someone.")).toBeInTheDocument();
     expect(input).toHaveFocus();
     await answer("give");
     expect(mockedCheck).toHaveBeenCalledWith(1, expect.objectContaining({ hint_used: true }));

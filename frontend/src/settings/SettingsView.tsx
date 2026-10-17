@@ -59,7 +59,8 @@ export function SettingsView(): JSX.Element {
   };
 
   return (
-    <form className="surface-panel settings-form" onSubmit={onSubmit}>
+    // Remount when the device timezone sync updates the stored zone (uncontrolled form).
+    <form key={data.timezone} className="surface-panel settings-form" onSubmit={onSubmit}>
       <h2>Настройки</h2>
       <label>
         Новых в день
@@ -106,7 +107,7 @@ export function SettingsView(): JSX.Element {
       </label>
       <label>
         Часовой пояс
-        <select name="timezone" defaultValue={data.timezone}>
+        <select name="timezone" defaultValue={data.timezone} aria-describedby="timezone-hint">
           {timeZones(data.timezone).map((zone) => (
             <option key={zone} value={zone}>
               {zone}
@@ -114,6 +115,9 @@ export function SettingsView(): JSX.Element {
           ))}
         </select>
       </label>
+      <span id="timezone-hint" className="field-hint">
+        Определяется по устройству при каждом открытии
+      </span>
 
       {save.error ? (
         <p className="batch-message-error" role="alert">

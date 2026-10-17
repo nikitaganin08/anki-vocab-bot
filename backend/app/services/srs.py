@@ -15,7 +15,7 @@ from app.services.answer_check import Prompt, build_prompt
 
 # ponytail: SRS state on cards (single user); move to user_cards for multi-user
 
-DAY_START_HOUR = 4
+DAY_START_HOUR = 0
 LEARNING_LOOKAHEAD = timedelta(minutes=20)
 
 
@@ -32,7 +32,13 @@ def day_window(now: datetime, tz_name: str) -> tuple[datetime, datetime]:
 
 
 def build_scheduler(settings: AppSettings) -> fsrs.Scheduler:
-    return fsrs.Scheduler(desired_retention=settings.desired_retention, enable_fuzzing=False)
+    # Anki-like steps: a new card comes back in 1 minute, then in 1 day.
+    return fsrs.Scheduler(
+        desired_retention=settings.desired_retention,
+        learning_steps=(timedelta(minutes=1), timedelta(days=1)),
+        relearning_steps=(timedelta(minutes=10),),
+        enable_fuzzing=False,
+    )
 
 
 def load_fsrs_card(card: Card) -> fsrs.Card:
@@ -60,6 +66,14 @@ def _outcomes(scheduler: fsrs.Scheduler, card: Card, now: datetime) -> dict[int,
             bumped = out[lower].due + timedelta(days=1)
             if bumped > out[higher].due:
                 out[higher].due = min(bumped, cap)
+    # Easy is twice Good once Good is a day or more away: exactly that for new/learning
+    # cards, at most that for review ones (2 x Good >= Good + 1 day keeps the order).
+    good = out[fsrs.Rating.Good].due - now
+    if good >= timedelta(days=1):
+        doubled = min(now + 2 * good, cap)
+        easy = out[fsrs.Rating.Easy]
+        learning = fsrs_card.state == fsrs.State.Learning
+        easy.due = doubled if learning else min(easy.due, doubled)
     return out
 
 
@@ -69,6 +83,21 @@ def preview_intervals(scheduler: fsrs.Scheduler, card: Card, now: datetime) -> d
         rating: int((after.due - now).total_seconds())
         for rating, after in _outcomes(scheduler, card, now).items()
     }
+
+
+def is_due(card: Card, now: datetime, start: datetime, end: datetime) -> bool:
+    """Day-scale due dates count from the start of their study day, as in Anki.
+
+    Review cards and learning cards on an interday step (last answered before today)
+    are due all day; intraday learning steps keep their exact time (+ look-ahead).
+    """
+    due = as_utc(card.srs_due_at)
+    if due >= end:
+        return False
+    if card.srs_state == "review" or due <= now + LEARNING_LOOKAHEAD:
+        return True
+    last_review = load_fsrs_card(card).last_review
+    return last_review is None or as_utc(last_review) < start
 
 
 @dataclass(slots=True)
@@ -102,12 +131,15 @@ def build_session(
     start, end = day_window(now, settings.timezone)
     learning_cards = select(Card).where(Card.is_learning == True)  # noqa: E712
 
-    learning = session.scalars(
-        learning_cards.where(
-            Card.srs_state.in_(("learning", "relearning")),
-            Card.srs_due_at <= now + LEARNING_LOOKAHEAD,
-        ).order_by(Card.srs_due_at, Card.id)
-    ).all()
+    learning = [
+        card
+        for card in session.scalars(
+            learning_cards.where(
+                Card.srs_state.in_(("learning", "relearning")), Card.srs_due_at < end
+            ).order_by(Card.srs_due_at, Card.id)
+        )
+        if is_due(card, now, start, end)
+    ]
 
     # Only answers on review-state cards spend the review limit (learning steps don't).
     reviews_left = settings.reviews_per_day - _logs_today(
@@ -118,14 +150,17 @@ def build_session(
     if include_backlog or reviews_left > 0:
         scheduler = build_scheduler(settings)
         due = session.scalars(
-            learning_cards.where(Card.srs_state == "review", Card.srs_due_at <= now)
+            learning_cards.where(Card.srs_state == "review", Card.srs_due_at < end)
         ).all()
-        due = sorted(
-            due,
+        # The daily cap takes the most overdue first so nothing starves in the backlog;
+        # the round itself starts with the easiest (warm-up).
+        due = sorted(due, key=lambda c: (as_utc(c.srs_due_at), c.id))
+        picked = due if include_backlog else due[:reviews_left]
+        reviews = sorted(
+            picked,
             key=lambda c: scheduler.get_card_retrievability(load_fsrs_card(c), now),
             reverse=True,
         )
-        reviews = due if include_backlog else due[:reviews_left]
 
     # A log with no previous state is a card's first answer, i.e. a new card introduced.
     new_left = settings.new_per_day - _logs_today(

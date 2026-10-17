@@ -107,13 +107,16 @@ The app receives words and stable expressions from Telegram, generates learning 
 
 ## Review (SRS)
 
-- Server-side scheduling with `fsrs.Scheduler(desired_retention=app_settings.desired_retention, enable_fuzzing=False)`, default learning steps (1m, 10m) and relearning step (10m).
+- Server-side scheduling with `fsrs.Scheduler(desired_retention=app_settings.desired_retention, learning_steps=(1m, 1d), relearning_steps=(10m,), enable_fuzzing=False)`: a new card is Again 1m, Good 1 day, Easy 2 days.
+- Easy vs Good (`_outcomes`, shared by preview and grade): for a new/learning card whose Good is ≥ 1 day away, Easy = 2 × Good; for review/relearning cards FSRS Easy is capped at 2 × Good; review outcomes keep Good ≥ Hard + 1 day, Easy ≥ Good + 1 day.
+- Due dates of a day or more count from the start of their study day (local midnight), like Anki; intraday learning steps keep their exact time.
 - SRS state lives on `cards` (`srs_card_json` = `fsrs.Card.to_json()`, `srs_due_at`, `srs_state`, `srs_reps`, `srs_lapses`); every graded answer is appended to `review_logs` (with the card state before, for undo). Intro screens of new cards are not logged.
 - All datetimes are UTC; values read from SQLite are naive and go through `as_utc()`.
-- The day starts at 04:00 in `app_settings.timezone` (default `Europe/Moscow`); daily limits (`new_per_day` 5, `reviews_per_day` 50) are counted per that window. Due reviews beyond the limit are reported as `backlog`.
+- The day starts at midnight in `app_settings.timezone` (default `Europe/Moscow`, then follows the device, see Настройки below); daily limits (`new_per_day` 5, `reviews_per_day` 50) are counted per that window. Due reviews beyond the limit are reported as `backlog`.
 - Session order: due learning/relearning cards, then due reviews by retrievability (highest first), then new learning cards (intro first, typed later).
 - Prompt: a usage chunk with its `target` masked as `___` plus the chunk translation, rotating chunks per review; cards without chunks prompt with the Russian translations and expect `canonical_text`.
 - Answer checking (`app/services/answer_check.py`): NFKC, casefold, curly apostrophes, trailing punctuation, ЙЦУКЕН→QWERTY layout fix; one Damerau-Levenshtein edit when the expected answer has 5+ chars is a `typo` (counts as correct).
+- Question screen: "Что это за слово?" reveals the card's English explanation (the back side has none) and sets `hint_used`.
 - Auto rating: wrong → Again (1); correct/typo with hint → Hard (2); correct/typo → Good (3). Easy (4) only by user choice.
 - A grade carries the `srs_due_at` the client saw; a mismatch (e.g. double tap) returns 409 and logs nothing.
 
@@ -224,7 +227,7 @@ Validation rules:
 
 ### `app_settings` (single row, `id = 1`)
 
-- `timezone` (default `Europe/Moscow`)
+- `timezone` (default `Europe/Moscow`; the Mini App replaces it with the device timezone)
 - `reminder_hour` (default `10`)
 - `reminder_anchor` (optional text, e.g. "после кофе")
 - `new_per_day` (default `5`)
@@ -247,7 +250,7 @@ Validation rules:
 - `PATCH /api/cards/{card_id}` (`{is_learning}`)
 - `DELETE /api/cards/{card_id}`
 - `GET /api/review/summary` (today goal, backlog, `due_all`, `days_away`, retention 30d, learned, streak, heatmap, forecast)
-- `GET /api/review/session?size=10&include_backlog=false` (next round; the expected answer is not sent, only `first_letter_hint`; `include_backlog=true` ignores the daily review cap)
+- `GET /api/review/session?size=10&include_backlog=false` (next round; the expected answer is not sent; `include_backlog=true` ignores the daily review cap)
 - `POST /api/review/{card_id}/check` (verdict, expected answer, auto rating, intervals; no DB write)
 - `POST /api/review/{card_id}/grade` (409 on a stale `expected_due_at`)
 - `POST /api/review/undo`
@@ -274,7 +277,7 @@ Views are switched by `?view=` (`history.replaceState`, other params and the has
 - Bottom tab bar (`src/components/TabBar.tsx`): Главная (`home`), Повтор (`review`), Слова (`cards`), Настройки (`settings`). Hidden during a review; the Telegram BackButton leaves the review to Главная.
 - Главная (`src/home/`): today's goal with "Начать" and "Быстро: 5 карточек" (ends after 5 graded cards), retention and learned tiles, 14-week heatmap, streak line (only from 3 days), forecast, backlog. After 3+ study days away with cards due it shows "С возвращением" instead: "5 минут" (card cap from today's pace), "Обычная сессия", "Всё сразу (N)" (`include_backlog=true`).
 - Повтор (`src/review/`): `useReviewSession` drives the flow in rounds of 10 (5 for «Быстро») from `GET /api/review/session`. New cards show an intro ("Запомнил"), and the typed question for that card comes two items later in the same round. Question → `check` → back side with the diff, card details and four grade buttons "Снова / Трудно / Хорошо / Легко" (auto rating highlighted; after a wrong answer "Мой ответ верный" forces Good) → `grade`. `grade` echoes `srs_due_at` verbatim as `expected_due_at`; a 409 refetches the round. After each round: "Раунд готов" with progress to the daily goal; an empty session shows "Готово на сегодня".
-- Настройки (`src/settings/`): daily limits, desired retention, reminder hour and anchor, learn threshold, timezone; saved with `PUT /api/settings`.
+- Настройки (`src/settings/`): daily limits, desired retention, reminder hour and anchor, learn threshold, timezone; saved with `PUT /api/settings`. On each Mini App load the shell saves the device timezone (`Intl.DateTimeFormat().resolvedOptions().timeZone`) when it differs from the stored one; a zone picked by hand in Настройки is replaced on the next load if the device reports another.
 - Слова (`src/pages/CardsPage.tsx`): cards list with search and filters (including `is_learning`), batch import, deletion, and a per-card "Учим" toggle (`PATCH /api/cards/{card_id}`).
 
 The UI reads only from backend JSON endpoints.
@@ -365,7 +368,7 @@ Focus areas:
 - card persistence
 - Anki queue status transitions
 - answer checking (layout, typos, inflected chunk targets)
-- FSRS scheduling, session queue limits and the 04:00 day boundary, grade/undo
+- FSRS scheduling, session queue limits and the midnight day boundary, grade/undo
 - review summary metrics and reminder decisions
 - rare-word confirmation and Anki import state mapping
 - Telegram Web App rendering of API data and the review flow (intro → typed, check → grade, 409 refetch)
@@ -375,7 +378,7 @@ Focus areas:
 - Single-user only in the first version
 - Telegram runs in webhook mode
 - Rate limit: no more than 5 requests per minute from the allowed user
-- Review defaults: 5 new / 50 reviews per day, desired retention 0.9, learn threshold 3, reminder at 10:00, day starts at 04:00 local
+- Review defaults: 5 new / 50 reviews per day, desired retention 0.9, learn threshold 3, reminder at 10:00, day starts at local midnight, timezone follows the device
 - Default LLM model: `google/gemini-2.5-flash-lite`
 - Cards are rejected when the model is not confident the input is a stable lexical unit
 - Backend is the source of truth for all stored cards and sync state

@@ -53,21 +53,18 @@ export function QuestionCard({ item, round, estMinutes, busy, onCheck }: Questio
         autoCapitalize="none"
         spellCheck={false}
       />
-      {hintUsed ? (
-        <p className="review-hint">{prompt.first_letter_hint}</p>
-      ) : (
-        <button
-          type="button"
-          className="link-button"
-          onClick={() => {
-            setHintUsed(true);
-            // The button disappears; keep typing in the answer field.
-            input.current?.focus();
-          }}
-        >
-          Подсказка: первая буква
-        </button>
-      )}
+      <button
+        type="button"
+        className="link-button"
+        onClick={() => {
+          setHintUsed(true);
+          // Keep typing in the answer field.
+          input.current?.focus();
+        }}
+      >
+        Что это за слово?
+      </button>
+      {hintUsed ? <p className="review-explanation">{item.card.explanation}</p> : null}
       <button type="submit" className="primary-button" disabled={busy}>
         Проверить
       </button>

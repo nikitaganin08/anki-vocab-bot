@@ -410,11 +410,6 @@ progress::-moz-progress-bar {
   text-decoration: underline;
 }
 
-.review-hint {
-  font-family: ui-monospace, Menlo, monospace;
-  letter-spacing: 0.15em;
-}
-
 .icon-button {
   display: inline-grid;
   place-items: center;
@@ -470,6 +465,11 @@ progress::-moz-progress-bar {
 
 .settings-form h2 {
   font-size: 20px;
+}
+
+.field-hint {
+  font-size: 13px;
+  color: var(--hint);
 }
 
 /* Cards page */

@@ -142,7 +142,6 @@ class ReviewPromptResponse(BaseModel):
     index: int
     masked: str
     hint_translation: str
-    first_letter_hint: str  # "g___ __" for "give up": first letter, blanks, spaces kept
 
 
 class ReviewSessionItemResponse(BaseModel):

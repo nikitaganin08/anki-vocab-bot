@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 import sqlalchemy as sa
 from fsrs import Card as FsrsCard
-from fsrs import State
+from fsrs import Scheduler, State
 from sqlalchemy.orm import Session
 
 from app.models.card import Card
 from app.models.review_log import ReviewLogEntry
 from app.services.app_settings import get_app_settings
+from app.services.review_stats import build_summary
 from app.services.srs import (
     GradeInput,
     StaleReviewError,
@@ -26,6 +28,7 @@ from app.services.srs import (
 from .conftest import make_card
 
 NOW = datetime(2026, 10, 20, 9, 0, tzinfo=UTC)
+DAY = 86400
 
 
 def _add(session: Session, name: str, **overrides: object) -> Card:
@@ -99,12 +102,16 @@ def _log_count(session: Session) -> int:
     return session.scalar(sa.select(sa.func.count()).select_from(ReviewLogEntry)) or 0
 
 
-def test_day_window_before_4am_belongs_to_previous_day() -> None:
-    # 01:00 in Moscow on the 21st is still the 20th's study day (starts 04:00 MSK = 01:00 UTC).
-    start, end = day_window(datetime(2026, 10, 20, 22, 0, tzinfo=UTC), "Europe/Moscow")
+def test_day_window_starts_at_local_midnight() -> None:
+    # 00:30 in Moscow on the 21st already belongs to the 21st (midnight MSK = 21:00 UTC).
+    start, end = day_window(datetime(2026, 10, 20, 21, 30, tzinfo=UTC), "Europe/Moscow")
 
-    assert start == datetime(2026, 10, 20, 1, 0, tzinfo=UTC)
-    assert end == datetime(2026, 10, 21, 1, 0, tzinfo=UTC)
+    assert start == datetime(2026, 10, 20, 21, 0, tzinfo=UTC)
+    assert end == datetime(2026, 10, 21, 21, 0, tzinfo=UTC)
+
+    # 23:30 in Moscow on the 20th is still the 20th's study day.
+    start, _ = day_window(datetime(2026, 10, 20, 20, 30, tzinfo=UTC), "Europe/Moscow")
+    assert start == datetime(2026, 10, 19, 21, 0, tzinfo=UTC)
 
 
 def test_new_card_good_goes_to_learning(session: Session) -> None:
@@ -113,7 +120,7 @@ def test_new_card_good_goes_to_learning(session: Session) -> None:
     grade_card(session, get_app_settings(session), card, _grade(card), NOW)
 
     assert card.srs_state == "learning"
-    assert as_utc(card.srs_due_at) == NOW + timedelta(minutes=10)
+    assert as_utc(card.srs_due_at) == NOW + timedelta(days=1)
     assert card.srs_reps == 1
 
 
@@ -126,7 +133,7 @@ def test_grade_after_reload_from_db(session: Session) -> None:
     card = session.get(Card, card.id)
     assert card is not None
     assert card.srs_due_at is not None and card.srs_due_at.tzinfo is None  # SQLite drops tz
-    grade_card(session, settings, card, _grade(card), NOW + timedelta(minutes=11))
+    grade_card(session, settings, card, _grade(card), NOW + timedelta(days=1))
 
     assert _log_count(session) == 2
     assert card.srs_state == "review"
@@ -135,8 +142,21 @@ def test_grade_after_reload_from_db(session: Session) -> None:
 def test_session_order_learning_then_reviews_then_new(session: Session) -> None:
     _add(session, "new one")
     _schedule(session, _add(session, "review one"), State.Review, NOW - timedelta(days=1))
-    _schedule(session, _add(session, "learning one"), State.Learning, NOW + timedelta(minutes=5))
-    _schedule(session, _add(session, "learning later"), State.Learning, NOW + timedelta(hours=1))
+    just_now = NOW - timedelta(minutes=5)
+    _schedule(
+        session,
+        _add(session, "learning one"),
+        State.Learning,
+        NOW + timedelta(minutes=5),
+        last_review=just_now,
+    )
+    _schedule(
+        session,
+        _add(session, "learning later"),
+        State.Learning,
+        NOW + timedelta(hours=1),
+        last_review=just_now,
+    )
 
     items = build_session(session, get_app_settings(session), NOW)
 
@@ -148,7 +168,11 @@ def test_session_order_learning_then_reviews_then_new(session: Session) -> None:
 def test_session_respects_daily_limits(session: Session) -> None:
     for i in range(5):
         card = _schedule(
-            session, _add(session, f"intro {i}"), State.Learning, NOW + timedelta(hours=2)
+            session,
+            _add(session, f"intro {i}"),
+            State.Learning,
+            NOW + timedelta(hours=2),
+            last_review=NOW - timedelta(minutes=10),
         )
         _log(session, card, None)
     reviewed = _schedule(session, _add(session, "reviewed"), State.Review, NOW + timedelta(days=3))
@@ -254,7 +278,78 @@ def test_preview_intervals_monotonic(session: Session) -> None:
         intervals = preview_intervals(scheduler, card, NOW)
         assert list(intervals) == [1, 2, 3, 4]
         assert intervals[1] <= intervals[2] <= intervals[3] <= intervals[4]
-    assert preview_intervals(scheduler, new, NOW)[3] == 600
+
+
+def test_new_card_intervals_follow_learning_steps(session: Session) -> None:
+    intervals = preview_intervals(
+        build_scheduler(get_app_settings(session)), _add(session, "give up"), NOW
+    )
+
+    assert (intervals[1], intervals[3], intervals[4]) == (60, DAY, 2 * DAY)
+
+
+def test_learning_card_good_graduates_and_easy_doubles_good(session: Session) -> None:
+    settings = get_app_settings(session)
+    card = _add(session, "give up")
+    grade_card(session, settings, card, _grade(card), NOW)  # learning step 1: due in 1 day
+    later = NOW + timedelta(days=1)
+
+    intervals = preview_intervals(build_scheduler(settings), card, later)
+    assert intervals[3] >= DAY
+    assert intervals[4] == 2 * intervals[3]
+
+    grade_card(session, settings, card, _grade(card), later)
+    assert card.srs_state == "review"
+    assert as_utc(card.srs_due_at) == later + timedelta(seconds=intervals[3])
+
+
+@pytest.mark.parametrize("graded_before", [0, 1])
+def test_grade_easy_stores_previewed_due(session: Session, graded_before: int) -> None:
+    settings = get_app_settings(session)
+    card = _add(session, "give up")
+    for _ in range(graded_before):
+        grade_card(session, settings, card, _grade(card), NOW)
+    later = NOW + timedelta(days=graded_before)
+
+    intervals = preview_intervals(build_scheduler(settings), card, later)
+    grade_card(session, settings, card, _grade(card, rating=4), later)
+
+    assert card.srs_state == "review"
+    assert as_utc(card.srs_due_at) == later + timedelta(seconds=intervals[4])
+
+
+@pytest.mark.parametrize(
+    ("stability", "elapsed_days", "difficulty"),
+    [(10.0, 10, 5.0), (1.0, 1, 1.0), (0.3, 30, 10.0)],
+)
+def test_review_easy_between_good_plus_day_and_double_good(
+    session: Session, stability: float, elapsed_days: int, difficulty: float
+) -> None:
+    card = _schedule(
+        session,
+        _add(session, "take on"),
+        State.Review,
+        NOW,
+        stability=stability,
+        difficulty=difficulty,
+        last_review=NOW - timedelta(days=elapsed_days),
+    )
+
+    intervals = preview_intervals(build_scheduler(get_app_settings(session)), card, NOW)
+
+    assert intervals[3] + DAY <= intervals[4] <= 2 * intervals[3]
+
+
+def test_review_easy_clamped_to_double_good(session: Session) -> None:
+    # A huge easy bonus (w16) makes raw FSRS Easy far more than twice Good.
+    parameters = list(build_scheduler(get_app_settings(session)).parameters)
+    parameters[16] = 6.0
+    scheduler = Scheduler(parameters=parameters, enable_fuzzing=False)
+    card = _schedule(session, _add(session, "take on"), State.Review, NOW)
+
+    intervals = preview_intervals(scheduler, card, NOW)
+
+    assert intervals[4] == 2 * intervals[3]
 
 
 def test_grade_tolerates_subsecond_drift_in_expected_due(session: Session) -> None:
@@ -308,3 +403,73 @@ def test_ordered_intervals_never_exceed_maximum(session: Session) -> None:
     intervals = preview_intervals(scheduler, card, NOW)
 
     assert max(intervals.values()) <= scheduler.maximum_interval * 86400
+
+
+def test_day_scale_due_dates_are_available_from_start_of_study_day(session: Session) -> None:
+    settings = get_app_settings(session)
+    later_today = NOW + timedelta(hours=8)  # 20:00 Moscow, same study day
+    tomorrow = NOW + timedelta(hours=20)  # 08:00 Moscow next day
+    review_today = _schedule(session, _add(session, "review today"), State.Review, later_today)
+    _schedule(session, _add(session, "review tomorrow"), State.Review, tomorrow)
+    interday = _schedule(
+        session,
+        _add(session, "interday step"),
+        State.Learning,
+        later_today,
+        last_review=NOW - timedelta(days=1),
+    )
+    _schedule(
+        session,
+        _add(session, "intraday step"),
+        State.Learning,
+        NOW + timedelta(hours=3),
+        last_review=NOW - timedelta(hours=1),
+    )
+
+    served = {item.card.id for item in build_session(session, settings, NOW, size=10)}
+
+    assert served == {review_today.id, interday.id}
+    assert build_summary(session, settings, NOW).due_today == 2
+
+
+def test_daily_cap_takes_most_overdue_reviews_first(session: Session) -> None:
+    settings = get_app_settings(session)
+    settings.reviews_per_day = 1
+    session.commit()
+    overdue = _schedule(
+        session, _add(session, "overdue"), State.Review, NOW - timedelta(days=10), stability=5.0
+    )
+    _schedule(session, _add(session, "later today"), State.Review, NOW + timedelta(hours=8))
+
+    served = [item.card.id for item in build_session(session, settings, NOW, size=10)]
+
+    assert served == [overdue.id]
+
+
+def test_lookahead_does_not_cross_into_next_study_day(session: Session) -> None:
+    settings = get_app_settings(session)
+    before_midnight = datetime(2026, 10, 20, 20, 50, tzinfo=UTC)  # 23:50 Moscow
+    _schedule(
+        session,
+        _add(session, "after midnight"),
+        State.Learning,
+        before_midnight + timedelta(minutes=15),  # 00:05 Moscow, next study day
+        last_review=before_midnight - timedelta(minutes=5),
+    )
+
+    assert build_session(session, settings, before_midnight, size=10) == []
+    assert build_summary(session, settings, before_midnight).due_today == 0
+
+
+@pytest.mark.parametrize(
+    ("moment", "hours"),
+    [
+        (datetime(2026, 3, 29, 10, 0, tzinfo=UTC), 23),  # Berlin springs forward
+        (datetime(2026, 10, 25, 10, 0, tzinfo=UTC), 25),  # Berlin falls back
+    ],
+)
+def test_day_window_spans_local_day_across_dst(moment: datetime, hours: int) -> None:
+    start, end = day_window(moment, "Europe/Berlin")
+
+    assert end - start == timedelta(hours=hours)
+    assert start.astimezone(ZoneInfo("Europe/Berlin")).hour == 0

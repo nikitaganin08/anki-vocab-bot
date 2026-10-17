@@ -17,7 +17,8 @@ Review (SRS):
   is appended to `review_logs`, user preferences are the single `app_settings` row.
 - Mini App endpoints (Telegram Web App auth): `/api/review/*`, `/api/settings`,
   `PATCH /api/cards/{id}` (`is_learning` toggle).
-- The day starts at 04:00 in `app_settings.timezone` (default `Europe/Moscow`).
+- The day starts at midnight in `app_settings.timezone` (default `Europe/Moscow`); the Mini App
+  saves the device timezone on load when it differs (manual override in Настройки).
 - A daily reminder loop runs in the FastAPI lifespan when `TELEGRAM_BOT_TOKEN` is set; set
   `DISABLE_REMINDERS=1` to turn it off (tests do).
 - Bot command `/review` opens the review view; rare words (`frequency < learn_threshold`) are

@@ -28,12 +28,25 @@ def _add(
         canonical_text_normalized=name,
         srs_state=state,
         srs_due_at=due,
-        srs_card_json=None if state is None else "{}",
+        srs_card_json=None if state is None else _fsrs_json(state, due),
         **overrides,
     )
     session.add(card)
     session.commit()
     return card
+
+
+def _fsrs_json(state: str, due: datetime | None) -> str:
+    # Last answered an hour ago, i.e. learning cards sit on an intraday step.
+    return FsrsCard(
+        card_id=1,
+        state=State[state.capitalize()],
+        step=None if state == "review" else 0,
+        stability=10.0,
+        difficulty=5.0,
+        due=due,
+        last_review=NOW - timedelta(hours=1),
+    ).to_json()
 
 
 def _log(
@@ -130,11 +143,10 @@ def test_days_away_counts_study_days(session: Session) -> None:
     assert build_summary(session, settings, NOW).days_away is None
 
     card = _add(session, "give up", "review", NOW + timedelta(days=10))
-    # 03:30 in Moscow on the 17th still belongs to the 16th's study day.
-    _log(session, card, datetime(2026, 10, 17, 0, 30, tzinfo=UTC))
+    _log(session, card, datetime(2026, 10, 16, 20, 30, tzinfo=UTC))  # 23:30 on the 16th, Moscow
     assert build_summary(session, settings, NOW).days_away == 4
 
-    _log(session, card, datetime(2026, 10, 17, 2, 0, tzinfo=UTC))  # 05:00 in Moscow
+    _log(session, card, datetime(2026, 10, 16, 21, 30, tzinfo=UTC))  # 00:30 on the 17th, Moscow
     assert build_summary(session, settings, NOW).days_away == 3
 
     _log(session, card, NOW - timedelta(hours=1))
@@ -202,7 +214,7 @@ def test_learned_delta_counts_first_graduation_only(session: Session) -> None:
 
 def test_forecast_tomorrow_and_week(session: Session) -> None:
     _add(session, "learning soon", "learning", NOW + timedelta(minutes=5))  # due now
-    _add(session, "later today", "review", NOW + timedelta(hours=12))
+    _add(session, "later today", "review", NOW + timedelta(hours=11))  # 23:00 Moscow
     _add(session, "tomorrow", "review", NOW + timedelta(days=1))
     for i in range(5):
         _add(session, f"this week {i}", "review", NOW + timedelta(days=6))
@@ -211,6 +223,14 @@ def test_forecast_tomorrow_and_week(session: Session) -> None:
 
     summary = build_summary(session, get_app_settings(session), NOW)
 
-    assert summary.due_today == 1
-    # Cards that come due later today wait for tomorrow's session.
-    assert (summary.forecast_tomorrow, summary.forecast_week_avg) == (2, 1)
+    # Review cards due later today count today (study day starts at midnight), like Anki.
+    assert summary.due_today == 2
+    assert (summary.forecast_tomorrow, summary.forecast_week_avg) == (1, 1)
+
+
+def test_forecast_skips_learning_steps_due_later_today(session: Session) -> None:
+    _add(session, "hard step", "learning", NOW + timedelta(hours=6))  # still today, intraday
+
+    summary = build_summary(session, get_app_settings(session), NOW)
+
+    assert (summary.due_today, summary.forecast_tomorrow) == (0, 0)
