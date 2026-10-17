@@ -17,7 +17,7 @@ export function ReviewView({ mode, onExit }: ReviewViewProps): JSX.Element | nul
 
   switch (session.phase) {
     case "loading":
-      return <LoadingState title="Повтор" message="Загружаем карточки…" />;
+      return <LoadingState title="Review" message="Loading cards…" />;
     case "error":
       return <ErrorState error={session.error} onRetry={session.retry} />;
     case "intro":

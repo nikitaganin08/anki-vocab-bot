@@ -63,7 +63,8 @@ The app receives words and stable expressions from Telegram, generates learning 
 - `TanStack Query`
 - No router: views are switched by the `?view=` query parameter
 - Theme follows Telegram: `Telegram.WebApp.themeParams` are mapped to CSS variables (`--tg-bg`, `--tg-text`, `--tg-hint`, `--tg-accent`, `--tg-accent-text`, `--tg-surface`) with light fallbacks; flat surfaces, no gradients, one accent button per screen
-- Audio: browser `speechSynthesis` (`en-US`), hidden when unavailable
+- Audio: the speaker button is always shown and plays only on tap (no autoplay); it fetches `GET /api/cards/{card_id}/audio` with the `X-Telegram-Init-Data` header, keeps an object URL per card in memory, plays it with `new Audio(url)`, and falls back to browser `speechSynthesis` (`en-US`) when the fetch or playback fails (silent when that is missing too)
+- UI copy is English, sentence case (`<html lang="en">`); Russian appears only as card data (translations, chunk translations)
 - `npm` for dependency management
 - `npx` only for one-off scaffolding and CLI bootstrap commands
 
@@ -112,11 +113,11 @@ The app receives words and stable expressions from Telegram, generates learning 
 - Due dates of a day or more count from the start of their study day (local midnight), like Anki; intraday learning steps keep their exact time.
 - SRS state lives on `cards` (`srs_card_json` = `fsrs.Card.to_json()`, `srs_due_at`, `srs_state`, `srs_reps`, `srs_lapses`); every graded answer is appended to `review_logs` (with the card state before, for undo). Intro screens of new cards are not logged.
 - All datetimes are UTC; values read from SQLite are naive and go through `as_utc()`.
-- The day starts at midnight in `app_settings.timezone` (default `Europe/Moscow`, then follows the device, see Настройки below); daily limits (`new_per_day` 5, `reviews_per_day` 50) are counted per that window. Due reviews beyond the limit are reported as `backlog`.
+- The day starts at midnight in `app_settings.timezone` (default `Europe/Moscow`, then follows the device, see Settings below); daily limits (`new_per_day` 5, `reviews_per_day` 50) are counted per that window. Due reviews beyond the limit are reported as `backlog`.
 - Session order: due learning/relearning cards, then due reviews by retrievability (highest first), then new learning cards (intro first, typed later).
 - Prompt: a usage chunk with its `target` masked as `___` plus the chunk translation, rotating chunks per review; cards without chunks prompt with the Russian translations and expect `canonical_text`.
 - Answer checking (`app/services/answer_check.py`): NFKC, casefold, curly apostrophes, trailing punctuation, ЙЦУКЕН→QWERTY layout fix; one Damerau-Levenshtein edit when the expected answer has 5+ chars is a `typo` (counts as correct).
-- Question screen: "Что это за слово?" reveals the card's English explanation (the back side has none) and sets `hint_used`.
+- Question screen: "What's this word?" reveals the card's English explanation and sets `hint_used`.
 - Auto rating: wrong → Again (1); correct/typo with hint → Hard (2); correct/typo → Good (3). Easy (4) only by user choice.
 - A grade carries the `srs_due_at` the client saw; a mismatch (e.g. double tap) returns 409 and logs nothing.
 
@@ -248,7 +249,8 @@ Validation rules:
 - `GET /api/cards` (filters include `is_learning`)
 - `POST /api/cards/batch`
 - `PATCH /api/cards/{card_id}` (`{is_learning}`)
-- `DELETE /api/cards/{card_id}`
+- `DELETE /api/cards/{card_id}` (also removes the card's cached audio)
+- `GET /api/cards/{card_id}/audio` (`audio/mpeg` pronunciation of `canonical_text` via edge-tts with `ANKI_PRONUNCIATION_VOICE`; cached at `<SQLite DB dir>/audio/<card_id>.mp3`, written atomically; 404 unknown card, 502 when generation fails)
 - `GET /api/review/summary` (today goal, backlog, `due_all`, `days_away`, retention 30d, learned, streak, heatmap, forecast)
 - `GET /api/review/session?size=10&include_backlog=false` (next round; the expected answer is not sent; `include_backlog=true` ignores the daily review cap)
 - `POST /api/review/{card_id}/check` (verdict, expected answer, auto rating, intervals; no DB write)
@@ -272,15 +274,16 @@ The Anki sync API uses bearer token authentication.
 
 ## Telegram Web App
 
-Views are switched by `?view=` (`history.replaceState`, other params and the hash kept); unknown or missing values open `home`. The bot's `/review` command and reminders open `?view=review`. Screen content and Russian copy follow the "Mini App" section of `docs/superpowers/specs/2026-10-17-srs-review-design.md`.
+Views are switched by `?view=` (`history.replaceState`, other params and the hash kept); unknown or missing values open `home`. The bot's `/review` command and reminders open `?view=review`. Screen content and the English UI copy follow the "Mini App" section of `docs/superpowers/specs/2026-10-17-srs-review-design.md`.
 
-- Bottom tab bar (`src/components/TabBar.tsx`): Главная (`home`), Повтор (`review`), Слова (`cards`), Настройки (`settings`). Hidden during a review; the Telegram BackButton leaves the review to Главная.
-- Главная (`src/home/`): today's goal with "Начать" and "Быстро: 5 карточек" (ends after 5 graded cards), retention and learned tiles, 14-week heatmap, streak line (only from 3 days), forecast, backlog. After 3+ study days away with cards due it shows "С возвращением" instead: "5 минут" (card cap from today's pace), "Обычная сессия", "Всё сразу (N)" (`include_backlog=true`).
-- Повтор (`src/review/`): `useReviewSession` drives the flow in rounds of 10 (5 for «Быстро») from `GET /api/review/session`. New cards show an intro ("Запомнил"), and the typed question for that card comes two items later in the same round. Question → `check` → back side with the diff, card details and four grade buttons "Снова / Трудно / Хорошо / Легко" (auto rating highlighted; after a wrong answer "Мой ответ верный" forces Good) → `grade`. `grade` echoes `srs_due_at` verbatim as `expected_due_at`; a 409 refetches the round. After each round: "Раунд готов" with progress to the daily goal; an empty session shows "Готово на сегодня".
-- Настройки (`src/settings/`): daily limits, desired retention, reminder hour and anchor, learn threshold, timezone; saved with `PUT /api/settings`. On each Mini App load the shell saves the device timezone (`Intl.DateTimeFormat().resolvedOptions().timeZone`) when it differs from the stored one; a zone picked by hand in Настройки is replaced on the next load if the device reports another.
-- Слова (`src/pages/CardsPage.tsx`): cards list with search and filters (including `is_learning`), batch import, deletion, and a per-card "Учим" toggle (`PATCH /api/cards/{card_id}`).
+- Bottom tab bar (`src/components/TabBar.tsx`): Home (`home`), Review (`review`), Words (`cards`), Settings (`settings`). Hidden during a review; the Telegram BackButton leaves the review to Home.
+- Home (`src/home/`): today's goal with "Start" and "Quick: 5 cards" (ends after 5 graded cards), retention and learned tiles, 14-week heatmap, streak line (only from 3 days), forecast, backlog. After 3+ study days away with cards due it shows "Welcome back" instead: "5 minutes" (card cap from today's pace), "Regular session", "All at once (N)" (`include_backlog=true`).
+- Review (`src/review/`): `useReviewSession` drives the flow in rounds of 10 (5 for "Quick") from `GET /api/review/session`. New cards show an intro ("New word" chip, full card, "Got it"), and the typed question for that card comes two items later in the same round. Question → `check` → back side with the diff, the full card and four grade buttons "Again / Hard / Good / Easy" (auto rating highlighted; after a wrong answer "My answer was right" forces Good) → `grade`. `grade` echoes `srs_due_at` verbatim as `expected_due_at`; a 409 refetches the round. After each round: "Round complete" with progress to the daily goal; an empty session shows "Done for today".
+- Full card (`CardDetails` in `src/review/IntroCard.tsx`, intro and back side): word + speaker + IPA → translations → explanation (full English definition) → "Usage" chunks → one example → word family, one form per line ("distinguishable (adjective) — различимый").
+- Settings (`src/settings/`): daily limits, desired retention, reminder hour and anchor, learn threshold, timezone; saved with `PUT /api/settings`. On each Mini App load the shell saves the device timezone (`Intl.DateTimeFormat().resolvedOptions().timeZone`) when it differs from the stored one; a zone picked by hand in Settings is replaced on the next load if the device reports another.
+- Words (`src/pages/CardsPage.tsx`): cards list with search and filters (including `is_learning`), batch import, deletion, and a per-card "Learning" toggle (`PATCH /api/cards/{card_id}`).
 
-The UI reads only from backend JSON endpoints.
+The UI reads only from backend endpoints (JSON, plus the MP3 from `/api/cards/{card_id}/audio`).
 
 Production exposure (`deploy/nginx/anki.conf`):
 - `/anki/telegram/*` → Mini App static files and the webhook (secret token)

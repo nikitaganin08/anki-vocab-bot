@@ -56,7 +56,7 @@ async function readErrorMessage(response: Response): Promise<string> {
     // Not JSON: fall through to the raw text.
   }
 
-  return text.length > 0 ? text : `Ошибка запроса (${response.status})`;
+  return text.length > 0 ? text : `Request failed (${response.status})`;
 }
 
 async function request<T>(path: string, method = "GET", body?: unknown): Promise<T> {
@@ -105,6 +105,17 @@ export async function importCardsBatch(
 
 export async function deleteCard(cardId: number): Promise<void> {
   return request(`/api/cards/${cardId}`, "DELETE");
+}
+
+// Binary MP3: an <audio src> could not send the Telegram init data header.
+export async function getCardAudio(cardId: number): Promise<Blob> {
+  const response = await fetch(resolveApiPath(`/api/cards/${cardId}/audio`), {
+    headers: buildHeaders({ Accept: "audio/mpeg" }),
+  });
+  if (!response.ok) {
+    throw new ApiError(await readErrorMessage(response), response.status);
+  }
+  return response.blob();
 }
 
 export async function setCardLearning(cardId: number, isLearning: boolean): Promise<Card> {

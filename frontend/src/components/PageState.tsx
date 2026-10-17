@@ -19,10 +19,10 @@ function getErrorMessage(error: unknown): string {
     return error.message;
   }
 
-  return "Неизвестная ошибка";
+  return "Unknown error";
 }
 
-export function LoadingState({ title = "Загрузка", message = "Загружаем данные…" }: LoadingStateProps): JSX.Element {
+export function LoadingState({ title = "Loading", message = "Loading data…" }: LoadingStateProps): JSX.Element {
   return (
     <section className="page-state" role="status" aria-live="polite">
       <div className="pulse-dot" aria-hidden="true" />
@@ -41,14 +41,14 @@ export function EmptyState({ title, message }: EmptyStateProps): JSX.Element {
   );
 }
 
-export function ErrorState({ title = "Не удалось загрузить", error, onRetry }: ErrorStateProps): JSX.Element {
+export function ErrorState({ title = "Couldn't load data", error, onRetry }: ErrorStateProps): JSX.Element {
   return (
     <section className="page-state page-state-error" role="alert">
       <h2>{title}</h2>
       <p>{getErrorMessage(error)}</p>
       {onRetry ? (
         <button type="button" className="secondary-button" onClick={onRetry}>
-          Повторить
+          Try again
         </button>
       ) : null}
     </section>

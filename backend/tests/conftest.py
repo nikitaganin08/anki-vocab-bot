@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Generator
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,7 +12,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 import app.api.deps as deps_mod
-from app.api.deps import require_anki_token
+from app.api.deps import get_audio_dir, require_anki_token
 from app.db.base import Base
 from app.db.session import enable_sqlite_foreign_keys, get_session
 from app.main import app
@@ -57,8 +58,9 @@ def _session_override(session: Session):  # type: ignore[no-untyped-def]
 
 
 @pytest.fixture
-def client(session: Session) -> Generator[TestClient, None, None]:
+def client(session: Session, tmp_path: Path) -> Generator[TestClient, None, None]:
     app.dependency_overrides[get_session] = _session_override(session)
+    app.dependency_overrides[get_audio_dir] = lambda: tmp_path / "audio"
     original_get_settings = deps_mod.get_settings
     deps_mod.get_settings = lambda: TelegramSettingsStub()
     try:

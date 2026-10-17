@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Header, HTTPException, Security, status
@@ -8,7 +9,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.api.telegram_webapp_auth import parse_and_validate_init_data
 from app.clients.openrouter import OpenRouterClient
-from app.core.config import get_settings
+from app.core.config import DEFAULT_DATABASE_PATH, get_settings
+from app.services.pronunciation import EdgeTtsPronunciationGenerator
 
 _bearer = HTTPBearer()
 
@@ -34,6 +36,15 @@ def get_openrouter_client() -> OpenRouterClient:
         api_key=settings.openrouter_api_key,
         model=settings.llm_model,
     )
+
+
+def get_pronunciation_generator() -> EdgeTtsPronunciationGenerator:
+    return EdgeTtsPronunciationGenerator(voice=get_settings().anki_pronunciation_voice)
+
+
+def get_audio_dir() -> Path:
+    # Pronunciation MP3 cache next to the SQLite DB (the persistent volume in Docker).
+    return (get_settings().database_path or DEFAULT_DATABASE_PATH).parent / "audio"
 
 
 def require_telegram_webapp_user(

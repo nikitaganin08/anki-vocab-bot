@@ -88,18 +88,18 @@ describe("CardsPage", () => {
 
     renderCardsPage();
 
-    expect(await screen.findByRole("heading", { name: "Слова" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Words" })).toBeInTheDocument();
     expect((await screen.findAllByText("turn down")).length).toBeGreaterThan(0);
-    expect(await screen.findByRole("button", { name: "Удалить" })).toBeInTheDocument();
-    expect(await screen.findByText("1–1 из 1")).toBeInTheDocument();
-    expect(screen.getByText("Импорт списком")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Delete" })).toBeInTheDocument();
+    expect(await screen.findByText("1–1 of 1")).toBeInTheDocument();
+    expect(screen.getByText("Batch import")).toBeInTheDocument();
     expect(screen.getByText("turn-down")).toBeInTheDocument();
     // One accent button per screen: Import; search is secondary.
     expect(document.querySelectorAll(".primary-button")).toHaveLength(1);
-    expect(screen.getByRole("button", { name: "Импортировать" })).toHaveClass("primary-button");
-    expect(screen.getByRole("button", { name: "Найти" })).toHaveClass("secondary-button");
-    expect(screen.getByText("ждёт синхронизации", { selector: ".status-pill" })).toBeInTheDocument();
-    expect(screen.getByText("фразовый глагол", { selector: "strong" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Import" })).toHaveClass("primary-button");
+    expect(screen.getByRole("button", { name: "Find" })).toHaveClass("secondary-button");
+    expect(screen.getByText("waiting for sync", { selector: ".status-pill" })).toBeInTheDocument();
+    expect(screen.getByText("phrasal verb", { selector: "strong" })).toBeInTheDocument();
     expect(screen.getByText(/отказ/)).toBeInTheDocument();
   });
 
@@ -125,11 +125,11 @@ describe("CardsPage", () => {
 
     renderCardsPage();
 
-    await screen.findByRole("heading", { name: "Слова" });
+    await screen.findByRole("heading", { name: "Words" });
 
     const lines = Array.from({ length: 12 }, (_, index) => `item-${index + 1}`).join("\n");
-    fireEvent.change(screen.getByLabelText("Список"), { target: { value: lines } });
-    fireEvent.click(screen.getByRole("button", { name: "Импортировать" }));
+    fireEvent.change(screen.getByLabelText("List"), { target: { value: lines } });
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
 
     await waitFor(() => {
       expect(mockedImportCardsBatch).toHaveBeenCalledTimes(3);
@@ -137,9 +137,9 @@ describe("CardsPage", () => {
 
     expect(mockedImportCardsBatch.mock.calls[0][0]).toHaveLength(5);
     expect(mockedImportCardsBatch.mock.calls[2][0]).toHaveLength(2);
-    expect(await screen.findByText("Обработано 12/12")).toBeInTheDocument();
-    expect(await screen.findByText("Всего обработано: 12")).toBeInTheDocument();
-    expect(await screen.findByText("Добавлено: 12")).toBeInTheDocument();
+    expect(await screen.findByText("Processed 12/12")).toBeInTheDocument();
+    expect(await screen.findByText("Total processed: 12")).toBeInTheDocument();
+    expect(await screen.findByText("Added: 12")).toBeInTheDocument();
   });
 
   it("shows mixed statuses in batch results table", async () => {
@@ -180,19 +180,19 @@ describe("CardsPage", () => {
 
     renderCardsPage();
 
-    await screen.findByRole("heading", { name: "Слова" });
-    fireEvent.change(screen.getByLabelText("Список"), {
+    await screen.findByRole("heading", { name: "Words" });
+    fireEvent.change(screen.getByLabelText("List"), {
       target: { value: "look up\nvery random sentence\none two three four five six seven eight nine" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Импортировать" }));
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
 
-    expect(await screen.findByText("Всего обработано: 3")).toBeInTheDocument();
-    expect(screen.getByText("Отклонено: 1")).toBeInTheDocument();
-    expect(screen.getByText("Неверный ввод: 1")).toBeInTheDocument();
+    expect(await screen.findByText("Total processed: 3")).toBeInTheDocument();
+    expect(screen.getByText("Rejected: 1")).toBeInTheDocument();
+    expect(screen.getByText("Invalid input: 1")).toBeInTheDocument();
     expect(screen.getByText(/This does not look like a stable lexical unit\./)).toBeInTheDocument();
     expect(screen.getByText(/Please send up to 8 words\./)).toBeInTheDocument();
     expect(screen.getAllByText("look up").length).toBeGreaterThan(0);
-    expect(screen.getByText("неверный ввод")).toBeInTheDocument();
+    expect(screen.getByText("invalid input")).toBeInTheDocument();
   });
 
   it("stops on second chunk error and keeps partial results", async () => {
@@ -219,18 +219,18 @@ describe("CardsPage", () => {
 
     renderCardsPage();
 
-    await screen.findByRole("heading", { name: "Слова" });
+    await screen.findByRole("heading", { name: "Words" });
     const lines = Array.from({ length: 7 }, (_, index) => `item-${index + 1}`).join("\n");
-    fireEvent.change(screen.getByLabelText("Список"), { target: { value: lines } });
-    fireEvent.click(screen.getByRole("button", { name: "Импортировать" }));
+    fireEvent.change(screen.getByLabelText("List"), { target: { value: lines } });
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
 
     await waitFor(() => {
       expect(mockedImportCardsBatch).toHaveBeenCalledTimes(2);
     });
 
-    expect(await screen.findByText("Импорт остановлен: ошибка запроса")).toBeInTheDocument();
-    expect(screen.getByText("Всего обработано: 5")).toBeInTheDocument();
-    expect(screen.getByText("Добавлено: 5")).toBeInTheDocument();
+    expect(await screen.findByText("Import stopped: request failed")).toBeInTheDocument();
+    expect(screen.getByText("Total processed: 5")).toBeInTheDocument();
+    expect(screen.getByText("Added: 5")).toBeInTheDocument();
     expect(screen.getAllByText("item-1").length).toBeGreaterThan(0);
   });
 
@@ -269,12 +269,12 @@ describe("CardsPage", () => {
 
     renderCardsPage();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Удалить «turn down»?" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Delete “turn down”?" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Удалить карточку" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete card" }));
 
     await waitFor(() => {
       expect(mockedDeleteCard).toHaveBeenCalled();
@@ -311,7 +311,7 @@ describe("CardsPage", () => {
 
     renderCardsPage();
 
-    const toggle = await screen.findByRole("switch", { name: "Учим: turn down" });
+    const toggle = await screen.findByRole("switch", { name: "Learning: turn down" });
     expect(toggle).toBeChecked();
     fireEvent.click(toggle);
 

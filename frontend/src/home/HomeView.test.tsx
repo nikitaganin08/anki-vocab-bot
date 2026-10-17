@@ -53,19 +53,19 @@ describe("HomeView", () => {
   it("shows goal and minutes", async () => {
     const onStart = renderHome(summary());
 
-    expect(await screen.findByText("Цель на сегодня: 17 карточек · ~6 мин")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Начать" })).toHaveClass("primary-button");
+    expect(await screen.findByText("Today's goal: 17 cards · ~6 min")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start" })).toHaveClass("primary-button");
     expect(screen.getByText("91%")).toBeInTheDocument();
-    expect(screen.getByText("цель 90%")).toBeInTheDocument();
+    expect(screen.getByText("goal 90%")).toBeInTheDocument();
     expect(screen.getByText("140")).toBeInTheDocument();
-    expect(screen.getByText("+9 за неделю")).toBeInTheDocument();
-    expect(screen.getByText("серия 4 дн. · лучшая 11")).toBeInTheDocument();
-    expect(screen.getByText("Завтра ~14 · неделя ~11/день")).toBeInTheDocument();
-    expect(screen.getByText("Отложено: 3")).toBeInTheDocument();
+    expect(screen.getByText("+9 this week")).toBeInTheDocument();
+    expect(screen.getByText("streak 4 days · best 11")).toBeInTheDocument();
+    expect(screen.getByText("Tomorrow ~14 · week ~11/day")).toBeInTheDocument();
+    expect(screen.getByText("Postponed: 3")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Начать" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
     expect(onStart).toHaveBeenLastCalledWith({});
-    fireEvent.click(screen.getByRole("button", { name: "Быстро: 5 карточек" }));
+    fireEvent.click(screen.getByRole("button", { name: "Quick: 5 cards" }));
     expect(onStart).toHaveBeenLastCalledWith({ capCards: 5 });
   });
 
@@ -75,8 +75,8 @@ describe("HomeView", () => {
     vi.setSystemTime(new Date(2026, 9, 22, 0, 30));
     renderHome(summary());
 
-    expect(await screen.findByText("Активность")).toBeInTheDocument();
-    const heatmap = screen.getByRole("img", { name: "Активность за 14 недель" });
+    expect(await screen.findByText("Activity")).toBeInTheDocument();
+    const heatmap = screen.getByRole("img", { name: "Activity over 14 weeks" });
     // Today (Thursday, row 4) is the last of 98 cells, so the first one is a Friday (row 5).
     expect((heatmap.children[0] as HTMLElement).style.gridRowStart).toBe("5");
     expect((heatmap.children[1] as HTMLElement).style.gridRowStart).toBe("");
@@ -86,9 +86,9 @@ describe("HomeView", () => {
   it("hides streak below three days", async () => {
     renderHome(summary({ streak_days: 2, backlog: 0, retention_30d: null, due_today: 1, new_today: 0 }));
 
-    expect(await screen.findByText("Цель на сегодня: 1 карточка · ~6 мин")).toBeInTheDocument();
-    expect(screen.queryByText(/серия/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Отложено/)).not.toBeInTheDocument();
+    expect(await screen.findByText("Today's goal: 1 card · ~6 min")).toBeInTheDocument();
+    expect(screen.queryByText(/streak/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Postponed/)).not.toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
@@ -96,7 +96,7 @@ describe("HomeView", () => {
     const data = summary();
     renderHome(data);
 
-    const heatmap = await screen.findByRole("img", { name: "Активность за 14 недель" });
+    const heatmap = await screen.findByRole("img", { name: "Activity over 14 weeks" });
     const cells = Array.from(heatmap.children) as HTMLElement[];
     expect(cells).toHaveLength(98);
     cells.forEach((cell, i) => {
@@ -112,25 +112,25 @@ describe("HomeView", () => {
       summary({ days_away: 3, due_today: 50, new_today: 0, est_minutes: 27, due_all: 60 }),
     );
 
-    expect(await screen.findByRole("heading", { name: "С возвращением" })).toBeInTheDocument();
-    expect(screen.getByText("Как сегодня?")).toBeInTheDocument();
-    expect(screen.queryByText(/Цель на сегодня/)).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Начать" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
+    expect(screen.getByText("How about today?")).toBeInTheDocument();
+    expect(screen.queryByText(/Today's goal/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start" })).not.toBeInTheDocument();
 
-    const fiveMinutes = screen.getByRole("button", { name: "5 минут" });
+    const fiveMinutes = screen.getByRole("button", { name: "5 minutes" });
     expect(fiveMinutes).toHaveClass("primary-button");
     fireEvent.click(fiveMinutes);
     // 27 min / 50 cards = 0.54 min per card -> 5 / 0.54 = 9.3, rounded up to 10 cards.
     expect(onStart).toHaveBeenLastCalledWith({ capCards: 10 });
 
-    fireEvent.click(screen.getByRole("button", { name: "Обычная сессия" }));
+    fireEvent.click(screen.getByRole("button", { name: "Regular session" }));
     expect(onStart).toHaveBeenLastCalledWith({});
   });
 
   it("all-at-once starts with includeBacklog", async () => {
     const onStart = renderHome(summary({ days_away: 7, due_all: 60, backlog: 10 }));
 
-    fireEvent.click(await screen.findByRole("button", { name: "Всё сразу (60)" }));
+    fireEvent.click(await screen.findByRole("button", { name: "All at once (60)" }));
 
     expect(onStart).toHaveBeenLastCalledWith({ includeBacklog: true });
   });

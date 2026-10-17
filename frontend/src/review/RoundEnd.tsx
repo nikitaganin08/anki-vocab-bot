@@ -3,7 +3,7 @@ import { cardsLabel } from "../home/HomeView";
 
 interface RoundEndProps {
   summary: ReviewSummary;
-  // Nothing left today: "Готово на сегодня" with a single way back.
+  // Nothing left today: "Done for today" with a single way back.
   done: boolean;
   onMore: () => void;
   onExit: () => void;
@@ -13,10 +13,10 @@ export function RoundEnd({ summary, done, onMore, onExit }: RoundEndProps): JSX.
   if (done) {
     return (
       <section className="review-screen review-end">
-        <h2>Готово на сегодня</h2>
-        <p className="section-label">Завтра ~{cardsLabel(summary.forecast_tomorrow)}</p>
+        <h2>Done for today</h2>
+        <p className="section-label">Tomorrow ~{cardsLabel(summary.forecast_tomorrow)}</p>
         <button type="button" className="primary-button" onClick={onExit}>
-          Закрыть
+          Close
         </button>
       </section>
     );
@@ -29,17 +29,17 @@ export function RoundEnd({ summary, done, onMore, onExit }: RoundEndProps): JSX.
   const goal = doneToday + summary.due_today + summary.new_today;
   return (
     <section className="review-screen review-end">
-      <h2>✓ Раунд готов</h2>
+      <h2>✓ Round complete</h2>
       <p>
-        Сегодня {doneToday} из {goal}
+        Today {doneToday} of {goal}
       </p>
       <progress value={doneToday} max={goal} />
-      <p className="section-label">Осталось ~{summary.est_minutes} мин</p>
+      <p className="section-label">~{summary.est_minutes} min left</p>
       <button type="button" className="primary-button" onClick={onMore}>
-        Ещё раунд
+        Another round
       </button>
       <button type="button" className="secondary-button" onClick={onExit}>
-        На сегодня хватит
+        Done for today
       </button>
     </section>
   );

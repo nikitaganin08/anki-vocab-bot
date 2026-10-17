@@ -14,7 +14,7 @@ export function Heatmap({ counts }: { counts: number[] }): JSX.Element {
   // The first cell starts at its weekday's row; the rest flow down the columns after it.
   const firstRow = (((todayRow - (counts.length - 1)) % 7) + 7) % 7;
   return (
-    <div className="heatmap" role="img" aria-label="Активность за 14 недель">
+    <div className="heatmap" role="img" aria-label="Activity over 14 weeks">
       {counts.map((count, i) => (
         <span
           key={i}

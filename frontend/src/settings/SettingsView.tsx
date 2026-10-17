@@ -50,7 +50,7 @@ export function SettingsView(): JSX.Element {
     return <ErrorState error={error} onRetry={() => void refetch()} />;
   }
   if (!data) {
-    return <LoadingState title="Настройки" message="Загружаем настройки…" />;
+    return <LoadingState title="Settings" message="Loading settings…" />;
   }
 
   const onSubmit = (event: FormEvent<HTMLFormElement>): void => {
@@ -61,13 +61,13 @@ export function SettingsView(): JSX.Element {
   return (
     // Remount when the device timezone sync updates the stored zone (uncontrolled form).
     <form key={data.timezone} className="surface-panel settings-form" onSubmit={onSubmit}>
-      <h2>Настройки</h2>
+      <h2>Settings</h2>
       <label>
-        Новых в день
+        New cards per day
         <input name="new_per_day" type="number" min={0} max={100} required defaultValue={data.new_per_day} />
       </label>
       <label>
-        Повторений в день
+        Reviews per day
         <input
           name="reviews_per_day"
           type="number"
@@ -78,7 +78,7 @@ export function SettingsView(): JSX.Element {
         />
       </label>
       <label>
-        Целевое удержание
+        Target retention
         <select name="desired_retention" defaultValue={String(data.desired_retention)}>
           {retentions(data.desired_retention).map((retention) => (
             <option key={retention} value={retention}>
@@ -88,25 +88,25 @@ export function SettingsView(): JSX.Element {
         </select>
       </label>
       <label>
-        Напоминание (час)
+        Reminder (hour)
         <input name="reminder_hour" type="number" min={0} max={23} required defaultValue={data.reminder_hour} />
       </label>
       <label>
-        Привязка
+        Reminder anchor
         <input
           name="reminder_anchor"
           type="text"
           maxLength={255}
-          placeholder="Необязательно"
+          placeholder="Optional"
           defaultValue={data.reminder_anchor ?? ""}
         />
       </label>
       <label>
-        Порог «учить» (0–10)
+        Learn threshold (0–10)
         <input name="learn_threshold" type="number" min={0} max={10} required defaultValue={data.learn_threshold} />
       </label>
       <label>
-        Часовой пояс
+        Time zone
         <select name="timezone" defaultValue={data.timezone} aria-describedby="timezone-hint">
           {timeZones(data.timezone).map((zone) => (
             <option key={zone} value={zone}>
@@ -116,7 +116,7 @@ export function SettingsView(): JSX.Element {
         </select>
       </label>
       <span id="timezone-hint" className="field-hint">
-        Определяется по устройству при каждом открытии
+        Detected from your device on every launch
       </span>
 
       {save.error ? (
@@ -126,12 +126,12 @@ export function SettingsView(): JSX.Element {
       ) : null}
       {save.isSuccess ? (
         <p className="section-label" role="status">
-          Сохранено
+          Saved
         </p>
       ) : null}
 
       <button type="submit" className="primary-button" disabled={save.isPending}>
-        Сохранить
+        Save
       </button>
     </form>
   );

@@ -34,7 +34,7 @@ function renderView(
 }
 
 // The study day follows the device timezone: each load replaces the stored zone (also one picked
-// by hand in Настройки) when the device reports another. Failures keep the stored value.
+// by hand in Settings) when the device reports another. Failures keep the stored value.
 async function syncDeviceTimezone(queryClient: QueryClient): Promise<void> {
   try {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -55,7 +55,7 @@ async function syncDeviceTimezone(queryClient: QueryClient): Promise<void> {
 export function App(): JSX.Element {
   const telegramContextAvailable = hasTelegramWebAppContext();
   const [view, setView] = useView();
-  // Start options from Главная; the tab, the reminder and /review open a plain session.
+  // Start options from Home; the tab, the reminder and /review open a plain session.
   const [mode, setMode] = useState<ReviewMode>({});
   const openView = (next: View, nextMode: ReviewMode = {}): void => {
     setMode(nextMode);
@@ -91,8 +91,8 @@ export function App(): JSX.Element {
     return (
       <main className="telegram-gate-shell">
         <EmptyState
-          title="Откройте панель из Telegram"
-          message="Команда /admin в чате с ботом открывает панель."
+          title="Open the app from Telegram"
+          message="Send /admin in the chat with the bot to open it."
         />
       </main>
     );

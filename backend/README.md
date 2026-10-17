@@ -16,9 +16,10 @@ Review (SRS):
 - FSRS scheduling (`fsrs` package) runs server-side; state lives on `cards.srs_*`, every answer
   is appended to `review_logs`, user preferences are the single `app_settings` row.
 - Mini App endpoints (Telegram Web App auth): `/api/review/*`, `/api/settings`,
-  `PATCH /api/cards/{id}` (`is_learning` toggle).
+  `PATCH /api/cards/{id}` (`is_learning` toggle), `GET /api/cards/{id}/audio` (edge-tts MP3,
+  cached in `<SQLite DB dir>/audio/<id>.mp3`, removed with the card).
 - The day starts at midnight in `app_settings.timezone` (default `Europe/Moscow`); the Mini App
-  saves the device timezone on load when it differs (manual override in Настройки).
+  saves the device timezone on load when it differs (manual override in Settings).
 - A daily reminder loop runs in the FastAPI lifespan when `TELEGRAM_BOT_TOKEN` is set; set
   `DISABLE_REMINDERS=1` to turn it off (tests do).
 - Bot command `/review` opens the review view; rare words (`frequency < learn_threshold`) are

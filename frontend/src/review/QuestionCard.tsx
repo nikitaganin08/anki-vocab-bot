@@ -29,9 +29,9 @@ export function QuestionCard({ item, round, estMinutes, busy, onCheck }: Questio
       <header className="review-progress">
         <div className="review-progress-line">
           <span>
-            Раунд {round.number} · {round.graded + 1} из {round.total}
+            Round {round.number} · {round.graded + 1} of {round.total}
           </span>
-          {estMinutes === null ? null : <span>~{estMinutes} мин</span>}
+          {estMinutes === null ? null : <span>~{estMinutes} min</span>}
         </div>
         <progress value={round.graded} max={round.total} />
       </header>
@@ -43,7 +43,8 @@ export function QuestionCard({ item, round, estMinutes, busy, onCheck }: Questio
 
       <input
         ref={input}
-        aria-label="Ответ"
+        aria-label="Answer"
+        placeholder={prompt.kind === "chunk" ? "Type the missing part" : "Type in English"}
         value={typed}
         maxLength={200}
         onChange={(event) => setTyped(event.target.value)}
@@ -62,11 +63,11 @@ export function QuestionCard({ item, round, estMinutes, busy, onCheck }: Questio
           input.current?.focus();
         }}
       >
-        Что это за слово?
+        What's this word?
       </button>
       {hintUsed ? <p className="review-explanation">{item.card.explanation}</p> : null}
       <button type="submit" className="primary-button" disabled={busy}>
-        Проверить
+        Check
       </button>
     </form>
   );
