@@ -108,7 +108,8 @@ The app receives words and stable expressions from Telegram, generates learning 
 ## Review (SRS)
 
 - Server-side scheduling with `fsrs.Scheduler(desired_retention=app_settings.desired_retention, learning_steps=(1m, 1d), relearning_steps=(10m,), enable_fuzzing=False)`: a new card is Again 1m, Good 1 day, Easy 2 days.
-- Easy vs Good (`_outcomes`, shared by preview and grade): for a new/learning card whose Good is ≥ 1 day away, Easy = 2 × Good; for review cards FSRS Easy is capped at 2 × Good; review outcomes keep Good ≥ Hard + 1 day, Easy ≥ Good + 1 day.
+- Easy vs Good (`_outcomes`, shared by preview and grade): for a new/learning card whose Good is ≥ 1 day away, Easy = 2 × Good; for review/relearning cards FSRS Easy is capped at 2 × Good; review outcomes keep Good ≥ Hard + 1 day, Easy ≥ Good + 1 day.
+- Due dates of a day or more count from the start of their study day (04:00 local), like Anki; intraday learning steps keep their exact time.
 - SRS state lives on `cards` (`srs_card_json` = `fsrs.Card.to_json()`, `srs_due_at`, `srs_state`, `srs_reps`, `srs_lapses`); every graded answer is appended to `review_logs` (with the card state before, for undo). Intro screens of new cards are not logged.
 - All datetimes are UTC; values read from SQLite are naive and go through `as_utc()`.
 - The day starts at 04:00 in `app_settings.timezone` (default `Europe/Moscow`); daily limits (`new_per_day` 5, `reviews_per_day` 50) are counted per that window. Due reviews beyond the limit are reported as `backlog`.
