@@ -7,6 +7,7 @@ import { HomeView, type ReviewMode } from "./home/HomeView";
 import { useView, type View } from "./navigation";
 import { CardsPage } from "./pages/CardsPage";
 import { ReviewView } from "./review/ReviewView";
+import { SettingsView } from "./settings/SettingsView";
 import {
   applyTelegramTheme,
   hasTelegramWebAppContext,
@@ -14,7 +15,6 @@ import {
   showBackButton,
 } from "./telegram";
 
-// Placeholder until SettingsView lands.
 function renderView(
   view: View,
   mode: ReviewMode,
@@ -28,7 +28,7 @@ function renderView(
     case "cards":
       return <CardsPage />;
     case "settings":
-      return <EmptyState title="Настройки" message="Здесь будут настройки повторения." />;
+      return <SettingsView />;
   }
 }
 

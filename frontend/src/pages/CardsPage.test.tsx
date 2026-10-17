@@ -2,7 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { deleteCard, getCards, importCardsBatch } from "../api/client";
+import { deleteCard, getCards, importCardsBatch, setCardLearning } from "../api/client";
+import type { Card } from "../api/types";
 import { CardsPage } from "./CardsPage";
 
 vi.mock("../api/client", async (importOriginal) => {
@@ -12,12 +13,14 @@ vi.mock("../api/client", async (importOriginal) => {
     getCards: vi.fn(),
     deleteCard: vi.fn(),
     importCardsBatch: vi.fn(),
+    setCardLearning: vi.fn(),
   };
 });
 
 const mockedGetCards = vi.mocked(getCards);
 const mockedDeleteCard = vi.mocked(deleteCard);
 const mockedImportCardsBatch = vi.mocked(importCardsBatch);
+const mockedSetCardLearning = vi.mocked(setCardLearning);
 
 function renderCardsPage(): ReturnType<typeof render> {
   const queryClient = new QueryClient({
@@ -36,6 +39,7 @@ describe("CardsPage", () => {
     mockedGetCards.mockReset();
     mockedDeleteCard.mockReset();
     mockedImportCardsBatch.mockReset();
+    mockedSetCardLearning.mockReset();
     mockedGetCards.mockResolvedValue({
       items: [],
       total: 0,
@@ -271,5 +275,43 @@ describe("CardsPage", () => {
       expect(mockedDeleteCard).toHaveBeenCalled();
     });
     expect(mockedDeleteCard.mock.calls[0][0]).toBe(7);
+  });
+
+  it("toggle learning patches card", async () => {
+    const card: Card = {
+      id: 7,
+      source_text: "turn down",
+      source_language: "en",
+      entry_type: "phrasal_verb",
+      canonical_text: "turn down",
+      canonical_text_normalized: "turn down",
+      transcription: null,
+      translation_variants: ["отклонять", "убавлять"],
+      word_family: [],
+      explanation: "Refuse or reduce volume.",
+      examples: ["She turned down the offer.", "Turn down the music.", "He turned down help."],
+      chunks: [],
+      frequency: 6,
+      frequency_note: null,
+      is_learning: true,
+      anki_sync_status: "pending",
+      anki_note_id: null,
+      anki_sync_error: null,
+      llm_model: "test-model",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+    mockedGetCards.mockResolvedValue({ items: [card], total: 1, offset: 0, limit: 20 });
+    mockedSetCardLearning.mockResolvedValue({ ...card, is_learning: false });
+
+    renderCardsPage();
+
+    const toggle = await screen.findByRole("switch", { name: "Учим" });
+    expect(toggle).toBeChecked();
+    fireEvent.click(toggle);
+
+    await waitFor(() => expect(toggle).not.toBeChecked());
+    expect(mockedSetCardLearning).toHaveBeenCalledWith(7, false);
+    expect(mockedGetCards).toHaveBeenCalledTimes(1);
   });
 });

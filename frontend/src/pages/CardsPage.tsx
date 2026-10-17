@@ -1,13 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-import { ApiError, deleteCard, getCards, importCardsBatch } from "../api/client";
+import { ApiError, deleteCard, getCards, importCardsBatch, setCardLearning } from "../api/client";
 import type {
   AnkiSyncStatus,
   Card,
   CardBatchImportItemStatus,
   CardBatchImportResponse,
   CardBatchImportSummary,
+  CardListResponse,
   EntryType,
   SourceLanguage,
 } from "../api/types";
@@ -185,6 +186,16 @@ export function CardsPage(): JSX.Element {
       setPendingDeleteCard(null);
       void queryClient.invalidateQueries({ queryKey: ["cards"] });
     },
+  });
+
+  // Patch the cached page in place: the card stays visible even if it no longer matches the filter.
+  const learningMutation = useMutation({
+    mutationFn: ({ id, isLearning }: { id: number; isLearning: boolean }) =>
+      setCardLearning(id, isLearning),
+    onSuccess: (updated) =>
+      queryClient.setQueriesData<CardListResponse>({ queryKey: ["cards"] }, (list) =>
+        list && { ...list, items: list.items.map((c) => (c.id === updated.id ? updated : c)) },
+      ),
   });
 
   const batchImportMutation = useMutation({
@@ -451,6 +462,9 @@ export function CardsPage(): JSX.Element {
               error={deleteMutation.error}
             />
           ) : null}
+          {learningMutation.isError ? (
+            <ErrorState title="Не удалось сохранить «Учим»" error={learningMutation.error} />
+          ) : null}
 
           <div className="list-header">
             <div>
@@ -492,10 +506,18 @@ export function CardsPage(): JSX.Element {
                     <span>Frequency</span>
                     <strong>{card.frequency}</strong>
                   </p>
-                  <p>
-                    <span>Learning</span>
-                    <strong>{card.is_learning ? "yes" : "no"}</strong>
-                  </p>
+                  <label className="learning-toggle">
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      checked={card.is_learning}
+                      disabled={learningMutation.isPending}
+                      onChange={(event) =>
+                        learningMutation.mutate({ id: card.id, isLearning: event.target.checked })
+                      }
+                    />
+                    Учим
+                  </label>
                   <p>
                     <span>Created</span>
                     <strong>{formatCardTimestamp(card.created_at)}</strong>
