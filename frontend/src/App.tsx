@@ -3,9 +3,10 @@ import { useEffect, useLayoutEffect, useState } from "react";
 
 import { EmptyState } from "./components/PageState";
 import { TabBar } from "./components/TabBar";
-import { HomeView } from "./home/HomeView";
+import { HomeView, type ReviewMode } from "./home/HomeView";
 import { useView, type View } from "./navigation";
 import { CardsPage } from "./pages/CardsPage";
+import { ReviewView } from "./review/ReviewView";
 import {
   applyTelegramTheme,
   hasTelegramWebAppContext,
@@ -13,13 +14,17 @@ import {
   showBackButton,
 } from "./telegram";
 
-// Placeholders until ReviewView and SettingsView land; the start mode reaches ReviewView in Task 4.
-function renderView(view: View, setView: (v: View) => void): JSX.Element {
+// Placeholder until SettingsView lands.
+function renderView(
+  view: View,
+  mode: ReviewMode,
+  openView: (v: View, mode?: ReviewMode) => void,
+): JSX.Element {
   switch (view) {
     case "home":
-      return <HomeView onStart={() => setView("review")} />;
+      return <HomeView onStart={(startMode) => openView("review", startMode)} />;
     case "review":
-      return <EmptyState title="Повтор" message="Здесь будет повторение карточек." />;
+      return <ReviewView mode={mode} onExit={() => openView("home")} />;
     case "cards":
       return <CardsPage />;
     case "settings":
@@ -30,6 +35,12 @@ function renderView(view: View, setView: (v: View) => void): JSX.Element {
 export function App(): JSX.Element {
   const telegramContextAvailable = hasTelegramWebAppContext();
   const [view, setView] = useView();
+  // Start options from Главная; the tab, the reminder and /review open a plain session.
+  const [mode, setMode] = useState<ReviewMode>({});
+  const openView = (next: View, nextMode: ReviewMode = {}): void => {
+    setMode(nextMode);
+    setView(next);
+  };
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -64,8 +75,8 @@ export function App(): JSX.Element {
   return (
     <QueryClientProvider client={queryClient}>
       <div className="app-shell">
-        <main className="page-shell">{renderView(view, setView)}</main>
-        <TabBar view={view} onChange={setView} />
+        <main className="page-shell">{renderView(view, mode, openView)}</main>
+        <TabBar view={view} onChange={openView} />
       </div>
     </QueryClientProvider>
   );

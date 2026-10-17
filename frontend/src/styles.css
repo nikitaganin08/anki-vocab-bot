@@ -110,7 +110,8 @@ summary::-webkit-details-marker {
   font-size: 11px;
 }
 
-.tab-bar-item svg {
+.tab-bar-item svg,
+.icon-button svg {
   width: 24px;
   height: 24px;
   fill: none;
@@ -302,6 +303,150 @@ textarea:focus {
 
 .heatmap-cell[data-level="2"] {
   background: var(--accent);
+}
+
+/* Повтор */
+
+.review-screen,
+.review-card,
+.review-progress {
+  display: grid;
+  gap: 12px;
+}
+
+.review-screen > .info-chip {
+  justify-self: start;
+}
+
+.review-progress {
+  gap: 6px;
+}
+
+.review-progress-line {
+  display: flex;
+  justify-content: space-between;
+  color: var(--hint);
+  font-size: 13px;
+}
+
+progress {
+  width: 100%;
+  height: 6px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--muted-fill);
+  appearance: none;
+}
+
+progress::-webkit-progress-bar {
+  border-radius: 3px;
+  background: var(--muted-fill);
+}
+
+progress::-webkit-progress-value {
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+progress::-moz-progress-bar {
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+.review-word {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.review-word h2,
+.review-masked {
+  font-size: 22px;
+  line-height: 1.3;
+}
+
+.review-chunks ul {
+  display: grid;
+  gap: 4px;
+  padding-left: 18px;
+}
+
+.review-example {
+  font-style: italic;
+}
+
+.review-explanation {
+  overflow: hidden;
+  color: var(--hint);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-verdict {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 17px;
+}
+
+.review-verdict mark {
+  border-radius: 3px;
+  background: var(--muted-fill);
+  color: inherit;
+  text-decoration: underline;
+}
+
+.review-hint {
+  font-family: ui-monospace, Menlo, monospace;
+  letter-spacing: 0.15em;
+}
+
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--muted-fill);
+  color: var(--accent);
+}
+
+.icon-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.link-button {
+  justify-self: start;
+  border: 0;
+  padding: 4px 0;
+  background: none;
+  color: var(--accent);
+}
+
+.grade-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.grade-grid button {
+  display: grid;
+  gap: 2px;
+  padding: 8px 4px;
+}
+
+.grade-interval {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.review-end {
+  padding-top: 24px;
+  text-align: center;
 }
 
 /* Cards page */
