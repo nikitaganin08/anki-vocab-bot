@@ -341,3 +341,5 @@ def test_sync_pending_cards_adds_note_without_audio_when_tts_fails(
     assert backend.acks == [(7, 501), (8, 502)]
     warnings = [r for r in caplog.records if r.levelname == "WARNING"]
     assert len(warnings) == 1
+    # After the first failure the run stops calling TTS.
+    assert pronunciation.calls == ["Take Off"]

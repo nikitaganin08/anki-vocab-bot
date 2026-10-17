@@ -72,7 +72,7 @@ def sync_pending_cards(
 ) -> SyncSummary:
     pending_cards = backend_client.get_pending(limit=limit)
     summary = SyncSummary(total=len(pending_cards))
-    audio_warned = False
+    audio_down = False  # after one TTS failure, skip audio for the rest of the run
 
     for card in pending_cards:
         existing_note_ids = anki_client.find_notes_by_tag(build_card_tag(card.id))
@@ -82,13 +82,17 @@ def sync_pending_cards(
             continue
 
         # Audio is best-effort (edge-tts's endpoint may refuse, e.g. 403): the note matters more.
-        try:
-            audio_bytes: bytes | None = pronunciation_generator.generate_audio(card.canonical_text)
-        except PronunciationAudioError as exc:
-            audio_bytes = None
-            if not audio_warned:
-                logger.warning("Adding notes without pronunciation audio: %s", exc.user_message)
-                audio_warned = True
+        audio_bytes: bytes | None = None
+        if not audio_down:
+            try:
+                audio_bytes = pronunciation_generator.generate_audio(card.canonical_text)
+            except PronunciationAudioError as exc:
+                audio_down = True
+                logger.warning(
+                    "Adding notes without pronunciation audio: %s (%s)",
+                    exc.user_message,
+                    exc.__cause__,
+                )
 
         try:
             pronunciation_field = ""
