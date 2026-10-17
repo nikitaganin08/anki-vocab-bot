@@ -63,6 +63,9 @@ class BackendSyncApiClient:
             expect_json=False,
         )
 
+    def import_note(self, item: dict[str, Any]) -> dict[str, Any]:
+        return self._request("POST", "/api/anki/import", json=item)
+
     def _request(
         self,
         method: str,

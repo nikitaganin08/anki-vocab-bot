@@ -264,3 +264,22 @@ class AnkiAckRequest(BaseModel):
 class AnkiFailRequest(BaseModel):
     card_id: int
     error_message: str
+
+
+class AnkiImportRequest(BaseModel):
+    word: str = Field(max_length=255)
+    translation: str = Field(max_length=1000)
+    anki_note_id: int
+    backend_card_id: int | None
+    suspended: bool
+    card_type: Literal[0, 1, 2, 3]  # Anki: 0 new, 1 learn, 2 review, 3 relearn
+    interval_days: int
+    ease: float
+    last_review_at: datetime | None
+    reps: int = Field(ge=0)
+    lapses: int = Field(ge=0)
+
+
+class AnkiImportResponse(BaseModel):
+    status: Literal["linked", "created", "rejected", "upstream_error"]
+    card_id: int | None
