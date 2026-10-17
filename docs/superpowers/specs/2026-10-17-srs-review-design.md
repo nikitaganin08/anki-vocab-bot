@@ -118,11 +118,11 @@ Goes through a token-protected endpoint `POST /api/anki/import` (same bearer tok
 
 ## Testing
 
-Backend unit tests: answer checker (layout, typo, inflected targets), queue building (limits, day boundary at midnight, learning re-queue, warm-up order), grade/undo round trip with py-fsrs, summary metrics, reminder decision function (pure function of settings + now + counts), contract validation for chunks, rare-word callback, import state mapping. Frontend component tests: dashboard renders summary, review flow (type → check → grade), intro → typed, settings form, device timezone sync. Gates: `uv run pytest`, `ruff check`, `tsc`, `vitest`, `npm run build`.
+Backend unit tests: answer checker (layout, typo, inflected targets), queue building (limits, day boundary at midnight, learning re-queue, warm-up order), grade/undo round trip with py-fsrs, summary metrics, reminder decision function (pure function of settings + now + counts), contract validation for chunks, rare-word callback. Frontend component tests: dashboard renders summary, review flow (type → check → grade), intro → typed, settings form, device timezone sync. Gates: `uv run pytest`, `ruff check`, `tsc`, `vitest`, `npm run build`.
 
 ## Rollout
 
 1. PR #3 (cleanup) merged first; this work branches on top.
-2. Backend PR: migration, contract, review API, reminders, bot flows, import/backfill scripts.
+2. Backend PR: migration, contract, review API, reminders, bot flows, import/backfill scripts (run on 2026-10-17, then removed).
 3. The Mini App (frontend) ships in the same PR #4 as the backend.
 4. On prod: run backfill, then local Anki import. Done 2026-10-17; both scripts and the import endpoint were deleted afterwards (see git history).
