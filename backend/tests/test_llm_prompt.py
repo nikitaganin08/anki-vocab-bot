@@ -55,3 +55,9 @@ def test_build_llm_messages_includes_source_text() -> None:
     assert len(messages) == 2
     assert messages[0]["role"] == "system"
     assert "source_text: привет" in messages[1]["content"]
+
+
+def test_prompt_requests_chunks_and_rejects_function_words() -> None:
+    assert '"chunks"' in SYSTEM_PROMPT
+    assert '"target"' in SYSTEM_PROMPT
+    assert "function words" in SYSTEM_PROMPT

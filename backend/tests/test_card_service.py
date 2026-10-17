@@ -82,7 +82,7 @@ def test_card_service_creates_new_card(session: Session) -> None:
 
     assert result.status == "created"
     assert result.card is not None
-    assert result.card.eligible_for_anki is True
+    assert result.card.is_learning is True
     assert result.card.source_text == "take off"
     assert result.card.canonical_text_normalized == "take off"
     assert result.card.word_family_json == [
@@ -109,7 +109,7 @@ def test_card_service_returns_duplicate_source_without_llm_call(session: Session
         examples_json=["A", "B", "C"],
         frequency=2,
         frequency_note=None,
-        eligible_for_anki=False,
+        is_learning=False,
         llm_model="seed",
     )
     session.add(existing)
@@ -138,7 +138,7 @@ def test_card_service_returns_duplicate_canonical_after_llm_call(session: Sessio
         examples_json=["A", "B", "C"],
         frequency=2,
         frequency_note=None,
-        eligible_for_anki=False,
+        is_learning=False,
         llm_model="seed",
     )
     session.add(existing)
@@ -184,3 +184,24 @@ def test_card_service_surfaces_upstream_error(session: Session) -> None:
         apply_source_text(session, generator, "take off")
 
     assert exc_info.value.code == "openrouter_timeout"
+
+
+def test_rare_word_is_not_learning(session: Session) -> None:
+    generator = FakeGenerator(result=make_accepted_response(frequency=2))
+
+    result = apply_source_text(session, generator, "take off")
+
+    assert result.status == "created"
+    assert result.card is not None
+    assert result.card.is_learning is False
+
+
+def test_frequent_word_is_learning(session: Session) -> None:
+    chunks = [{"text": "take off your shoes", "target": "take off", "translation": "снять обувь"}]
+    generator = FakeGenerator(result=make_accepted_response(frequency=3, chunks=chunks))
+
+    result = apply_source_text(session, generator, "take off")
+
+    assert result.card is not None
+    assert result.card.is_learning is True
+    assert result.card.chunks_json == chunks

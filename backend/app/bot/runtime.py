@@ -10,12 +10,15 @@ from aiogram.filters import Command
 from app.bot.handler import (
     TelegramAdminWebAppHandler,
     TelegramDescriptionLookupHandler,
+    TelegramLearnCallbackHandler,
+    TelegramReviewWebAppHandler,
     TelegramTextHandler,
 )
 from app.bot.rate_limiter import InMemoryRateLimiter
 from app.clients.openrouter import OpenRouterClient
 from app.core.config import get_settings
 from app.db.session import SessionLocal
+from app.models.card import Card
 from app.services.card_service import CardServiceResult, apply_source_text
 
 
@@ -34,16 +37,36 @@ def _build_apply_source_text(client: OpenRouterClient) -> Callable[[str], CardSe
     return process_source_text
 
 
+def _set_learning(card_id: int, is_learning: bool) -> Card | None:
+    with SessionLocal() as session:
+        card = session.get(Card, card_id)
+        if card is None:
+            return None
+        card.is_learning = is_learning
+        session.commit()
+        return card
+
+
 def build_bot_router(
     text_handler: TelegramTextHandler,
     description_lookup_handler: TelegramDescriptionLookupHandler,
     admin_handler: TelegramAdminWebAppHandler,
+    review_handler: TelegramReviewWebAppHandler,
+    learn_callback_handler: TelegramLearnCallbackHandler,
 ) -> Router:
     router = Router()
 
     @router.message(Command("admin"))
     async def handle_admin_command(message) -> None:
         await admin_handler.handle_message(message)
+
+    @router.message(Command("review"))
+    async def handle_review_command(message) -> None:
+        await review_handler.handle_message(message)
+
+    @router.callback_query(F.data.regexp(r"^(learn|skip):\d+$"))
+    async def handle_learn_callback(callback) -> None:
+        await learn_callback_handler.handle_callback(callback)
 
     @router.message(Command("find"))
     async def handle_find_command(message) -> None:
@@ -87,8 +110,22 @@ def build_bot_runtime() -> BotRuntime:
         allowed_user_id=settings.telegram_allowed_user_id,
         webapp_url=settings.resolved_telegram_webapp_url,
     )
+    review_handler = TelegramReviewWebAppHandler(
+        allowed_user_id=settings.telegram_allowed_user_id,
+        webapp_url=settings.resolved_telegram_webapp_url,
+    )
+    learn_callback_handler = TelegramLearnCallbackHandler(
+        allowed_user_id=settings.telegram_allowed_user_id,
+        set_learning=_set_learning,
+    )
     dispatcher.include_router(
-        build_bot_router(text_handler, description_lookup_handler, admin_handler)
+        build_bot_router(
+            text_handler,
+            description_lookup_handler,
+            admin_handler,
+            review_handler,
+            learn_callback_handler,
+        )
     )
 
     return BotRuntime(

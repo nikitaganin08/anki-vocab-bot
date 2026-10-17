@@ -1,15 +1,24 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 
+interface TestWebApp {
+  initData: string;
+  ready?: () => void;
+  expand?: () => void;
+  themeParams?: Record<string, string>;
+  BackButton?: {
+    show: () => void;
+    hide: () => void;
+    onClick: (callback: () => void) => void;
+    offClick: (callback: () => void) => void;
+  };
+}
+
 interface TelegramWindow extends Window {
   Telegram?: {
-    WebApp?: {
-      initData: string;
-      ready?: () => void;
-      expand?: () => void;
-    };
+    WebApp?: TestWebApp;
   };
 }
 
@@ -38,7 +47,7 @@ const cardsPayload = {
       examples: ["e1", "e2", "e3"],
       frequency: 4,
       frequency_note: null,
-      eligible_for_anki: true,
+      is_learning: true,
       anki_sync_status: "pending",
       anki_note_id: null,
       anki_sync_error: null,
@@ -52,15 +61,19 @@ const cardsPayload = {
   limit: 20,
 };
 
-function setTelegramWebApp(initData = "signed-init-data"): void {
-  const telegramWindow = window as TelegramWindow;
-  telegramWindow.Telegram = {
-    WebApp: {
-      initData,
-      ready: vi.fn(),
-      expand: vi.fn(),
-    },
+function setTelegramWebApp(initData = "signed-init-data", extra: Partial<TestWebApp> = {}): TestWebApp {
+  const webApp: TestWebApp = {
+    initData,
+    ready: vi.fn(),
+    expand: vi.fn(),
+    ...extra,
   };
+  (window as TelegramWindow).Telegram = { WebApp: webApp };
+  return webApp;
+}
+
+function rootVar(name: string): string {
+  return document.documentElement.style.getPropertyValue(name);
 }
 
 function clearTelegramWebApp(): void {
@@ -95,33 +108,111 @@ describe("App", () => {
   afterEach(() => {
     clearTelegramWebApp();
     vi.unstubAllGlobals();
+    document.documentElement.removeAttribute("style");
     window.history.pushState({}, "", "/");
   });
 
   it("blocks boot outside Telegram", async () => {
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "Open This Panel From Telegram" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Откройте панель из Telegram" })).toBeInTheDocument();
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it("renders cards list on the webapp index route", async () => {
+  it("renders tab bar with four tabs", () => {
     setTelegramWebApp();
     window.history.pushState({}, "", "/telegram/webapp/");
 
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "Cards" })).toBeInTheDocument();
+    const tabs = within(screen.getByRole("navigation", { name: "Разделы" })).getAllByRole("button");
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["Главная", "Повтор", "Слова", "Настройки"]);
+    expect(screen.getByRole("button", { name: "Главная" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("switches view and updates query", async () => {
+    setTelegramWebApp();
+    window.history.pushState({}, "", "/telegram/webapp/?x=1#tgWebAppData=signed");
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "Слова" }));
+
+    expect(await screen.findByRole("heading", { name: "Слова" })).toBeInTheDocument();
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("view")).toBe("cards");
+    expect(params.get("x")).toBe("1");
+    expect(window.location.pathname).toBe("/telegram/webapp/");
+    expect(window.location.hash).toBe("#tgWebAppData=signed");
+    expect(screen.getByRole("button", { name: "Слова" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("opens review view from ?view=review without tab bar", () => {
+    let backCallback: (() => void) | null = null;
+    const backButton = {
+      show: vi.fn(),
+      hide: vi.fn(),
+      onClick: vi.fn((callback: () => void) => {
+        backCallback = callback;
+      }),
+      offClick: vi.fn(),
+    };
+    setTelegramWebApp("signed-init-data", { BackButton: backButton });
+    window.history.pushState({}, "", "/telegram/webapp/?view=review");
+
+    render(<App />);
+
+    expect(screen.getByRole("heading", { name: "Повтор" })).toBeInTheDocument();
+    expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+    expect(backButton.show).toHaveBeenCalled();
+
+    act(() => backCallback?.());
+
+    expect(screen.getByRole("navigation")).toBeInTheDocument();
+    expect(new URLSearchParams(window.location.search).get("view")).toBe("home");
+    expect(backButton.hide).toHaveBeenCalled();
+    expect(backButton.offClick).toHaveBeenCalledWith(backCallback);
+  });
+
+  it("falls back without theme params", () => {
+    setTelegramWebApp();
+    window.history.pushState({}, "", "/telegram/webapp/");
+
+    render(<App />);
+
+    expect(rootVar("--tg-bg")).toBe("");
+    expect(screen.getByRole("navigation")).toBeInTheDocument();
+  });
+
+  it("applies telegram theme params", () => {
+    setTelegramWebApp("signed-init-data", {
+      themeParams: { bg_color: "#17212b", button_color: "#5288c1" },
+    });
+    window.history.pushState({}, "", "/telegram/webapp/");
+
+    render(<App />);
+
+    expect(rootVar("--tg-bg")).toBe("#17212b");
+    expect(rootVar("--tg-accent")).toBe("#5288c1");
+    expect(rootVar("--tg-text")).toBe("");
+  });
+
+  it("renders cards list on the cards view", async () => {
+    setTelegramWebApp();
+    window.history.pushState({}, "", "/telegram/webapp/?view=cards");
+
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "Слова" })).toBeInTheDocument();
     expect((await screen.findAllByText("take off")).length).toBeGreaterThan(0);
   });
 
   it("renders the cards page at any path behind an external prefix and sends Telegram auth", async () => {
     setTelegramWebApp("telegram-init-data");
-    window.history.pushState({}, "", "/anki/telegram/webapp/anything");
+    window.history.pushState({}, "", "/anki/telegram/webapp/anything?view=cards");
 
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "Cards" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Слова" })).toBeInTheDocument();
     expect(global.fetch).toHaveBeenCalledWith(
       "/anki/api/cards?offset=0&limit=20",
       expect.objectContaining({

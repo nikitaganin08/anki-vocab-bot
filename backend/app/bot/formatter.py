@@ -10,16 +10,20 @@ def format_card_payload(card: Card) -> str:
     translations = [_html(value) for value in card.translation_variants_json]
     primary_translation = translations[0] if translations else "—"
     synonyms = "; ".join(translations[1:]) if len(translations) > 1 else "—"
-    word_family = "\n".join(
-        f"• <b>{_html(item['word'])}</b> ({_html(item['part_of_speech'])}) — "
-        f"{_html(item['translation'])}"
-        for item in card.word_family_json or []
-    ) or "—"
-    numbered_labels = ("1️⃣", "2️⃣", "3️⃣")
-    examples = "\n".join(
-        f"{numbered_labels[idx]} {_html(example)}"
-        for idx, example in enumerate(card.examples_json[:3])
+    word_family = (
+        "\n".join(
+            f"• <b>{_html(item['word'])}</b> ({_html(item['part_of_speech'])}) — "
+            f"{_html(item['translation'])}"
+            for item in card.word_family_json or []
+        )
+        or "—"
     )
+    chunks = "\n".join(
+        f"• {_html(chunk['text'])} — {_html(chunk['translation'])}"
+        for chunk in card.chunks_json or []
+    )
+    chunks_section = f"🧩 Как используется\n{chunks}\n\n" if chunks else ""
+    example = _html(card.examples_json[0]) if card.examples_json else "—"
     transcription = _html(card.transcription) if card.transcription else "—"
     frequency_note = _html(card.frequency_note) if card.frequency_note else "—"
 
@@ -31,8 +35,9 @@ def format_card_payload(card: Card) -> str:
         f"🧬 Word family\n{word_family}\n\n"
         "📝 Explanation\n"
         f"{_html(card.explanation)}\n\n"
-        "🪧 Examples\n"
-        f"{examples}\n\n"
+        f"{chunks_section}"
+        "🪧 Example\n"
+        f"{example}\n\n"
         f"📊 Frequency: {card.frequency}/10 — {frequency_note}"
     )
 
@@ -47,6 +52,10 @@ def format_created_message(card: Card) -> str:
 
 def format_duplicate_message(card: Card) -> str:
     return "ℹ️ Already in dictionary\n\n" + format_card_payload(card)
+
+
+def format_rare_word_prompt(card: Card) -> str:
+    return f"Редкое слово ({card.frequency}/10). Учить?"
 
 
 def format_card_service_result(result: CardServiceResult) -> tuple[str, str | None]:

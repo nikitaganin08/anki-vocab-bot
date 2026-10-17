@@ -8,6 +8,8 @@ from aiogram.types import InlineKeyboardMarkup
 from app.bot.handler import (
     TelegramAdminWebAppHandler,
     TelegramDescriptionLookupHandler,
+    TelegramLearnCallbackHandler,
+    TelegramReviewWebAppHandler,
     TelegramTextHandler,
 )
 from app.bot.rate_limiter import InMemoryRateLimiter
@@ -52,6 +54,39 @@ class StubMessage:
 
 
 @dataclass
+class StubPromptMessage:
+    edits: list[tuple[str, InlineKeyboardMarkup | None]] = field(default_factory=list)
+
+    async def edit_text(self, text: str, reply_markup: InlineKeyboardMarkup | None = None) -> None:
+        self.edits.append((text, reply_markup))
+
+
+@dataclass
+class StubCallback:
+    data: str
+    user_id: int
+    message: StubPromptMessage = field(default_factory=StubPromptMessage)
+    answered: int = 0
+
+    @property
+    def from_user(self) -> StubUser:
+        return StubUser(id=self.user_id)
+
+    async def answer(self, text: str | None = None) -> None:
+        self.answered += 1
+
+
+@dataclass
+class SetLearningStub:
+    card: Card | None
+    calls: list[tuple[int, bool]] = field(default_factory=list)
+
+    def __call__(self, card_id: int, is_learning: bool) -> Card | None:
+        self.calls.append((card_id, is_learning))
+        return self.card
+
+
+@dataclass
 class ApplySourceTextStub:
     result: CardServiceResult | None = None
     error: Exception | None = None
@@ -93,7 +128,7 @@ def make_card() -> Card:
         ],
         frequency=4,
         frequency_note="Common in everyday English.",
-        eligible_for_anki=True,
+        is_learning=True,
         llm_model="test-model",
     )
 
@@ -337,3 +372,88 @@ def test_description_lookup_handler_requires_description_argument() -> None:
     assert lookup_stub.calls == []
     assert message.answers == ["Use /find followed by a short description."]
     assert message.parse_modes == [None]
+
+
+def test_rare_word_sends_learn_prompt() -> None:
+    card = make_card()
+    card.id = 7
+    card.frequency = 2
+    card.is_learning = False
+    stub = ApplySourceTextStub(result=CardServiceResult(status="created", card=card))
+    handler = TelegramTextHandler(
+        allowed_user_id=42,
+        apply_source_text=stub,
+        rate_limiter=InMemoryRateLimiter(),
+    )
+    message = StubMessage(text="take off", user_id=42)
+
+    asyncio.run(handler.handle_message(message))
+
+    assert len(message.answers) == 2
+    assert message.answers[1] == "Редкое слово (2/10). Учить?"
+    markup = message.reply_markups[1]
+    assert markup is not None
+    buttons = markup.inline_keyboard[0]
+    assert [(b.text, b.callback_data) for b in buttons] == [
+        ("Учить", "learn:7"),
+        ("Не учить", "skip:7"),
+    ]
+
+
+def test_frequent_word_no_prompt() -> None:
+    stub = ApplySourceTextStub(result=CardServiceResult(status="created", card=make_card()))
+    handler = TelegramTextHandler(
+        allowed_user_id=42,
+        apply_source_text=stub,
+        rate_limiter=InMemoryRateLimiter(),
+    )
+    message = StubMessage(text="take off", user_id=42)
+
+    asyncio.run(handler.handle_message(message))
+
+    assert len(message.answers) == 1
+    assert message.reply_markups == [None]
+
+
+def test_learn_callback_sets_flag_and_edits_message() -> None:
+    set_learning = SetLearningStub(card=make_card())
+    handler = TelegramLearnCallbackHandler(allowed_user_id=42, set_learning=set_learning)
+    learn = StubCallback(data="learn:7", user_id=42)
+    skip = StubCallback(data="skip:7", user_id=42)
+
+    asyncio.run(handler.handle_callback(learn))
+    asyncio.run(handler.handle_callback(skip))
+
+    assert set_learning.calls == [(7, True), (7, False)]
+    assert learn.message.edits == [("Учим: take off", None)]
+    assert skip.message.edits == [("Не учим: take off", None)]
+    assert learn.answered == 1
+    assert skip.answered == 1
+
+
+def test_callback_from_other_user_ignored() -> None:
+    set_learning = SetLearningStub(card=make_card())
+    handler = TelegramLearnCallbackHandler(allowed_user_id=42, set_learning=set_learning)
+    callback = StubCallback(data="learn:7", user_id=7)
+
+    asyncio.run(handler.handle_callback(callback))
+
+    assert set_learning.calls == []
+    assert callback.message.edits == []
+
+
+def test_review_command_opens_review_view() -> None:
+    handler = TelegramReviewWebAppHandler(
+        allowed_user_id=42,
+        webapp_url="https://bot.example.com/telegram/webapp",
+    )
+    message = StubMessage(text="/review", user_id=42)
+
+    asyncio.run(handler.handle_message(message))
+
+    assert message.answers == ["Повторение"]
+    markup = message.reply_markups[0]
+    assert markup is not None
+    button = markup.inline_keyboard[0][0]
+    assert button.web_app is not None
+    assert button.web_app.url == "https://bot.example.com/telegram/webapp?view=review"

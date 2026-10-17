@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import sqlite3
 from collections.abc import Iterator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
@@ -13,11 +14,20 @@ if database_path is not None:
     database_path.parent.mkdir(parents=True, exist_ok=True)
 
 connect_args = (
-    {"check_same_thread": False}
-    if settings.normalized_database_url.startswith("sqlite")
-    else {}
+    {"check_same_thread": False} if settings.normalized_database_url.startswith("sqlite") else {}
 )
 engine = create_engine(settings.normalized_database_url, connect_args=connect_args)
+
+
+def enable_sqlite_foreign_keys(dbapi_connection: sqlite3.Connection, _record: object) -> None:
+    # SQLite ignores FOREIGN KEY / ON DELETE CASCADE unless enabled per connection.
+    # Kept off for Alembic: batch migrations drop and recreate `cards`.
+    dbapi_connection.execute("PRAGMA foreign_keys=ON")
+
+
+if settings.normalized_database_url.startswith("sqlite"):
+    event.listen(engine, "connect", enable_sqlite_foreign_keys)
+
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expire_on_commit=False)
 
 

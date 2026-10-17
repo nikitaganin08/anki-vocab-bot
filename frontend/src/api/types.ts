@@ -15,6 +15,12 @@ export interface WordFamilyItem {
   translation: string;
 }
 
+export interface CardChunk {
+  text: string;
+  target: string;
+  translation: string;
+}
+
 export interface Card {
   id: number;
   source_text: string;
@@ -27,9 +33,10 @@ export interface Card {
   word_family: WordFamilyItem[];
   explanation: string;
   examples: string[];
+  chunks: CardChunk[];
   frequency: number;
   frequency_note: string | null;
-  eligible_for_anki: boolean;
+  is_learning: boolean;
   anki_sync_status: AnkiSyncStatus;
   anki_note_id: number | null;
   anki_sync_error: string | null;
@@ -52,7 +59,7 @@ export interface CardsQuery {
   source_language?: SourceLanguage;
   entry_type?: EntryType;
   anki_sync_status?: AnkiSyncStatus;
-  eligible_for_anki?: boolean;
+  is_learning?: boolean;
 }
 
 export type CardBatchImportItemStatus =
@@ -84,4 +91,88 @@ export interface CardBatchImportSummary {
 export interface CardBatchImportResponse {
   items: CardBatchImportItem[];
   summary: CardBatchImportSummary;
+}
+
+export interface ReviewSummary {
+  due_today: number;
+  new_today: number;
+  est_minutes: number;
+  backlog: number;
+  due_all: number;
+  retention_30d: number | null;
+  learned_total: number;
+  learned_delta_7d: number;
+  streak_days: number;
+  best_streak_days: number;
+  heatmap: number[];
+  forecast_tomorrow: number;
+  forecast_week_avg: number;
+  days_away: number | null;
+}
+
+export type PromptKind = "chunk" | "translation";
+
+export interface ReviewPrompt {
+  kind: PromptKind;
+  index: number;
+  masked: string;
+  hint_translation: string;
+  // First letter, then "_" per letter; spaces stay spaces ("g___ __").
+  first_letter_hint: string;
+}
+
+export interface ReviewSessionItem {
+  card: Card;
+  intro: boolean;
+  prompt: ReviewPrompt;
+  srs_due_at: string | null;
+}
+
+export interface ReviewSessionResponse {
+  items: ReviewSessionItem[];
+}
+
+export type Verdict = "correct" | "typo" | "wrong";
+
+export interface CheckRequest {
+  typed: string;
+  prompt_kind: PromptKind;
+  prompt_index: number;
+  hint_used: boolean;
+}
+
+export interface CheckResponse {
+  verdict: Verdict;
+  expected: string;
+  auto_rating: number;
+  // JSON object keys: rating "1".."4" -> interval in seconds.
+  intervals: Record<string, number>;
+}
+
+export interface GradeRequest {
+  rating: number;
+  auto_rating: number;
+  overridden: boolean;
+  typed: string;
+  prompt_kind: PromptKind;
+  prompt_index: number;
+  verdict: Verdict | "skipped";
+  hint_used: boolean;
+  response_ms: number;
+  expected_due_at: string | null;
+}
+
+export interface GradeResponse {
+  srs_due_at: string;
+  srs_state: string;
+}
+
+export interface AppSettings {
+  timezone: string;
+  reminder_hour: number;
+  reminder_anchor: string | null;
+  new_per_day: number;
+  reviews_per_day: number;
+  desired_retention: number;
+  learn_threshold: number;
 }

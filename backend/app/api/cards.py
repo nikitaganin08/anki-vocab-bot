@@ -13,6 +13,7 @@ from app.api.schemas import (
     CardBatchImportResponse,
     CardBatchImportSummaryResponse,
     CardListResponse,
+    CardPatchRequest,
     CardResponse,
 )
 from app.bot.input_validation import validate_source_input
@@ -40,7 +41,7 @@ def list_cards(
     source_language: Annotated[SourceLanguage | None, Query()] = None,
     entry_type: Annotated[EntryType | None, Query()] = None,
     anki_sync_status: Annotated[AnkiSyncStatus | None, Query()] = None,
-    eligible_for_anki: Annotated[bool | None, Query()] = None,
+    is_learning: Annotated[bool | None, Query()] = None,
 ) -> CardListResponse:
     base = select(Card)
 
@@ -53,8 +54,8 @@ def list_cards(
         base = base.where(Card.entry_type == entry_type)
     if anki_sync_status is not None:
         base = base.where(Card.anki_sync_status == anki_sync_status)
-    if eligible_for_anki is not None:
-        base = base.where(Card.eligible_for_anki == eligible_for_anki)
+    if is_learning is not None:
+        base = base.where(Card.is_learning == is_learning)
 
     total: int = session.execute(select(func.count()).select_from(base.subquery())).scalar_one()
     cards = (
@@ -138,6 +139,16 @@ def batch_import_cards(
         items=items,
         summary=CardBatchImportSummaryResponse(total=len(payload.source_texts), **summary_counts),
     )
+
+
+@router.patch("/{card_id}", response_model=CardResponse)
+def patch_card(card_id: int, body: CardPatchRequest, session: SessionDep) -> CardResponse:
+    card = session.get(Card, card_id)
+    if card is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
+    card.is_learning = body.is_learning
+    session.commit()
+    return CardResponse.from_card(card)
 
 
 @router.delete("/{card_id}", status_code=status.HTTP_204_NO_CONTENT)

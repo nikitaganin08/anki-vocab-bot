@@ -11,7 +11,8 @@ from app.schemas.description_lookup import (
     DescriptionLookupResponse,
     parse_description_lookup_response,
 )
-from app.schemas.llm import LlmResponse, parse_llm_response
+from app.schemas.llm import ChunksResponse, LlmResponse, parse_chunks_response, parse_llm_response
+from app.services.chunks_prompt import build_chunks_messages
 from app.services.description_lookup_prompt import build_description_lookup_messages
 from app.services.llm_prompt import build_llm_messages
 
@@ -50,6 +51,20 @@ class OpenRouterClient:
             response_parser=parse_description_lookup_response,
             invalid_contract_user_message=(
                 "The language model returned an invalid lookup response. Please try again."
+            ),
+        )
+
+    def generate_chunks(
+        self,
+        canonical_text: str,
+        translation_variants: list[str],
+        examples: list[str],
+    ) -> ChunksResponse:
+        return self._request_json_completion(
+            messages=build_chunks_messages(canonical_text, translation_variants, examples),
+            response_parser=parse_chunks_response,
+            invalid_contract_user_message=(
+                "The language model returned an invalid chunks response. Please try again."
             ),
         )
 

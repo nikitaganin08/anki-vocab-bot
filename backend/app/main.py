@@ -1,16 +1,46 @@
+import asyncio
+import logging
+import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
-from app.api import anki, cards, telegram_webhook, vocab
+from app.api import anki, cards, review, settings, telegram_webhook
+from app.bot.runtime import get_bot_runtime
+from app.core.config import get_settings
+from app.db.session import SessionLocal
+from app.services.reminders import run_reminder_loop
 
-app = FastAPI(title="anki-vocab-bot")
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    task = None
+    if get_settings().telegram_bot_token and os.environ.get("DISABLE_REMINDERS") != "1":
+        try:
+            bot = get_bot_runtime().bot
+        except ValueError as exc:  # partial bot config, e.g. local dev without a webhook
+            logger.warning("Reminders disabled: %s", exc)
+        else:
+            task = asyncio.create_task(run_reminder_loop(SessionLocal, bot))
+    yield
+    if task is not None:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
+
+
+app = FastAPI(title="anki-vocab-bot", lifespan=lifespan)
 
 app.include_router(cards.router)
 app.include_router(anki.router)
+app.include_router(review.router)
+app.include_router(settings.router)
 app.include_router(telegram_webhook.router)
-app.include_router(vocab.router)
 
 
 @app.get("/api/health")

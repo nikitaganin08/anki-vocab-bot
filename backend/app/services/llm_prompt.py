@@ -21,7 +21,14 @@ Accepted contract:
     }
   ],
   "explanation": "...",
-  "examples": ["...", "...", "..."],
+  "examples": ["..."],
+  "chunks": [
+    {
+      "text": "...",
+      "target": "...",
+      "translation": "..."
+    }
+  ],
   "frequency": 0..10,
   "frequency_note": "..."
 }
@@ -34,10 +41,12 @@ Rejected contract:
 
 Rules:
 - Accept only a single word or a stable lexical unit.
+- Reject function words on their own (articles, pronouns, auxiliaries,
+  prepositions, conjunctions).
 - Reject free-form phrases or full sentences.
 - Use the same accepted contract for both source_language values ("ru" and "en").
 - source_language describes the language of input only and must not change the response shape.
-- canonical_text, explanation, and examples must be English.
+- canonical_text, explanation, examples, and chunk text must be English.
 - canonical_text for verbs and phrasal verbs must be lemma-like English form without
   the infinitive marker "to " (use "shovel away", not "to shovel away").
 - transcription must be the English pronunciation of canonical_text (IPA-style or null).
@@ -56,11 +65,17 @@ Rules:
   a Russian translation.
 - Do not include canonical_text itself, ordinary tense/plural forms, invented
   forms, or weakly related words.
-- examples must contain exactly 3 items.
-- examples must illustrate the same meaning of canonical_text.
-- At least 2 of 3 examples must explicitly include canonical_text or its inflected form.
+- examples must contain exactly 1 item that illustrates the meaning of canonical_text
+  and explicitly includes canonical_text or its inflected form.
 - When word_family is not empty, use at least one of its forms naturally in
-  the examples when this does not distort the meaning.
+  the example when this does not distort the meaning.
+- chunks must contain 0 to 5 frequent natural usages of canonical_text in the same
+  meaning (collocation, typical object or complement, fixed frame), most frequent first.
+- Each chunk text must be 2 to 6 English words.
+- Each chunk target must be the exact contiguous substring of its text that realises
+  canonical_text; it may be inflected (e.g. text "gave up on him", target "gave up").
+- Each chunk translation must be the Russian translation of the whole chunk text.
+- Return "chunks": [] when canonical_text has no frequent chunks (rare or technical words).
 - frequency must be an integer from 0 to 10.
 - If you cannot provide one primary Russian translation
   and at least one Russian synonym/variant, reject.

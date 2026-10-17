@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationError
 
-from app.schemas.llm import WordFamilyItem
+from app.schemas.llm import CardChunk, WordFamilyItem
 
 
 class PendingCard(BaseModel):
@@ -19,6 +19,7 @@ class PendingCard(BaseModel):
     word_family: list[WordFamilyItem] = Field(default_factory=list)
     explanation: str
     examples: list[str]
+    chunks: list[CardChunk] = Field(default_factory=list)
 
     model_config = ConfigDict(strict=True)
 
@@ -61,6 +62,9 @@ class BackendSyncApiClient:
             json={"card_id": card_id, "error_message": error_message},
             expect_json=False,
         )
+
+    def import_note(self, item: dict[str, Any]) -> dict[str, Any]:
+        return self._request("POST", "/api/anki/import", json=item)
 
     def _request(
         self,

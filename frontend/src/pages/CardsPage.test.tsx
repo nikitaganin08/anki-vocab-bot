@@ -2,7 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { deleteCard, getCards, importCardsBatch } from "../api/client";
+import { deleteCard, getCards, importCardsBatch, setCardLearning } from "../api/client";
+import type { Card } from "../api/types";
 import { CardsPage } from "./CardsPage";
 
 vi.mock("../api/client", async (importOriginal) => {
@@ -12,12 +13,14 @@ vi.mock("../api/client", async (importOriginal) => {
     getCards: vi.fn(),
     deleteCard: vi.fn(),
     importCardsBatch: vi.fn(),
+    setCardLearning: vi.fn(),
   };
 });
 
 const mockedGetCards = vi.mocked(getCards);
 const mockedDeleteCard = vi.mocked(deleteCard);
 const mockedImportCardsBatch = vi.mocked(importCardsBatch);
+const mockedSetCardLearning = vi.mocked(setCardLearning);
 
 function renderCardsPage(): ReturnType<typeof render> {
   const queryClient = new QueryClient({
@@ -36,6 +39,7 @@ describe("CardsPage", () => {
     mockedGetCards.mockReset();
     mockedDeleteCard.mockReset();
     mockedImportCardsBatch.mockReset();
+    mockedSetCardLearning.mockReset();
     mockedGetCards.mockResolvedValue({
       items: [],
       total: 0,
@@ -65,9 +69,10 @@ describe("CardsPage", () => {
           ],
           explanation: "Refuse or reduce volume.",
           examples: ["She turned down the offer.", "Turn down the music.", "He turned down help."],
+          chunks: [],
           frequency: 6,
           frequency_note: null,
-          eligible_for_anki: true,
+          is_learning: true,
           anki_sync_status: "pending",
           anki_note_id: null,
           anki_sync_error: null,
@@ -83,13 +88,18 @@ describe("CardsPage", () => {
 
     renderCardsPage();
 
-    expect(await screen.findByRole("heading", { name: "Cards" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Слова" })).toBeInTheDocument();
     expect((await screen.findAllByText("turn down")).length).toBeGreaterThan(0);
-    expect(await screen.findByRole("button", { name: "Delete" })).toBeInTheDocument();
-    expect(await screen.findByText("Showing 1-1 of 1")).toBeInTheDocument();
-    expect(screen.getByText("Batch Import")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Import" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Удалить" })).toBeInTheDocument();
+    expect(await screen.findByText("1–1 из 1")).toBeInTheDocument();
+    expect(screen.getByText("Импорт списком")).toBeInTheDocument();
     expect(screen.getByText("turn-down")).toBeInTheDocument();
+    // One accent button per screen: Import; search is secondary.
+    expect(document.querySelectorAll(".primary-button")).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Импортировать" })).toHaveClass("primary-button");
+    expect(screen.getByRole("button", { name: "Найти" })).toHaveClass("secondary-button");
+    expect(screen.getByText("ждёт синхронизации", { selector: ".status-pill" })).toBeInTheDocument();
+    expect(screen.getByText("фразовый глагол", { selector: "strong" })).toBeInTheDocument();
     expect(screen.getByText(/отказ/)).toBeInTheDocument();
   });
 
@@ -115,11 +125,11 @@ describe("CardsPage", () => {
 
     renderCardsPage();
 
-    await screen.findByRole("heading", { name: "Cards" });
+    await screen.findByRole("heading", { name: "Слова" });
 
     const lines = Array.from({ length: 12 }, (_, index) => `item-${index + 1}`).join("\n");
-    fireEvent.change(screen.getByLabelText("Input list"), { target: { value: lines } });
-    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    fireEvent.change(screen.getByLabelText("Список"), { target: { value: lines } });
+    fireEvent.click(screen.getByRole("button", { name: "Импортировать" }));
 
     await waitFor(() => {
       expect(mockedImportCardsBatch).toHaveBeenCalledTimes(3);
@@ -127,9 +137,9 @@ describe("CardsPage", () => {
 
     expect(mockedImportCardsBatch.mock.calls[0][0]).toHaveLength(5);
     expect(mockedImportCardsBatch.mock.calls[2][0]).toHaveLength(2);
-    expect(await screen.findByText("Processed 12/12")).toBeInTheDocument();
-    expect(await screen.findByText("Total processed: 12")).toBeInTheDocument();
-    expect(await screen.findByText("Created: 12")).toBeInTheDocument();
+    expect(await screen.findByText("Обработано 12/12")).toBeInTheDocument();
+    expect(await screen.findByText("Всего обработано: 12")).toBeInTheDocument();
+    expect(await screen.findByText("Добавлено: 12")).toBeInTheDocument();
   });
 
   it("shows mixed statuses in batch results table", async () => {
@@ -170,19 +180,19 @@ describe("CardsPage", () => {
 
     renderCardsPage();
 
-    await screen.findByRole("heading", { name: "Cards" });
-    fireEvent.change(screen.getByLabelText("Input list"), {
+    await screen.findByRole("heading", { name: "Слова" });
+    fireEvent.change(screen.getByLabelText("Список"), {
       target: { value: "look up\nvery random sentence\none two three four five six seven eight nine" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    fireEvent.click(screen.getByRole("button", { name: "Импортировать" }));
 
-    expect(await screen.findByText("Total processed: 3")).toBeInTheDocument();
-    expect(screen.getByText("Rejected: 1")).toBeInTheDocument();
-    expect(screen.getByText("Invalid input: 1")).toBeInTheDocument();
+    expect(await screen.findByText("Всего обработано: 3")).toBeInTheDocument();
+    expect(screen.getByText("Отклонено: 1")).toBeInTheDocument();
+    expect(screen.getByText("Неверный ввод: 1")).toBeInTheDocument();
     expect(screen.getByText(/This does not look like a stable lexical unit\./)).toBeInTheDocument();
     expect(screen.getByText(/Please send up to 8 words\./)).toBeInTheDocument();
     expect(screen.getAllByText("look up").length).toBeGreaterThan(0);
-    expect(screen.getByText("invalid input")).toBeInTheDocument();
+    expect(screen.getByText("неверный ввод")).toBeInTheDocument();
   });
 
   it("stops on second chunk error and keeps partial results", async () => {
@@ -209,18 +219,18 @@ describe("CardsPage", () => {
 
     renderCardsPage();
 
-    await screen.findByRole("heading", { name: "Cards" });
+    await screen.findByRole("heading", { name: "Слова" });
     const lines = Array.from({ length: 7 }, (_, index) => `item-${index + 1}`).join("\n");
-    fireEvent.change(screen.getByLabelText("Input list"), { target: { value: lines } });
-    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    fireEvent.change(screen.getByLabelText("Список"), { target: { value: lines } });
+    fireEvent.click(screen.getByRole("button", { name: "Импортировать" }));
 
     await waitFor(() => {
       expect(mockedImportCardsBatch).toHaveBeenCalledTimes(2);
     });
 
-    expect(await screen.findByText("Import stopped: Batch import failed due to request error.")).toBeInTheDocument();
-    expect(screen.getByText("Total processed: 5")).toBeInTheDocument();
-    expect(screen.getByText("Created: 5")).toBeInTheDocument();
+    expect(await screen.findByText("Импорт остановлен: ошибка запроса")).toBeInTheDocument();
+    expect(screen.getByText("Всего обработано: 5")).toBeInTheDocument();
+    expect(screen.getByText("Добавлено: 5")).toBeInTheDocument();
     expect(screen.getAllByText("item-1").length).toBeGreaterThan(0);
   });
 
@@ -239,9 +249,10 @@ describe("CardsPage", () => {
           word_family: [],
           explanation: "Refuse or reduce volume.",
           examples: ["She turned down the offer.", "Turn down the music.", "He turned down help."],
+          chunks: [],
           frequency: 6,
           frequency_note: null,
-          eligible_for_anki: true,
+          is_learning: true,
           anki_sync_status: "pending",
           anki_note_id: null,
           anki_sync_error: null,
@@ -258,16 +269,54 @@ describe("CardsPage", () => {
 
     renderCardsPage();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Удалить" }));
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Delete turn down?" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Удалить «turn down»?" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete card" }));
+    fireEvent.click(screen.getByRole("button", { name: "Удалить карточку" }));
 
     await waitFor(() => {
       expect(mockedDeleteCard).toHaveBeenCalled();
     });
     expect(mockedDeleteCard.mock.calls[0][0]).toBe(7);
+  });
+
+  it("toggle learning patches card", async () => {
+    const card: Card = {
+      id: 7,
+      source_text: "turn down",
+      source_language: "en",
+      entry_type: "phrasal_verb",
+      canonical_text: "turn down",
+      canonical_text_normalized: "turn down",
+      transcription: null,
+      translation_variants: ["отклонять", "убавлять"],
+      word_family: [],
+      explanation: "Refuse or reduce volume.",
+      examples: ["She turned down the offer.", "Turn down the music.", "He turned down help."],
+      chunks: [],
+      frequency: 6,
+      frequency_note: null,
+      is_learning: true,
+      anki_sync_status: "pending",
+      anki_note_id: null,
+      anki_sync_error: null,
+      llm_model: "test-model",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+    mockedGetCards.mockResolvedValue({ items: [card], total: 1, offset: 0, limit: 20 });
+    mockedSetCardLearning.mockResolvedValue({ ...card, is_learning: false });
+
+    renderCardsPage();
+
+    const toggle = await screen.findByRole("switch", { name: "Учим: turn down" });
+    expect(toggle).toBeChecked();
+    fireEvent.click(toggle);
+
+    await waitFor(() => expect(toggle).not.toBeChecked());
+    expect(mockedSetCardLearning).toHaveBeenCalledWith(7, false);
+    expect(mockedGetCards).toHaveBeenCalledTimes(1);
   });
 });

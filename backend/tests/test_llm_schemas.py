@@ -174,8 +174,8 @@ def test_parse_llm_response_rejects_examples_not_aligned_with_canonical_text() -
                 "translation_variants": ["разгребать", "расчищать", "разбирать"],
                 "explanation": "To move material away with a shovel or by hand.",
                 "examples": [
-                    "He had to shovel away the snow blocking the path.",
                     "I have mountains of paperwork to deal with this week.",
+                    "He had to shovel away the snow blocking the path.",
                     "We need to resolve the backlog by Friday.",
                 ],
                 "frequency": 6,
@@ -233,3 +233,54 @@ def test_parse_llm_response_rejects_cyrillic_in_english_fields() -> None:
 def test_parse_llm_response_rejects_malformed_json() -> None:
     with pytest.raises(ValueError):
         parse_llm_response("{not valid json")
+
+
+def _give_up_payload(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "accepted": True,
+        "source_language": "en",
+        "entry_type": "phrasal_verb",
+        "canonical_text": "give up",
+        "transcription": "/ɡɪv ʌp/",
+        "translation_variants": ["бросить", "сдаться"],
+        "explanation": "To stop trying or stop doing something.",
+        "examples": ["She finally gave up smoking last year."],
+        "chunks": [
+            {"text": "gave up on him", "target": "gave up", "translation": "разуверился в нём"}
+        ],
+        "frequency": 8,
+        "frequency_note": "Very common.",
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_accepts_chunks_with_inflected_target() -> None:
+    result = parse_llm_response(_give_up_payload())
+
+    assert isinstance(result, AcceptedLlmResponse)
+    assert result.chunks[0].text == "gave up on him"
+    assert result.chunks[0].target == "gave up"
+    assert result.chunks[0].translation == "разуверился в нём"
+
+
+def test_drops_invalid_chunk_and_keeps_card() -> None:
+    result = parse_llm_response(
+        _give_up_payload(
+            chunks=[
+                {"text": "quit smoking", "target": "give up", "translation": "бросить"},
+                {"text": "give up smoking", "target": "give up", "translation": "бросить курить"},
+            ]
+        )
+    )
+
+    assert isinstance(result, AcceptedLlmResponse)
+    assert [chunk.text for chunk in result.chunks] == ["give up smoking"]
+
+
+def test_accepts_single_example_and_empty_chunks() -> None:
+    result = parse_llm_response(_give_up_payload(chunks=[]))
+
+    assert isinstance(result, AcceptedLlmResponse)
+    assert result.examples == ["She finally gave up smoking last year."]
+    assert result.chunks == []

@@ -1,15 +1,24 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_anki_token
-from app.api.schemas import AnkiAckRequest, AnkiFailRequest, AnkiPendingCardResponse
+from app.api.deps import get_openrouter_client, require_anki_token
+from app.api.schemas import (
+    AnkiAckRequest,
+    AnkiFailRequest,
+    AnkiImportRequest,
+    AnkiImportResponse,
+    AnkiPendingCardResponse,
+)
+from app.clients.openrouter import OpenRouterClient
 from app.db.session import get_session
 from app.models.card import AnkiSyncStatus, Card
+from app.services.anki_import import import_anki_note
 
 router = APIRouter(
     prefix="/api/anki",
@@ -18,6 +27,7 @@ router = APIRouter(
 )
 
 SessionDep = Annotated[Session, Depends(get_session)]
+OpenRouterClientDep = Annotated[OpenRouterClient, Depends(get_openrouter_client)]
 
 
 @router.get("/pending", response_model=list[AnkiPendingCardResponse])
@@ -29,7 +39,7 @@ def get_pending(
     cards = (
         session.execute(
             select(Card)
-            .where(Card.eligible_for_anki == True)  # noqa: E712
+            .where(Card.is_learning == True)  # noqa: E712
             .where(Card.anki_sync_status.in_(retryable_statuses))
             # New cards first, so permanently failing ones cannot starve the queue.
             .order_by(Card.anki_sync_status == AnkiSyncStatus.FAILED, Card.created_at.asc())
@@ -60,3 +70,11 @@ def fail_card(body: AnkiFailRequest, session: SessionDep) -> None:
     card.anki_sync_status = AnkiSyncStatus.FAILED
     card.anki_sync_error = body.error_message
     session.commit()
+
+
+@router.post("/import", response_model=AnkiImportResponse)
+def import_note(
+    body: AnkiImportRequest, session: SessionDep, openrouter_client: OpenRouterClientDep
+) -> AnkiImportResponse:
+    result, card = import_anki_note(session, openrouter_client, body, datetime.now(UTC))
+    return AnkiImportResponse(status=result, card_id=card.id if card else None)
