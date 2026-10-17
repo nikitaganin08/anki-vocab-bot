@@ -1,12 +1,34 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 
 import { EmptyState } from "./components/PageState";
+import { TabBar } from "./components/TabBar";
+import { useView, type View } from "./navigation";
 import { CardsPage } from "./pages/CardsPage";
-import { hasTelegramWebAppContext, prepareTelegramWebApp } from "./telegram";
+import {
+  applyTelegramTheme,
+  hasTelegramWebAppContext,
+  prepareTelegramWebApp,
+  showBackButton,
+} from "./telegram";
+
+// Placeholders until HomeView, ReviewView and SettingsView land.
+function renderView(view: View): JSX.Element {
+  switch (view) {
+    case "home":
+      return <EmptyState title="Главная" message="Здесь будет цель на сегодня." />;
+    case "review":
+      return <EmptyState title="Повтор" message="Здесь будет повторение карточек." />;
+    case "cards":
+      return <CardsPage />;
+    case "settings":
+      return <EmptyState title="Настройки" message="Здесь будут настройки повторения." />;
+  }
+}
 
 export function App(): JSX.Element {
   const telegramContextAvailable = hasTelegramWebAppContext();
+  const [view, setView] = useView();
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -19,9 +41,13 @@ export function App(): JSX.Element {
       }),
   );
 
-  useEffect(() => {
+  // Layout effect: theme variables land before the first paint, no light flash in dark Telegram.
+  useLayoutEffect(() => {
     prepareTelegramWebApp();
+    applyTelegramTheme();
   }, []);
+
+  useEffect(() => (view === "review" ? showBackButton(() => setView("home")) : undefined), [view]);
 
   if (!telegramContextAvailable) {
     return (
@@ -36,19 +62,9 @@ export function App(): JSX.Element {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="admin-shell">
-        <header className="app-header">
-          <div className="brand-block">
-            <p className="eyebrow">anki-vocab-bot</p>
-            <h1>Telegram Dictionary Panel</h1>
-          </div>
-
-          <p className="eyebrow">Manage cards inside Telegram</p>
-        </header>
-
-        <main className="page-shell">
-          <CardsPage />
-        </main>
+      <div className="app-shell">
+        <main className="page-shell">{renderView(view)}</main>
+        <TabBar view={view} onChange={setView} />
       </div>
     </QueryClientProvider>
   );

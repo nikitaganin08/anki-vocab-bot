@@ -1,5 +1,23 @@
+interface TelegramThemeParams {
+  bg_color?: string;
+  text_color?: string;
+  hint_color?: string;
+  button_color?: string;
+  button_text_color?: string;
+  secondary_bg_color?: string;
+}
+
+interface TelegramBackButton {
+  show: () => void;
+  hide: () => void;
+  onClick: (callback: () => void) => void;
+  offClick: (callback: () => void) => void;
+}
+
 interface TelegramWebApp {
   initData: string;
+  themeParams?: TelegramThemeParams;
+  BackButton?: TelegramBackButton;
   ready?: () => void;
   expand?: () => void;
 }
@@ -9,6 +27,15 @@ interface TelegramWindow extends Window {
     WebApp?: TelegramWebApp;
   };
 }
+
+const THEME_VARIABLES: [keyof TelegramThemeParams, string][] = [
+  ["bg_color", "--tg-bg"],
+  ["text_color", "--tg-text"],
+  ["hint_color", "--tg-hint"],
+  ["button_color", "--tg-accent"],
+  ["button_text_color", "--tg-accent-text"],
+  ["secondary_bg_color", "--tg-surface"],
+];
 
 function getTelegramWebApp(): TelegramWebApp | null {
   const webApp = (window as TelegramWindow).Telegram?.WebApp;
@@ -35,4 +62,29 @@ export function prepareTelegramWebApp(): void {
 
   webApp.ready?.();
   webApp.expand?.();
+}
+
+// Missing params stay unset so the light fallbacks in styles.css apply.
+export function applyTelegramTheme(): void {
+  const theme = getTelegramWebApp()?.themeParams ?? {};
+  for (const [param, variable] of THEME_VARIABLES) {
+    const value = theme[param];
+    if (value) {
+      document.documentElement.style.setProperty(variable, value);
+    }
+  }
+}
+
+export function showBackButton(onClick: () => void): () => void {
+  const backButton = getTelegramWebApp()?.BackButton;
+  if (!backButton) {
+    return () => {};
+  }
+
+  backButton.onClick(onClick);
+  backButton.show();
+  return () => {
+    backButton.offClick(onClick);
+    backButton.hide();
+  };
 }
