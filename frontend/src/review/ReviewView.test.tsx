@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError, checkAnswer, getReviewSession, getReviewSummary, gradeCard } from "../api/client";
@@ -455,90 +455,48 @@ describe("ReviewView", () => {
   });
 });
 
-interface TelegramWindow extends Window {
-  Telegram?: { WebApp?: { initData: string } };
-}
-
-// pronounce() caches object URLs per card id for the page's lifetime: each test uses its own id.
 describe("pronunciation", () => {
-  const fetchMock = vi.fn();
-  const playMock = vi.fn();
-  const audioSources: string[] = [];
-  const createObjectURL = URL.createObjectURL;
-
   beforeEach(() => {
     mockedSummary.mockReset().mockResolvedValue(summary());
-    (window as TelegramWindow).Telegram = { WebApp: { initData: "signed-init-data" } };
-    fetchMock.mockReset().mockResolvedValue(new Response("mp3", { headers: { "Content-Type": "audio/mpeg" } }));
-    playMock.mockReset().mockResolvedValue(undefined);
-    audioSources.length = 0;
-    vi.stubGlobal("fetch", fetchMock);
-    vi.stubGlobal(
-      "Audio",
-      class {
-        play = playMock;
-        constructor(src: string) {
-          audioSources.push(src);
-        }
-      },
-    );
-    URL.createObjectURL = vi.fn(() => "blob:give-audio");
+    mockedSession.mockReset().mockResolvedValue([item(21, "give", "___ up", { intro: true, srs_due_at: null })]);
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
-    URL.createObjectURL = createObjectURL;
-    delete (window as TelegramWindow).Telegram;
   });
 
-  function renderIntro(cardId: number): void {
-    mockedSession.mockResolvedValue([item(cardId, "give", "___ up", { intro: true, srs_due_at: null })]);
-    renderReview();
-  }
-
-  it("prefetches server audio when the card shows and plays it on tap only", async () => {
+  it("hides the speaker without speechSynthesis", async () => {
     expect("speechSynthesis" in window).toBe(false);
-    renderIntro(21);
+    renderReview();
 
-    const speaker = await screen.findByRole("button", { name: "Play pronunciation" });
-    // Downloaded up front so a tap plays inside the gesture (iOS), but no autoplay.
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    expect(playMock).not.toHaveBeenCalled();
-
-    fireEvent.click(speaker);
-    await waitFor(() => expect(playMock).toHaveBeenCalledTimes(1));
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/cards/21/audio",
-      expect.objectContaining({
-        headers: expect.objectContaining({ "X-Telegram-Init-Data": "signed-init-data" }),
-      }),
-    );
-
-    fireEvent.click(speaker);
-    await waitFor(() => expect(playMock).toHaveBeenCalledTimes(2));
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(audioSources).toEqual(["blob:give-audio", "blob:give-audio"]);
+    expect(await screen.findByRole("heading", { name: "give" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Play pronunciation" })).not.toBeInTheDocument();
   });
 
-  it("falls back to speechSynthesis when the audio request fails", async () => {
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ detail: "boom" }), { status: 502 }));
+  it("speaks the word in en-US on tap only, with an English voice", async () => {
     const speak = vi.fn();
-    vi.stubGlobal("speechSynthesis", { speak, cancel: vi.fn() });
+    const usVoice = { lang: "en-US", name: "Samantha" };
+    vi.stubGlobal("speechSynthesis", {
+      speak,
+      cancel: vi.fn(),
+      getVoices: () => [{ lang: "ru-RU", name: "Milena" }, { lang: "en-GB", name: "Daniel" }, usVoice],
+    });
     vi.stubGlobal(
       "SpeechSynthesisUtterance",
       class {
         lang = "";
+        voice: unknown = null;
         constructor(readonly text: string) {}
       },
     );
-    renderIntro(22);
+    renderReview();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Play pronunciation" }));
+    const speaker = await screen.findByRole("button", { name: "Play pronunciation" });
+    expect(speak).not.toHaveBeenCalled();
 
-    await waitFor(() =>
-      expect(speak).toHaveBeenCalledWith(expect.objectContaining({ text: "give", lang: "en-US" })),
-    );
-    expect(playMock).not.toHaveBeenCalled();
+    fireEvent.click(speaker);
+    expect(speak).toHaveBeenCalledTimes(1);
+    expect(speak).toHaveBeenCalledWith(expect.objectContaining({ text: "give", lang: "en-US", voice: usVoice }));
   });
 });
 

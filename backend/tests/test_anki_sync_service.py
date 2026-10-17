@@ -287,30 +287,37 @@ def test_sync_pending_cards_uses_existing_tagged_note_idempotently() -> None:
     assert pronunciation.calls == []
 
 
-def test_sync_pending_cards_reports_pronunciation_generation_failures() -> None:
+def test_sync_pending_cards_adds_note_without_audio_when_tts_fails(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     class FakeBackendClient:
         def __init__(self) -> None:
-            self.failures: list[tuple[int, str]] = []
+            self.acks: list[tuple[int, int]] = []
 
         def get_pending(self, limit: int = 50) -> list[PendingCard]:
-            return [_pending_card()]
+            second = _pending_card()
+            second.id = 8
+            return [_pending_card(), second]
 
         def ack(self, card_id: int, anki_note_id: int) -> None:
-            raise AssertionError(f"Did not expect ack() for card={card_id}, note={anki_note_id}")
+            self.acks.append((card_id, anki_note_id))
 
         def fail(self, card_id: int, error_message: str) -> None:
-            self.failures.append((card_id, error_message))
+            raise AssertionError(f"Did not expect fail() for card={card_id}: {error_message}")
 
     class FakeAnkiClient:
+        def __init__(self) -> None:
+            self.audio_fields: list[str] = []
+
         def find_notes_by_tag(self, tag: str) -> list[int]:
-            assert tag == "avb-card-7"
             return []
 
         def store_media_file(self, filename: str, data: bytes) -> None:
             raise AssertionError("Did not expect media upload after TTS failure")
 
         def add_note(self, payload: AnkiNotePayload) -> int:
-            raise AssertionError("Did not expect note creation after TTS failure")
+            self.audio_fields.append(payload.fields["PronunciationAudio"])
+            return 500 + len(self.audio_fields)
 
     backend = FakeBackendClient()
     anki = FakeAnkiClient()
@@ -327,7 +334,10 @@ def test_sync_pending_cards_reports_pronunciation_generation_failures() -> None:
         pronunciation_generator=pronunciation,
     )
 
-    assert summary.total == 1
-    assert summary.synced == 0
-    assert summary.failed == 1
-    assert backend.failures == [(7, "Pronunciation audio generation failed.")]
+    assert summary.total == 2
+    assert summary.synced == 2
+    assert summary.failed == 0
+    assert anki.audio_fields == ["", ""]
+    assert backend.acks == [(7, 501), (8, 502)]
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 1

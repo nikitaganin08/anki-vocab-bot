@@ -107,17 +107,6 @@ export async function deleteCard(cardId: number): Promise<void> {
   return request(`/api/cards/${cardId}`, "DELETE");
 }
 
-// Binary MP3: an <audio src> could not send the Telegram init data header.
-export async function getCardAudio(cardId: number): Promise<Blob> {
-  const response = await fetch(resolveApiPath(`/api/cards/${cardId}/audio`), {
-    headers: buildHeaders({ Accept: "audio/mpeg" }),
-  });
-  if (!response.ok) {
-    throw new ApiError(await readErrorMessage(response), response.status);
-  }
-  return response.blob();
-}
-
 export async function setCardLearning(cardId: number, isLearning: boolean): Promise<Card> {
   return request(`/api/cards/${cardId}`, "PATCH", { is_learning: isLearning });
 }

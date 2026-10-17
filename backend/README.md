@@ -16,8 +16,8 @@ Review (SRS):
 - FSRS scheduling (`fsrs` package) runs server-side; state lives on `cards.srs_*`, every answer
   is appended to `review_logs`, user preferences are the single `app_settings` row.
 - Mini App endpoints (Telegram Web App auth): `/api/review/*`, `/api/settings`,
-  `PATCH /api/cards/{id}` (`is_learning` toggle), `GET /api/cards/{id}/audio` (edge-tts MP3,
-  cached in `<SQLite DB dir>/audio/<id>.mp3`, removed with the card).
+  `PATCH /api/cards/{id}` (`is_learning` toggle). Pronunciation in the Mini App is device TTS
+  (`speechSynthesis`); the server stores no audio.
 - The day starts at midnight in `app_settings.timezone` (default `Europe/Moscow`); the Mini App
   saves the device timezone on load when it differs (manual override in Settings).
 - A daily reminder loop runs in the FastAPI lifespan when `TELEGRAM_BOT_TOKEN` is set; set
@@ -55,7 +55,8 @@ Idempotency policy:
 - sync checks `findNotes` by tag before creating a note
 - if found, sync acknowledges the existing note id instead of creating duplicate
 - pronunciation audio is generated locally during sync and uploaded to Anki media as
-  `avb-pronunciation-<card_id>.mp3`
+  `avb-pronunciation-<card_id>.mp3`; best-effort: if edge-tts fails (it currently gets 403),
+  the note is added with an empty `PronunciationAudio` field and one warning is logged per run
 
 ## Anki import
 

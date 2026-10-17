@@ -1,7 +1,5 @@
-import { useEffect } from "react";
-
 import type { Card } from "../api/types";
-import { prefetchAudio, pronounce } from "./speak";
+import { canSpeak, speak } from "./speak";
 
 // Tabler "volume" outline icon (MIT), 24x24.
 const SPEAKER_PATHS = [
@@ -10,27 +8,26 @@ const SPEAKER_PATHS = [
   "M6 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h2l3.5-4.5A.8.8 0 0 1 11 5v14a.8.8 0 0 1-1.5.5L6 15",
 ];
 
-// The full card, shared by the intro and the back side. Audio is downloaded when the card
-// shows but plays only on tap.
+// The full card, shared by the intro and the back side. Pronunciation plays only on tap.
 export function CardDetails({ card }: { card: Card }): JSX.Element {
-  useEffect(() => prefetchAudio(card.id), [card.id]);
-
   return (
     <div className="surface-panel review-card">
       <div className="review-word">
         <h2>{card.canonical_text}</h2>
-        <button
-          type="button"
-          className="icon-button"
-          aria-label="Play pronunciation"
-          onClick={() => void pronounce(card.id, card.canonical_text)}
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            {SPEAKER_PATHS.map((d) => (
-              <path key={d} d={d} />
-            ))}
-          </svg>
-        </button>
+        {canSpeak() ? (
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Play pronunciation"
+            onClick={() => speak(card.canonical_text)}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              {SPEAKER_PATHS.map((d) => (
+                <path key={d} d={d} />
+              ))}
+            </svg>
+          </button>
+        ) : null}
         {card.transcription ? <span className="section-label">{card.transcription}</span> : null}
       </div>
       <p>{card.translation_variants.join(", ")}</p>

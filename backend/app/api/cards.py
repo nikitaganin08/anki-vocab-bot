@@ -1,20 +1,12 @@
 from __future__ import annotations
 
-import tempfile
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.deps import (
-    get_audio_dir,
-    get_openrouter_client,
-    get_pronunciation_generator,
-    require_telegram_webapp_user,
-)
+from app.api.deps import get_openrouter_client, require_telegram_webapp_user
 from app.api.schemas import (
     CardBatchImportItemResponse,
     CardBatchImportRequest,
@@ -29,7 +21,6 @@ from app.clients.openrouter import OpenRouterClient, OpenRouterError
 from app.db.session import get_session
 from app.models.card import AnkiSyncStatus, Card, EntryType, SourceLanguage
 from app.services.card_service import apply_source_text
-from app.services.pronunciation import EdgeTtsPronunciationGenerator, PronunciationAudioError
 
 router = APIRouter(
     prefix="/api/cards",
@@ -39,10 +30,6 @@ router = APIRouter(
 
 SessionDep = Annotated[Session, Depends(get_session)]
 OpenRouterClientDep = Annotated[OpenRouterClient, Depends(get_openrouter_client)]
-PronunciationGeneratorDep = Annotated[
-    EdgeTtsPronunciationGenerator, Depends(get_pronunciation_generator)
-]
-AudioDirDep = Annotated[Path, Depends(get_audio_dir)]
 
 
 @router.get("", response_model=CardListResponse)
@@ -164,41 +151,10 @@ def patch_card(card_id: int, body: CardPatchRequest, session: SessionDep) -> Car
     return CardResponse.from_card(card)
 
 
-# Sync route: edge-tts runs its own event loop (asyncio.run) in the threadpool worker.
-@router.get("/{card_id}/audio")
-def get_card_audio(
-    card_id: int,
-    session: SessionDep,
-    generator: PronunciationGeneratorDep,
-    audio_dir: AudioDirDep,
-) -> FileResponse:
-    card = session.get(Card, card_id)
-    if card is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
-
-    path = audio_dir / f"{card_id}.mp3"
-    if not path.is_file():
-        try:
-            audio = generator.generate_audio(card.canonical_text)
-        except PronunciationAudioError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY, detail=exc.user_message
-            ) from exc
-        audio_dir.mkdir(parents=True, exist_ok=True)
-        # Atomic: a concurrent request never serves a half-written file.
-        with tempfile.NamedTemporaryFile(dir=audio_dir, suffix=".tmp", delete=False) as tmp:
-            tmp.write(audio)
-        Path(tmp.name).replace(path)
-
-    return FileResponse(path, media_type="audio/mpeg")
-
-
 @router.delete("/{card_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_card(card_id: int, session: SessionDep, audio_dir: AudioDirDep) -> None:
+def delete_card(card_id: int, session: SessionDep) -> None:
     card = session.get(Card, card_id)
     if card is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
     session.delete(card)
     session.commit()
-    # SQLite may reuse the id: never serve the old word's audio for a new card.
-    (audio_dir / f"{card_id}.mp3").unlink(missing_ok=True)

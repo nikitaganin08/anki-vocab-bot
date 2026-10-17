@@ -1,19 +1,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 import app.api.deps as deps_mod
-from app.api.deps import get_openrouter_client, get_pronunciation_generator
+from app.api.deps import get_openrouter_client
 from app.clients.openrouter import OpenRouterError
 from app.main import app
 from app.models.card import AnkiSyncStatus, Card
 from app.schemas.llm import AcceptedLlmResponse, RejectedLlmResponse
-from app.services.pronunciation import PronunciationAudioError
 
 from .conftest import (
     TELEGRAM_ALLOWED_USER_ID,
@@ -348,101 +346,6 @@ def test_delete_card(client: TestClient, session: Session) -> None:
 def test_delete_card_not_found(client: TestClient) -> None:
     resp = client.delete("/api/cards/9999", headers=telegram_headers())
     assert resp.status_code == 404
-
-
-# ---------------------------------------------------------------------------
-# GET /api/cards/{card_id}/audio
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class FakePronunciationGenerator:
-    error: Exception | None = None
-    calls: list[str] = field(default_factory=list)
-
-    def generate_audio(self, text: str) -> bytes:
-        self.calls.append(text)
-        if self.error is not None:
-            raise self.error
-        return b"mp3:" + text.encode()
-
-
-def _use_generator(generator: FakePronunciationGenerator) -> None:
-    app.dependency_overrides[get_pronunciation_generator] = lambda: generator
-
-
-def _add_card(session: Session) -> Card:
-    card = make_card()
-    session.add(card)
-    session.commit()
-    return card
-
-
-def test_card_audio_generates_then_serves_cache(
-    client: TestClient, session: Session, tmp_path: Path
-) -> None:
-    card = _add_card(session)
-    generator = FakePronunciationGenerator()
-    _use_generator(generator)
-
-    first = client.get(f"/api/cards/{card.id}/audio", headers=telegram_headers())
-    second = client.get(f"/api/cards/{card.id}/audio", headers=telegram_headers())
-
-    for resp in (first, second):
-        assert resp.status_code == 200
-        assert resp.headers["content-type"] == "audio/mpeg"
-        assert resp.content == b"mp3:take off"
-    assert generator.calls == ["take off"]
-    assert (tmp_path / "audio" / f"{card.id}.mp3").read_bytes() == b"mp3:take off"
-    assert [p.name for p in (tmp_path / "audio").iterdir()] == [f"{card.id}.mp3"]
-
-
-def test_card_audio_requires_telegram_auth(client: TestClient, session: Session) -> None:
-    card = _add_card(session)
-    _use_generator(FakePronunciationGenerator())
-
-    assert client.get(f"/api/cards/{card.id}/audio").status_code == 401
-
-
-def test_card_audio_unknown_card_is_404(client: TestClient) -> None:
-    generator = FakePronunciationGenerator()
-    _use_generator(generator)
-
-    resp = client.get("/api/cards/9999/audio", headers=telegram_headers())
-
-    assert resp.status_code == 404
-    assert generator.calls == []
-
-
-def test_card_audio_generation_failure_is_502(
-    client: TestClient, session: Session, tmp_path: Path
-) -> None:
-    card = _add_card(session)
-    _use_generator(
-        FakePronunciationGenerator(
-            error=PronunciationAudioError("boom", user_message="Pronunciation audio failed.")
-        )
-    )
-
-    resp = client.get(f"/api/cards/{card.id}/audio", headers=telegram_headers())
-
-    assert resp.status_code == 502
-    assert resp.json()["detail"] == "Pronunciation audio failed."
-    assert not (tmp_path / "audio" / f"{card.id}.mp3").exists()
-
-
-def test_delete_card_removes_cached_audio(
-    client: TestClient, session: Session, tmp_path: Path
-) -> None:
-    card = _add_card(session)
-    _use_generator(FakePronunciationGenerator())
-    client.get(f"/api/cards/{card.id}/audio", headers=telegram_headers())
-    cached = tmp_path / "audio" / f"{card.id}.mp3"
-    assert cached.exists()
-
-    assert client.delete(f"/api/cards/{card.id}", headers=telegram_headers()).status_code == 204
-
-    assert not cached.exists()
 
 
 # ---------------------------------------------------------------------------

@@ -90,7 +90,7 @@ Look: flat, neutral, follows the Telegram theme (`Telegram.WebApp.themeParams` �
 
 Full card (intro and back side, one component): word + speaker + IPA → translations → explanation (full English definition) → "Usage" chunks → one example → word family, each form on its own line ("distinguishable (adjective) — различимый"), never joined with "·".
 
-Audio: the speaker button is always visible and plays only on tap, never automatically. It fetches `GET /api/cards/{card_id}/audio` (Mini App auth; edge-tts MP3 of `canonical_text` with `ANKI_PRONUNCIATION_VOICE`, cached on disk at `<SQLite DB dir>/audio/<card_id>.mp3`, deleted with the card) through the API client with the `X-Telegram-Init-Data` header (an `<audio src>` can't send it), keeps an object URL per card in memory and plays it with `new Audio(url)`. If the fetch or playback fails it falls back to `speechSynthesis` (en-US) when available, otherwise stays silent. Label "Play pronunciation".
+Audio: device TTS only — `window.speechSynthesis` speaks `canonical_text` (lang en-US, cancel then speak, an English voice when the device lists one), on tap only, never automatically. The speaker button is shown only where `speechSynthesis` exists; it is hidden e.g. in Telegram Desktop and the Android WebView. No server audio (decided 2026-10-17: edge-tts gets 403 from Microsoft, and the small VPS should not store audio). Label "Play pronunciation". Anki audio stays best-effort: `sync_anki` adds the note with an empty `PronunciationAudio` field when edge-tts fails.
 
 Views switched by `?view=` (no router): `home`, `review`, `cards`, `settings`; the reminder and `/review` open `?view=review`.
 

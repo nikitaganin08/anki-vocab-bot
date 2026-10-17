@@ -63,7 +63,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 - `TanStack Query`
 - No router: views are switched by the `?view=` query parameter
 - Theme follows Telegram: `Telegram.WebApp.themeParams` are mapped to CSS variables (`--tg-bg`, `--tg-text`, `--tg-hint`, `--tg-accent`, `--tg-accent-text`, `--tg-surface`) with light fallbacks; flat surfaces, no gradients, one accent button per screen
-- Audio: the speaker button is always shown and plays only on tap (no autoplay); it fetches `GET /api/cards/{card_id}/audio` with the `X-Telegram-Init-Data` header, keeps an object URL per card in memory, plays it with `new Audio(url)`, and falls back to browser `speechSynthesis` (`en-US`) when the fetch or playback fails (silent when that is missing too)
+- Audio: device TTS only via `window.speechSynthesis` (`en-US`, cancel then speak, an English voice when the device lists one), plays only on tap (no autoplay); the speaker button is hidden where `speechSynthesis` is missing (e.g. Telegram Desktop, Android WebView). No server audio: nothing is generated or stored on the VPS
 - UI copy is English, sentence case (`<html lang="en">`); Russian appears only as card data (translations, chunk translations)
 - `npm` for dependency management
 - `npx` only for one-off scaffolding and CLI bootstrap commands
@@ -249,8 +249,7 @@ Validation rules:
 - `GET /api/cards` (filters include `is_learning`)
 - `POST /api/cards/batch`
 - `PATCH /api/cards/{card_id}` (`{is_learning}`)
-- `DELETE /api/cards/{card_id}` (also removes the card's cached audio)
-- `GET /api/cards/{card_id}/audio` (`audio/mpeg` pronunciation of `canonical_text` via edge-tts with `ANKI_PRONUNCIATION_VOICE`; cached at `<SQLite DB dir>/audio/<card_id>.mp3`, written atomically; 404 unknown card, 502 when generation fails)
+- `DELETE /api/cards/{card_id}`
 - `GET /api/review/summary` (today goal, backlog, `due_all`, `days_away`, retention 30d, learned, streak, heatmap, forecast)
 - `GET /api/review/session?size=10&include_backlog=false` (next round; the expected answer is not sent; `include_backlog=true` ignores the daily review cap)
 - `POST /api/review/{card_id}/check` (verdict, expected answer, auto rating, intervals; no DB write)
@@ -283,7 +282,7 @@ Views are switched by `?view=` (`history.replaceState`, other params and the has
 - Settings (`src/settings/`): daily limits, desired retention, reminder hour and anchor, learn threshold, timezone; saved with `PUT /api/settings`. On each Mini App load the shell saves the device timezone (`Intl.DateTimeFormat().resolvedOptions().timeZone`) when it differs from the stored one; a zone picked by hand in Settings is replaced on the next load if the device reports another.
 - Words (`src/pages/CardsPage.tsx`): cards list with search and filters (including `is_learning`), batch import, deletion, and a per-card "Learning" toggle (`PATCH /api/cards/{card_id}`).
 
-The UI reads only from backend endpoints (JSON, plus the MP3 from `/api/cards/{card_id}/audio`).
+The UI reads only from backend JSON endpoints.
 
 Production exposure (`deploy/nginx/anki.conf`):
 - `/anki/telegram/*` → Mini App static files and the webhook (secret token)
@@ -306,7 +305,7 @@ Production exposure (`deploy/nginx/anki.conf`):
 Mapping:
 - `Word` -> `canonical_text_normalized` (lowercased, whitespace-collapsed `canonical_text`)
 - `Transcription` -> `transcription`
-- `PronunciationAudio` -> `[sound:avb-pronunciation-<card_id>.mp3]` generated locally during `sync_anki`
+- `PronunciationAudio` -> `[sound:avb-pronunciation-<card_id>.mp3]` generated locally with edge-tts during `sync_anki`; best-effort: when generation fails (edge-tts currently gets 403 from Microsoft) the note is still added with an empty field and the card is acked
 - `Translation` -> comma-joined translations
 - `Explanation` -> `explanation`
 - `Example` -> chunk lines (`text — translation`), blank line, first English example, then the word family block
