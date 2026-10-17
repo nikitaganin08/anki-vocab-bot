@@ -111,8 +111,11 @@ export async function setCardLearning(cardId: number, isLearning: boolean): Prom
   return request(`/api/cards/${cardId}`, "PATCH", { is_learning: isLearning });
 }
 
-export async function getCardAudio(cardId: number): Promise<Blob> {
-  const response = await fetch(resolveApiPath(`/api/cards/${cardId}/audio`), {
+// `version` (the word) only busts the HTTP cache: card ids can be reused after a delete and
+// the audio is cached for a year; the backend ignores it.
+export async function getCardAudio(cardId: number, version: string): Promise<Blob> {
+  const url = `${resolveApiPath(`/api/cards/${cardId}/audio`)}?v=${encodeURIComponent(version)}`;
+  const response = await fetch(url, {
     headers: buildHeaders({}),
   });
   if (!response.ok) {

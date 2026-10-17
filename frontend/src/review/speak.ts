@@ -23,20 +23,22 @@ export function speak(text: string): void {
   window.speechSynthesis.speak(utterance);
 }
 
-// One request per card per page load: the promise is kept, so double taps share it and a failed
-// card goes straight to device speech. Object URLs live until the page closes.
-const loading = new Map<number, Promise<string>>();
-const ready = new Map<number, string>();
+// One request per card per page load: the promise is kept, so double taps share it. Object URLs
+// live until the page closes. Keyed by id + word, since ids can be reused after a delete.
+const loading = new Map<string, Promise<string>>();
+const ready = new Map<string, string>();
 
-function loadAudio(cardId: number): Promise<string> {
-  let url = loading.get(cardId);
+function loadAudio(key: string, cardId: number, word: string): Promise<string> {
+  let url = loading.get(key);
   if (!url) {
-    url = getCardAudio(cardId).then((blob) => {
+    url = getCardAudio(cardId, word).then((blob) => {
       const objectUrl = URL.createObjectURL(blob);
-      ready.set(cardId, objectUrl);
+      ready.set(key, objectUrl);
       return objectUrl;
     });
-    loading.set(cardId, url);
+    loading.set(key, url);
+    // A failed load is retried on the next tap.
+    url.catch(() => loading.delete(key));
   }
   return url;
 }
@@ -49,8 +51,18 @@ export function playPronunciation(
     speak(card.canonical_text);
     return;
   }
+  const key = `${card.id}:${card.canonical_text}`;
+  const url = ready.get(key);
   // A loaded clip plays synchronously, inside the tap: iOS may refuse play() after an await.
-  const url = ready.get(card.id);
-  const playing = url ? new Audio(url).play() : loadAudio(card.id).then((u) => new Audio(u).play());
-  playing.catch(() => speak(card.canonical_text));
+  if (url) {
+    new Audio(url).play().catch(() => speak(card.canonical_text));
+    return;
+  }
+  // Taps while the first load is pending would play the clip twice at once.
+  if (loading.has(key)) {
+    return;
+  }
+  loadAudio(key, card.id, card.canonical_text)
+    .then((u) => new Audio(u).play())
+    .catch(() => speak(card.canonical_text));
 }

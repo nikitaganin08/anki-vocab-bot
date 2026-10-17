@@ -464,6 +464,9 @@ describe("ReviewView", () => {
 });
 
 describe("pronunciation", () => {
+  // jsdom has no createObjectURL; stubAudio installs one and afterEach removes it again.
+  const urlWithObjectUrl = URL as { createObjectURL?: (blob: Blob) => string };
+
   beforeEach(() => {
     mockedSummary.mockReset().mockResolvedValue(summary());
     mockedSession.mockReset().mockResolvedValue([item(21, "give", "___ up", { intro: true, srs_due_at: null })]);
@@ -471,6 +474,7 @@ describe("pronunciation", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    delete urlWithObjectUrl.createObjectURL;
   });
 
   it("hides the speaker without server audio and speechSynthesis", async () => {
@@ -518,7 +522,7 @@ describe("pronunciation", () => {
         play = play;
       },
     );
-    URL.createObjectURL = vi.fn(() => "blob:give");
+    urlWithObjectUrl.createObjectURL = () => "blob:give";
     return sources;
   }
 
@@ -535,19 +539,20 @@ describe("pronunciation", () => {
     const speaker = await screen.findByRole("button", { name: "Play pronunciation" });
     expect(fetchMock).not.toHaveBeenCalled();
 
-    // A double tap shares one request.
+    // A double tap shares one request and plays once (no echo).
     fireEvent.click(speaker);
     fireEvent.click(speaker);
-    await waitFor(() => expect(play).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(play).toHaveBeenCalledTimes(1));
     // Once loaded, a tap plays at once from memory.
     fireEvent.click(speaker);
-    expect(play).toHaveBeenCalledTimes(3);
+    expect(play).toHaveBeenCalledTimes(2);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock).toHaveBeenCalledWith("/api/cards/31/audio", {
+    // The word in the URL busts the HTTP cache when a card id is reused after a delete.
+    expect(fetchMock).toHaveBeenCalledWith("/api/cards/31/audio?v=give", {
       headers: { "X-Telegram-Init-Data": "signed-init-data" },
     });
-    expect(sources).toEqual(["blob:give", "blob:give", "blob:give"]);
+    expect(sources).toEqual(["blob:give", "blob:give"]);
   });
 
   it("falls back to speechSynthesis when server audio fails", async () => {
