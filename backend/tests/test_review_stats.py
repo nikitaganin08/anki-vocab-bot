@@ -147,7 +147,7 @@ def test_days_away_counts_study_days(session: Session) -> None:
     _log(session, card, datetime(2026, 10, 17, 0, 30, tzinfo=UTC))
     assert build_summary(session, settings, NOW).days_away == 4
 
-    _log(session, card, datetime(2026, 10, 17, 2, 0, tzinfo=UTC))  # 05:00 in Moscow
+    _log(session, card, datetime(2026, 10, 17, 4, 0, tzinfo=UTC))  # 07:00 in Moscow
     assert build_summary(session, settings, NOW).days_away == 3
 
     _log(session, card, NOW - timedelta(hours=1))
@@ -224,7 +224,7 @@ def test_forecast_tomorrow_and_week(session: Session) -> None:
 
     summary = build_summary(session, get_app_settings(session), NOW)
 
-    # Review cards due later today count today (study day starts at 04:00), like Anki.
+    # Review cards due later today count today (study day starts at 06:00), like Anki.
     assert summary.due_today == 2
     assert (summary.forecast_tomorrow, summary.forecast_week_avg) == (1, 1)
 

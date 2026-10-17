@@ -6,8 +6,8 @@ function level(count: number): number {
   return count === 0 ? 0 : count < FULL_DAY_ANSWERS ? 1 : 2;
 }
 
-// Study days start at 04:00 (backend DAY_START_HOUR).
-const DAY_START_MS = 4 * 3_600_000;
+// Study days start at 06:00 (backend DAY_START_HOUR).
+const DAY_START_MS = 6 * 3_600_000;
 
 // counts: 98 study days, oldest first; columns are weeks, rows Monday→Sunday, today is the last cell.
 // ponytail: weekday from the browser clock; assumes the browser timezone matches the settings one.

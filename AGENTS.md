@@ -109,10 +109,10 @@ The app receives words and stable expressions from Telegram, generates learning 
 
 - Server-side scheduling with `fsrs.Scheduler(desired_retention=app_settings.desired_retention, learning_steps=(1m, 1d), relearning_steps=(10m,), enable_fuzzing=False)`: a new card is Again 1m, Good 1 day, Easy 2 days.
 - Easy vs Good (`_outcomes`, shared by preview and grade): for a new/learning card whose Good is ≥ 1 day away, Easy = 2 × Good; for review/relearning cards FSRS Easy is capped at 2 × Good; review outcomes keep Good ≥ Hard + 1 day, Easy ≥ Good + 1 day.
-- Due dates of a day or more count from the start of their study day (04:00 local), like Anki; intraday learning steps keep their exact time.
+- Due dates of a day or more count from the start of their study day (06:00 local), like Anki; intraday learning steps keep their exact time.
 - SRS state lives on `cards` (`srs_card_json` = `fsrs.Card.to_json()`, `srs_due_at`, `srs_state`, `srs_reps`, `srs_lapses`); every graded answer is appended to `review_logs` (with the card state before, for undo). Intro screens of new cards are not logged.
 - All datetimes are UTC; values read from SQLite are naive and go through `as_utc()`.
-- The day starts at 04:00 in `app_settings.timezone` (default `Europe/Moscow`); daily limits (`new_per_day` 5, `reviews_per_day` 50) are counted per that window. Due reviews beyond the limit are reported as `backlog`.
+- The day starts at 06:00 in `app_settings.timezone` (default `Europe/Moscow`); daily limits (`new_per_day` 5, `reviews_per_day` 50) are counted per that window. Due reviews beyond the limit are reported as `backlog`.
 - Session order: due learning/relearning cards, then due reviews by retrievability (highest first), then new learning cards (intro first, typed later).
 - Prompt: a usage chunk with its `target` masked as `___` plus the chunk translation, rotating chunks per review; cards without chunks prompt with the Russian translations and expect `canonical_text`.
 - Answer checking (`app/services/answer_check.py`): NFKC, casefold, curly apostrophes, trailing punctuation, ЙЦУКЕН→QWERTY layout fix; one Damerau-Levenshtein edit when the expected answer has 5+ chars is a `typo` (counts as correct).
@@ -368,7 +368,7 @@ Focus areas:
 - card persistence
 - Anki queue status transitions
 - answer checking (layout, typos, inflected chunk targets)
-- FSRS scheduling, session queue limits and the 04:00 day boundary, grade/undo
+- FSRS scheduling, session queue limits and the 06:00 day boundary, grade/undo
 - review summary metrics and reminder decisions
 - rare-word confirmation and Anki import state mapping
 - Telegram Web App rendering of API data and the review flow (intro → typed, check → grade, 409 refetch)
@@ -378,7 +378,7 @@ Focus areas:
 - Single-user only in the first version
 - Telegram runs in webhook mode
 - Rate limit: no more than 5 requests per minute from the allowed user
-- Review defaults: 5 new / 50 reviews per day, desired retention 0.9, learn threshold 3, reminder at 10:00, day starts at 04:00 local
+- Review defaults: 5 new / 50 reviews per day, desired retention 0.9, learn threshold 3, reminder at 10:00, day starts at 06:00 local
 - Default LLM model: `google/gemini-2.5-flash-lite`
 - Cards are rejected when the model is not confident the input is a stable lexical unit
 - Backend is the source of truth for all stored cards and sync state

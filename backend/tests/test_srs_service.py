@@ -101,12 +101,12 @@ def _log_count(session: Session) -> int:
     return session.scalar(sa.select(sa.func.count()).select_from(ReviewLogEntry)) or 0
 
 
-def test_day_window_before_4am_belongs_to_previous_day() -> None:
-    # 01:00 in Moscow on the 21st is still the 20th's study day (starts 04:00 MSK = 01:00 UTC).
+def test_day_window_before_6am_belongs_to_previous_day() -> None:
+    # 01:00 in Moscow on the 21st is still the 20th's study day (starts 06:00 MSK = 03:00 UTC).
     start, end = day_window(datetime(2026, 10, 20, 22, 0, tzinfo=UTC), "Europe/Moscow")
 
-    assert start == datetime(2026, 10, 20, 1, 0, tzinfo=UTC)
-    assert end == datetime(2026, 10, 21, 1, 0, tzinfo=UTC)
+    assert start == datetime(2026, 10, 20, 3, 0, tzinfo=UTC)
+    assert end == datetime(2026, 10, 21, 3, 0, tzinfo=UTC)
 
 
 def test_new_card_good_goes_to_learning(session: Session) -> None:
@@ -443,14 +443,14 @@ def test_daily_cap_takes_most_overdue_reviews_first(session: Session) -> None:
 
 def test_lookahead_does_not_cross_into_next_study_day(session: Session) -> None:
     settings = get_app_settings(session)
-    before_four = datetime(2026, 10, 21, 0, 50, tzinfo=UTC)  # 03:50 Moscow
+    before_six = datetime(2026, 10, 21, 2, 50, tzinfo=UTC)  # 05:50 Moscow
     _schedule(
         session,
-        _add(session, "after four"),
+        _add(session, "after six"),
         State.Learning,
-        before_four + timedelta(minutes=15),  # 04:05 Moscow, next study day
-        last_review=before_four - timedelta(minutes=5),
+        before_six + timedelta(minutes=15),  # 06:05 Moscow, next study day
+        last_review=before_six - timedelta(minutes=5),
     )
 
-    assert build_session(session, settings, before_four, size=10) == []
-    assert build_summary(session, settings, before_four).due_today == 0
+    assert build_session(session, settings, before_six, size=10) == []
+    assert build_summary(session, settings, before_six).due_today == 0
