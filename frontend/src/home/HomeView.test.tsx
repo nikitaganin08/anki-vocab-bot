@@ -69,6 +69,20 @@ describe("HomeView", () => {
     expect(onStart).toHaveBeenLastCalledWith({ capCards: 5 });
   });
 
+  it("captions the heatmap and lays rows out Monday to Sunday", async () => {
+    // 03:00 on Thursday 2026-10-22 still belongs to Wednesday's study day.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 9, 22, 3, 0));
+    renderHome(summary());
+
+    expect(await screen.findByText("Активность")).toBeInTheDocument();
+    const heatmap = screen.getByRole("img", { name: "Активность за 14 недель" });
+    // Today (Wednesday, row 3) is the last of 98 cells, so the first one is a Thursday (row 4).
+    expect((heatmap.children[0] as HTMLElement).style.gridRowStart).toBe("4");
+    expect((heatmap.children[1] as HTMLElement).style.gridRowStart).toBe("");
+    vi.useRealTimers();
+  });
+
   it("hides streak below three days", async () => {
     renderHome(summary({ streak_days: 2, backlog: 0, retention_30d: null, due_today: 1, new_today: 0 }));
 

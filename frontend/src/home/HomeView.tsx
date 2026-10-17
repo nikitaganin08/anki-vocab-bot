@@ -114,6 +114,7 @@ export function HomeView({ onStart }: HomeViewProps): JSX.Element {
       </div>
 
       <section className="surface-panel home-activity">
+        <span className="section-label">Активность</span>
         <Heatmap counts={data.heatmap} />
         {data.streak_days >= 3 ? (
           <p className="section-label">

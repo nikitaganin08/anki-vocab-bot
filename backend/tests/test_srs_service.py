@@ -42,6 +42,7 @@ def _schedule(
     due: datetime,
     *,
     stability: float = 10.0,
+    difficulty: float = 5.0,
     last_review: datetime | None = None,
 ) -> Card:
     fsrs_card = FsrsCard(
@@ -49,7 +50,7 @@ def _schedule(
         state=state,
         step=None if state == State.Review else 0,
         stability=stability,
-        difficulty=5.0,
+        difficulty=difficulty,
         due=due,
         last_review=last_review or due - timedelta(days=stability),
     )
@@ -266,3 +267,27 @@ def test_grade_tolerates_subsecond_drift_in_expected_due(session: Session) -> No
     grade_card(session, settings, card, grade, NOW + timedelta(minutes=11))
 
     assert card.srs_reps == 2
+
+
+# Raw FSRS gives Hard == Good (4, 4, 6 days) and Good == Easy (2, 3, 3 days) for these cards.
+@pytest.mark.parametrize(("stability", "elapsed_days"), [(3.0, 3), (2.0, 1)])
+def test_review_intervals_strictly_ordered_and_graded_as_previewed(
+    session: Session, stability: float, elapsed_days: int
+) -> None:
+    settings = get_app_settings(session)
+    card = _schedule(
+        session,
+        _add(session, "take on"),
+        State.Review,
+        NOW,
+        stability=stability,
+        difficulty=10.0,
+        last_review=NOW - timedelta(days=elapsed_days),
+    )
+
+    intervals = preview_intervals(build_scheduler(settings), card, NOW)
+    hard, good, easy = (intervals[r] // 86400 for r in (2, 3, 4))
+    assert 0 < hard < good < easy
+
+    grade_card(session, settings, card, _grade(card, rating=3), NOW)
+    assert as_utc(card.srs_due_at) == NOW + timedelta(seconds=intervals[3])

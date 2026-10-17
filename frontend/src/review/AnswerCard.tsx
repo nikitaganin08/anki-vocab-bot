@@ -63,11 +63,16 @@ export function AnswerCard({ card, answer, busy, onGrade }: AnswerCardProps): JS
     <section className="review-screen">
       {result.verdict === "correct" ? (
         <p className="review-verdict">✓ верно</p>
+      ) : result.verdict === "wrong" ? (
+        <p className="review-verdict">
+          Ты: <s className="verdict-typed">{typed}</s> → верно:{" "}
+          <span className="verdict-expected">{result.expected}</span>
+        </p>
       ) : (
         <p className="review-verdict">
           Ты: <Diff text={typed} other={result.expected} /> → верно:{" "}
           <Diff text={result.expected} other={typed} />
-          {result.verdict === "typo" ? <span className="info-chip">опечатка</span> : null}
+          <span className="info-chip">опечатка</span>
         </p>
       )}
 

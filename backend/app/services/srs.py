@@ -45,15 +45,25 @@ def load_fsrs_card(card: Card) -> fsrs.Card:
     return fsrs_card
 
 
-def preview_intervals(scheduler: fsrs.Scheduler, card: Card, now: datetime) -> dict[int, int]:
+def _outcomes(scheduler: fsrs.Scheduler, card: Card, now: datetime) -> dict[int, fsrs.Card]:
     # review_card works on a copy, so the stored card is untouched.
-    now = as_utc(now)
     fsrs_card = load_fsrs_card(card)
+    out = {rating.value: scheduler.review_card(fsrs_card, rating, now)[0] for rating in fsrs.Rating}
+    # Anki's ordering for review outcomes: Good >= Hard + 1 day, Easy >= Good + 1 day.
+    for lower, higher in (
+        (fsrs.Rating.Hard, fsrs.Rating.Good),
+        (fsrs.Rating.Good, fsrs.Rating.Easy),
+    ):
+        if out[lower].state == out[higher].state == fsrs.State.Review:
+            out[higher].due = max(out[higher].due, out[lower].due + timedelta(days=1))
+    return out
+
+
+def preview_intervals(scheduler: fsrs.Scheduler, card: Card, now: datetime) -> dict[int, int]:
+    now = as_utc(now)
     return {
-        rating.value: int(
-            (scheduler.review_card(fsrs_card, rating, now)[0].due - now).total_seconds()
-        )
-        for rating in fsrs.Rating
+        rating: int((after.due - now).total_seconds())
+        for rating, after in _outcomes(scheduler, card, now).items()
     }
 
 
@@ -166,7 +176,7 @@ def grade_card(
     retrievability = (
         None if before.last_review is None else scheduler.get_card_retrievability(before, now)
     )
-    after, _ = scheduler.review_card(before, fsrs.Rating(grade.rating), now)
+    after = _outcomes(scheduler, card, now)[grade.rating]
 
     session.add(
         ReviewLogEntry(

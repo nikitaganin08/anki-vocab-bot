@@ -5,6 +5,8 @@ import unicodedata
 from dataclasses import dataclass
 from typing import Literal
 
+from app.schemas.llm import valid_chunks
+
 CYRILLIC_PATTERN = re.compile(r"[А-Яа-яЁё]")
 RU_TO_EN_LAYOUT = str.maketrans(
     "йцукенгшщзхъфывапролджэячсмитьбюёЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЯЧСМИТЬБЮЁ",
@@ -87,12 +89,14 @@ def build_prompt(
     canonical_text: str,
     review_count: int,
 ) -> Prompt:
-    if chunks:
-        index = review_count % len(chunks)
-        chunk = chunks[index]
-        match = re.search(re.escape(chunk["target"]), chunk["text"], re.IGNORECASE)
+    # Stored chunks may predate validation; indexes refer to the valid ones (as in CardResponse).
+    valid = valid_chunks(chunks)
+    if valid:
+        index = review_count % len(valid)
+        chunk = valid[index]
+        match = re.search(re.escape(chunk.target), chunk.text, re.IGNORECASE)
         if match:
-            text = chunk["text"]
+            text = chunk.text
             masked = f"{text[: match.start()]}___{text[match.end() :]}"
-            return Prompt("chunk", index, masked, chunk["translation"], match.group(0))
+            return Prompt("chunk", index, masked, chunk.translation, match.group(0))
     return Prompt("translation", 0, ", ".join(translations), "", canonical_text)

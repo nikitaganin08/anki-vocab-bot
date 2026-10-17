@@ -384,10 +384,7 @@ progress::-moz-progress-bar {
 }
 
 .review-explanation {
-  overflow: hidden;
   color: var(--hint);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .review-verdict {
@@ -396,6 +393,14 @@ progress::-moz-progress-bar {
   flex-wrap: wrap;
   gap: 4px 8px;
   font-size: 17px;
+}
+
+.verdict-typed {
+  color: var(--danger);
+}
+
+.verdict-expected {
+  color: var(--ok);
 }
 
 .review-verdict mark {

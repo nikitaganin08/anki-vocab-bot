@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.card import AnkiSyncStatus, Card, EntryType, SourceLanguage
-from app.schemas.llm import CardChunk, WordFamilyItem
+from app.schemas.llm import CardChunk, WordFamilyItem, valid_chunks
 
 
 class CardResponse(BaseModel):
@@ -47,7 +47,7 @@ class CardResponse(BaseModel):
             word_family=c.word_family_json or [],
             explanation=c.explanation,
             examples=c.examples_json,
-            chunks=c.chunks_json,
+            chunks=valid_chunks(c.chunks_json),
             frequency=c.frequency,
             frequency_note=c.frequency_note,
             is_learning=c.is_learning,
@@ -168,7 +168,7 @@ class AnkiPendingCardResponse(BaseModel):
             word_family=c.word_family_json or [],
             explanation=c.explanation,
             examples=c.examples_json,
-            chunks=c.chunks_json,
+            chunks=valid_chunks(c.chunks_json),
         )
 
 

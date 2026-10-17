@@ -240,3 +240,30 @@ def test_patch_is_learning(client: TestClient, session: Session) -> None:
         ).status_code
         == 404
     )
+
+
+INVALID_CHUNK = {"text": "one two three four five six seven", "target": "one", "translation": "р"}
+OFF_TARGET_CHUNK = {"text": "take it easy", "target": "give up", "translation": "расслабься"}
+
+
+def test_session_survives_invalid_stored_chunks(client: TestClient, session: Session) -> None:
+    mixed = _add_card(session)
+    mixed.chunks_json = [INVALID_CHUNK, *CHUNKS]
+    broken = make_card(
+        canonical_text="take on",
+        canonical_text_normalized="take on",
+        translation_variants_json=["браться", "брать на себя"],
+        chunks_json=[INVALID_CHUNK, OFF_TARGET_CHUNK],
+    )
+    session.add(broken)
+    session.commit()
+
+    resp = client.get("/api/review/session", headers=telegram_headers())
+
+    assert resp.status_code == 200
+    by_id = {item["card"]["id"]: item for item in resp.json()["items"]}
+    assert by_id[mixed.id]["card"]["chunks"] == CHUNKS
+    assert by_id[mixed.id]["prompt"]["masked"] == "___ smoking"
+    assert by_id[broken.id]["card"]["chunks"] == []
+    assert by_id[broken.id]["prompt"]["kind"] == "translation"
+    assert by_id[broken.id]["prompt"]["masked"] == "браться, брать на себя"

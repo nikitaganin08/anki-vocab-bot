@@ -134,7 +134,7 @@ class CardChunk(BaseModel):
         return self
 
 
-def _drop_invalid_chunks(value: Any) -> Any:
+def valid_chunks(value: Any) -> Any:
     # One malformed chunk should not reject an otherwise valid card.
     if not isinstance(value, list):
         return value
@@ -156,7 +156,7 @@ class ChunksResponse(BaseModel):
     @field_validator("chunks", mode="before")
     @classmethod
     def drop_invalid_chunks(cls, value: Any) -> Any:
-        return _drop_invalid_chunks(value)
+        return valid_chunks(value)
 
     @field_validator("example")
     @classmethod
@@ -185,7 +185,7 @@ class AcceptedLlmResponse(BaseModel):
     @field_validator("chunks", mode="before")
     @classmethod
     def drop_invalid_chunks(cls, value: Any) -> Any:
-        return _drop_invalid_chunks(value)
+        return valid_chunks(value)
 
     @field_validator("canonical_text")
     @classmethod

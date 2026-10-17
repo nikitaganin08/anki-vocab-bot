@@ -184,6 +184,9 @@ describe("ReviewView", () => {
 
     const diff = (await screen.findByText(/^Ты:/)).closest("p");
     expect(diff).toHaveTextContent("Ты: gve → верно: give");
+    expect(screen.getByText("gve")).toHaveClass("verdict-typed");
+    expect(screen.getByText("gve").tagName).toBe("S");
+    expect(screen.getByText("give", { selector: "span" })).toHaveClass("verdict-expected");
     expect(mockedCheck).toHaveBeenCalledWith(1, {
       typed: "gve",
       prompt_kind: "chunk",
