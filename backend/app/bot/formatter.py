@@ -54,6 +54,10 @@ def format_duplicate_message(card: Card) -> str:
     return "ℹ️ Already in dictionary\n\n" + format_card_payload(card)
 
 
+def format_rare_word_prompt(card: Card) -> str:
+    return f"Редкое слово ({card.frequency}/10). Учить?"
+
+
 def format_card_service_result(result: CardServiceResult) -> tuple[str, str | None]:
     if result.status == "rejected" and result.rejection is not None:
         return result.rejection.message_for_user, None

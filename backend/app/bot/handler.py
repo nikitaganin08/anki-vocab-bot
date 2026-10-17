@@ -10,13 +10,32 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from app.bot.formatter import (
     format_card_service_result,
     format_description_lookup_candidates,
+    format_rare_word_prompt,
     format_rate_limit_message,
 )
 from app.bot.input_validation import validate_description_input, validate_source_input
 from app.bot.rate_limiter import InMemoryRateLimiter
 from app.clients.openrouter import OpenRouterError
+from app.models.card import Card
 from app.schemas.description_lookup import DescriptionLookupResponse, FoundDescriptionLookupResponse
 from app.services.card_service import CardServiceResult
+
+
+def build_learn_keyboard(card_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="Учить", callback_data=f"learn:{card_id}"),
+                InlineKeyboardButton(text="Не учить", callback_data=f"skip:{card_id}"),
+            ]
+        ]
+    )
+
+
+def _web_app_keyboard(text: str, url: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text=text, web_app=WebAppInfo(url=url))]]
+    )
 
 
 @dataclass(slots=True)
@@ -50,6 +69,11 @@ class TelegramTextHandler:
 
         text, parse_mode = format_card_service_result(result)
         await message.answer(text, parse_mode=parse_mode)
+        if result.card is not None and not result.card.is_learning:
+            await message.answer(
+                format_rare_word_prompt(result.card),
+                reply_markup=build_learn_keyboard(result.card.id),
+            )
 
     @staticmethod
     def _is_command_text(text: str | None) -> bool:
@@ -126,14 +150,40 @@ class TelegramAdminWebAppHandler:
 
         await message.answer(
             "Open the dictionary panel inside Telegram.",
-            reply_markup=InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [
-                        InlineKeyboardButton(
-                            text="Open admin panel",
-                            web_app=WebAppInfo(url=self.webapp_url),
-                        )
-                    ]
-                ]
-            ),
+            reply_markup=_web_app_keyboard("Open admin panel", self.webapp_url),
         )
+
+
+@dataclass(slots=True)
+class TelegramReviewWebAppHandler:
+    allowed_user_id: int
+    webapp_url: str
+
+    async def handle_message(self, message: Any) -> None:
+        if TelegramTextHandler._extract_user_id(message) != self.allowed_user_id:
+            return
+
+        await message.answer(
+            "Повторение",
+            reply_markup=_web_app_keyboard("Повторить", f"{self.webapp_url}?view=review"),
+        )
+
+
+@dataclass(slots=True)
+class TelegramLearnCallbackHandler:
+    allowed_user_id: int
+    set_learning: Callable[[int, bool], Card | None]
+
+    async def handle_callback(self, callback: Any) -> None:
+        if TelegramTextHandler._extract_user_id(callback) != self.allowed_user_id:
+            return
+
+        action, _, raw_card_id = callback.data.partition(":")
+        is_learning = action == "learn"
+        card = await asyncio.to_thread(self.set_learning, int(raw_card_id), is_learning)
+        if card is None:
+            text = "Карточка не найдена"
+        else:
+            text = f"{'Учим' if is_learning else 'Не учим'}: {card.canonical_text}"
+        await callback.message.edit_text(text)
+        await callback.answer()
