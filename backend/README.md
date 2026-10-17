@@ -9,6 +9,7 @@ Useful local commands:
 - `uv run python -m app.scripts.backfill_chunks --limit 50` (or `make backfill-chunks`) asks
   the LLM for usage chunks + one example for saved cards without chunks. One-off; on prod:
   `docker compose exec app python -m app.scripts.backfill_chunks --limit 500`.
+- `uv run python -m app.scripts.backfill_transcription [--limit N] [--dry-run] [--batch-size 20]` (or `make backfill-transcription`) rewrites `cards.transcription` as General American IPA in slashes, 20 cards per LLM request, committing per batch; idempotent. Run `--dry-run` first (prints old -> new for the first 30 changes). One-off, delete after the run; on prod: `docker compose exec app python -m app.scripts.backfill_transcription --dry-run`.
 - `uv run python -m app.scripts.import_anki [--dry-run]` (or `make import-anki`) imports the
   `English::Inbox` deck with approximate FSRS state (see "Anki import" below). One-off.
 
