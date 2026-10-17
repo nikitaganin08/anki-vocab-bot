@@ -3,6 +3,7 @@ import { useEffect, useLayoutEffect, useState } from "react";
 
 import { EmptyState } from "./components/PageState";
 import { TabBar } from "./components/TabBar";
+import { HomeView } from "./home/HomeView";
 import { useView, type View } from "./navigation";
 import { CardsPage } from "./pages/CardsPage";
 import {
@@ -12,11 +13,11 @@ import {
   showBackButton,
 } from "./telegram";
 
-// Placeholders until HomeView, ReviewView and SettingsView land.
-function renderView(view: View): JSX.Element {
+// Placeholders until ReviewView and SettingsView land; the start mode reaches ReviewView in Task 4.
+function renderView(view: View, setView: (v: View) => void): JSX.Element {
   switch (view) {
     case "home":
-      return <EmptyState title="Главная" message="Здесь будет цель на сегодня." />;
+      return <HomeView onStart={() => setView("review")} />;
     case "review":
       return <EmptyState title="Повтор" message="Здесь будет повторение карточек." />;
     case "cards":
@@ -63,7 +64,7 @@ export function App(): JSX.Element {
   return (
     <QueryClientProvider client={queryClient}>
       <div className="app-shell">
-        <main className="page-shell">{renderView(view)}</main>
+        <main className="page-shell">{renderView(view, setView)}</main>
         <TabBar view={view} onChange={setView} />
       </div>
     </QueryClientProvider>

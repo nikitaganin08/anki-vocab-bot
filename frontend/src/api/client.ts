@@ -1,11 +1,27 @@
 import type {
+  AppSettings,
+  Card,
   CardBatchImportResponse,
   CardListResponse,
   CardsQuery,
+  CheckRequest,
+  CheckResponse,
+  GradeRequest,
+  GradeResponse,
+  ReviewSessionItem,
+  ReviewSessionResponse,
+  ReviewSummary,
 } from "./types";
 import { getTelegramInitData } from "../telegram";
 
-export class ApiError extends Error {}
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
 
 const WEBAPP_PREFIX_PATTERN = /^(.*)\/telegram\/webapp(?:\/.*)?$/;
 
@@ -25,22 +41,41 @@ function buildHeaders(headers: Record<string, string>): Record<string, string> {
   };
 }
 
+// The body is read once: FastAPI sends {detail: string} or, on 422, {detail: [{msg}]}.
 async function readErrorMessage(response: Response): Promise<string> {
-  const contentType = response.headers.get("Content-Type") ?? "";
-
-  if (contentType.includes("application/json")) {
-    const payload = (await response.json()) as { detail?: string };
-    if (typeof payload.detail === "string" && payload.detail.length > 0) {
-      return payload.detail;
-    }
-  }
-
   const text = await response.text();
-  if (text.length > 0) {
-    return text;
+  try {
+    const detail = (JSON.parse(text) as { detail?: unknown }).detail;
+    if (typeof detail === "string" && detail.length > 0) {
+      return detail;
+    }
+    if (Array.isArray(detail)) {
+      return detail.map((item: { msg?: string }) => item.msg).join("; ");
+    }
+  } catch {
+    // Not JSON: fall through to the raw text.
   }
 
-  return `Request failed with status ${response.status}`;
+  return text.length > 0 ? text : `Request failed with status ${response.status}`;
+}
+
+async function request<T>(path: string, method = "GET", body?: unknown): Promise<T> {
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const response = await fetch(resolveApiPath(path), {
+    ...(method === "GET" ? {} : { method }),
+    headers: buildHeaders(headers),
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+
+  if (!response.ok) {
+    throw new ApiError(await readErrorMessage(response), response.status);
+  }
+
+  return (response.status === 204 ? undefined : await response.json()) as T;
 }
 
 export async function getCards(query: CardsQuery): Promise<CardListResponse> {
@@ -59,47 +94,51 @@ export async function getCards(query: CardsQuery): Promise<CardListResponse> {
     }
   }
 
-  const response = await fetch(`${resolveApiPath("/api/cards")}?${params}`, {
-    headers: buildHeaders({
-      Accept: "application/json",
-    }),
-  });
-
-  if (!response.ok) {
-    throw new ApiError(await readErrorMessage(response));
-  }
-
-  return (await response.json()) as CardListResponse;
+  return request(`/api/cards?${params}`);
 }
 
 export async function importCardsBatch(
   source_texts: string[],
 ): Promise<CardBatchImportResponse> {
-  const response = await fetch(resolveApiPath("/api/cards/batch"), {
-    method: "POST",
-    headers: buildHeaders({
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    }),
-    body: JSON.stringify({ source_texts }),
-  });
-
-  if (!response.ok) {
-    throw new ApiError(await readErrorMessage(response));
-  }
-
-  return (await response.json()) as CardBatchImportResponse;
+  return request("/api/cards/batch", "POST", { source_texts });
 }
 
 export async function deleteCard(cardId: number): Promise<void> {
-  const response = await fetch(resolveApiPath(`/api/cards/${cardId}`), {
-    method: "DELETE",
-    headers: buildHeaders({
-      Accept: "application/json",
-    }),
-  });
+  return request(`/api/cards/${cardId}`, "DELETE");
+}
 
-  if (!response.ok) {
-    throw new ApiError(await readErrorMessage(response));
-  }
+export async function setCardLearning(cardId: number, isLearning: boolean): Promise<Card> {
+  return request(`/api/cards/${cardId}`, "PATCH", { is_learning: isLearning });
+}
+
+export async function getReviewSummary(): Promise<ReviewSummary> {
+  return request("/api/review/summary");
+}
+
+export async function getReviewSession(opts: {
+  size: number;
+  includeBacklog?: boolean;
+}): Promise<ReviewSessionItem[]> {
+  const params = new URLSearchParams({
+    size: String(opts.size),
+    include_backlog: String(opts.includeBacklog ?? false),
+  });
+  const response = await request<ReviewSessionResponse>(`/api/review/session?${params}`);
+  return response.items;
+}
+
+export async function checkAnswer(cardId: number, body: CheckRequest): Promise<CheckResponse> {
+  return request(`/api/review/${cardId}/check`, "POST", body);
+}
+
+export async function gradeCard(cardId: number, body: GradeRequest): Promise<GradeResponse> {
+  return request(`/api/review/${cardId}/grade`, "POST", body);
+}
+
+export async function getSettings(): Promise<AppSettings> {
+  return request("/api/settings");
+}
+
+export async function saveSettings(body: AppSettings): Promise<AppSettings> {
+  return request("/api/settings", "PUT", body);
 }
