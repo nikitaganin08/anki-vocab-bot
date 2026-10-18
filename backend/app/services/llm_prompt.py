@@ -1,6 +1,14 @@
 from __future__ import annotations
 
-from app.services.transcription_prompt import IPA_RULES
+IPA_RULES = """- Write the pronunciation as General American (US) IPA, always wrapped in slashes
+  like /ˈhɔːnt/; never use square brackets or parentheses (write optional sounds out in
+  full) and never put syllable dots in it.
+- Include primary (ˈ) and secondary (ˌ) stress marks.
+- Use US vowels: ɑ for the LOT and PALM vowels, oʊ (not əʊ), and r-coloured vowels
+  (ɝ or ɜːr, ɚ or ər, ɔːr, ɪr, ɛr, ʊr); never the British non-rhotic forms
+  ɒ, əʊ, ɪə, eə, ʊə.
+- For a multi-word unit transcribe each word and join the words with single spaces
+  inside one pair of slashes."""
 
 SYSTEM_PROMPT = (
     """You are a strict lexical-unit validator and card generator.

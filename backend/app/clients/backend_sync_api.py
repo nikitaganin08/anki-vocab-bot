@@ -63,9 +63,6 @@ class BackendSyncApiClient:
             expect_json=False,
         )
 
-    def import_note(self, item: dict[str, Any]) -> dict[str, Any]:
-        return self._request("POST", "/api/anki/import", json=item)
-
     def get_card_audio(self, card_id: int) -> bytes:
         return self._request("GET", f"/api/anki/cards/{card_id}/audio", raw=True)
 
