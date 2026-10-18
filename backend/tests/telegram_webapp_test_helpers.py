@@ -26,10 +26,7 @@ def build_telegram_init_data(
         ),
         **extra,
     }
-    data_check_string = "\n".join(
-        f"{key}={value}"
-        for key, value in sorted(payload.items())
-    )
+    data_check_string = "\n".join(f"{key}={value}" for key, value in sorted(payload.items()))
     secret_key = hmac.new(b"WebAppData", bot_token.encode("utf-8"), hashlib.sha256).digest()
     payload["hash"] = hmac.new(
         secret_key,

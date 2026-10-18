@@ -411,6 +411,20 @@ describe("ReviewView", () => {
     expect(screen.getByText("Round 1 · 1 of 1")).toBeInTheDocument();
   });
 
+  it("keys 1-4 do nothing while the delete dialog is open", async () => {
+    mockedSession.mockResolvedValue([item(1, "give", "___ up")]);
+    renderReview();
+
+    await answer("give");
+    await press(await screen.findByRole("button", { name: "Delete word" }));
+    const cancel = await screen.findByRole("button", { name: "Cancel" });
+    await act(async () => {
+      fireEvent.keyDown(cancel, { key: "3" });
+    });
+
+    expect(mockedGrade).not.toHaveBeenCalled();
+  });
+
   it("deleting a new word at the intro drops its typed question", async () => {
     mockedSession.mockResolvedValue([item(1, "cosmetics", "___ up", { intro: true })]);
     mockedDelete.mockResolvedValue(undefined);
@@ -421,6 +435,30 @@ describe("ReviewView", () => {
 
     expect(mockedDelete).toHaveBeenCalledWith(1);
     expect(await screen.findByRole("heading", { name: "✓ Round complete" })).toBeInTheDocument();
+  });
+
+  it("keys 1-4 grade like the buttons", async () => {
+    mockedSession.mockResolvedValue([item(1, "give", "___ up")]);
+    renderReview();
+
+    await answer("give");
+    await screen.findByRole("button", { name: /^Good/ });
+    await act(async () => {
+      fireEvent.keyDown(window, { key: "4" });
+    });
+
+    expect(mockedGrade).toHaveBeenCalledWith(1, expect.objectContaining({ rating: 4 }));
+  });
+
+  it("form verdict explains the inflection", async () => {
+    mockedSession.mockResolvedValue([item(1, "be had", "___ by a scam")]);
+    mockedCheck.mockResolvedValue(checked({ verdict: "form", auto_rating: 2, expected: "being had" }));
+    renderReview();
+
+    await answer("be had");
+
+    expect(await screen.findByText("form")).toBeInTheDocument();
+    expect(screen.getByText("being had")).toHaveClass("verdict-expected");
   });
 
   it("chunk question also shows the word's own translation", async () => {

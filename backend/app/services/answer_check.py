@@ -26,7 +26,7 @@ def ru_layout_to_en(text: str) -> str:
 
 @dataclass(slots=True)
 class AnswerCheck:
-    verdict: Literal["correct", "typo", "wrong"]
+    verdict: Literal["correct", "typo", "form", "wrong"]
     expected: str
 
 
@@ -53,7 +53,11 @@ def _dl_distance(a: str, b: str) -> int:
 
 
 def check_answer(
-    typed: str, expected: str, *, optional_prefixes: tuple[str, ...] = ()
+    typed: str,
+    expected: str,
+    *,
+    optional_prefixes: tuple[str, ...] = (),
+    base_form: str | None = None,
 ) -> AnswerCheck:
     if CYRILLIC_PATTERN.search(typed):
         typed = ru_layout_to_en(typed)
@@ -63,6 +67,9 @@ def check_answer(
         return AnswerCheck("wrong", expected)
     if answer == target:
         return AnswerCheck("correct", expected)
+    # The right word in its dictionary form where the sentence needs an inflected one.
+    if base_form and answer == _strip_prefix(normalize_answer(base_form), optional_prefixes):
+        return AnswerCheck("form", expected)
     if len(target) >= 5 and _dl_distance(answer, target) == 1:
         return AnswerCheck("typo", expected)
     return AnswerCheck("wrong", expected)
@@ -71,7 +78,7 @@ def check_answer(
 def auto_rating(verdict: str, hint_used: bool) -> int:
     if verdict == "wrong":
         return 1
-    return 2 if hint_used else 3
+    return 2 if hint_used or verdict == "form" else 3
 
 
 @dataclass(slots=True)
