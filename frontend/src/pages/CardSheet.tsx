@@ -1,10 +1,11 @@
 import { useMutation } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 
-import { deleteCard, setCardLearning } from "../api/client";
+import { setCardLearning } from "../api/client";
 import type { Card } from "../api/types";
 import { ErrorState } from "../components/PageState";
-import { Sheet, trapTab } from "../components/Sheet";
+import { DeleteCardDialog } from "../components/DeleteCardDialog";
+import { Sheet } from "../components/Sheet";
 import { CardDetails } from "../review/IntroCard";
 
 interface CardSheetProps {
@@ -22,13 +23,8 @@ export function CardSheet({ card, onClose, onLearningSaved, onDeleted }: CardShe
     mutationFn: (isLearning: boolean) => setCardLearning(card.id, isLearning),
     onSuccess: onLearningSaved,
   });
-  const deleteMutation = useMutation({
-    mutationFn: () => deleteCard(card.id),
-    onSuccess: onDeleted,
-  });
 
   const cancelDelete = (): void => {
-    deleteMutation.reset();
     setConfirmingDelete(false);
     deleteButtonRef.current?.focus();
   };
@@ -70,44 +66,7 @@ export function CardSheet({ card, onClose, onLearningSaved, onDeleted }: CardShe
       </Sheet>
 
       {confirmingDelete ? (
-        <div className="modal-backdrop" role="presentation">
-          <section
-            className="confirm-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="delete-card-title"
-            tabIndex={-1}
-            onKeyDown={trapTab}
-          >
-            <p className="section-label">Delete</p>
-            <h3 id="delete-card-title" className="sheet-title">Delete “{card.canonical_text}”?</h3>
-            <p>The card will be removed from your dictionary.</p>
-
-            {deleteMutation.isError ? (
-              <p className="batch-message batch-message-error">{deleteMutation.error.message}</p>
-            ) : null}
-
-            <div className="confirm-dialog-actions">
-              <button
-                type="button"
-                className="secondary-button"
-                autoFocus
-                disabled={deleteMutation.isPending}
-                onClick={cancelDelete}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="danger-button"
-                disabled={deleteMutation.isPending}
-                onClick={() => deleteMutation.mutate()}
-              >
-                {deleteMutation.isPending ? "Deleting…" : "Delete card"}
-              </button>
-            </div>
-          </section>
-        </div>
+        <DeleteCardDialog card={card} onCancel={cancelDelete} onDeleted={onDeleted} />
       ) : null}
     </>
   );

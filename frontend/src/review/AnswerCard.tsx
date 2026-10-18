@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
 import type { Card } from "../api/types";
-import { CardDetails } from "./IntroCard";
+import { CardDetails, DeleteWord } from "./IntroCard";
 import type { CheckedAnswer } from "./useReviewSession";
 
 const GRADES = [
@@ -56,16 +56,18 @@ interface AnswerCardProps {
   answer: CheckedAnswer;
   busy: boolean;
   onGrade: (rating: number, overridden?: boolean) => void;
+  onDeleted: () => void;
 }
 
-export function AnswerCard({ card, answer, busy, onGrade }: AnswerCardProps): JSX.Element {
+export function AnswerCard({ card, answer, busy, onGrade, onDeleted }: AnswerCardProps): JSX.Element {
   const { typed, result } = answer;
 
   // Keys 1-4 grade like the buttons; the picked rating is also focused, so Enter takes it.
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       const rating = Number(event.key);
-      if (!busy && rating >= 1 && rating <= 4 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      const inDialog = event.target instanceof Element && event.target.closest("[role=dialog]");
+      if (!busy && !inDialog && rating >= 1 && rating <= 4 && !event.metaKey && !event.ctrlKey && !event.altKey) {
         onGrade(rating);
       }
     };
@@ -118,6 +120,7 @@ export function AnswerCard({ card, answer, busy, onGrade }: AnswerCardProps): JS
         ))}
       </div>
       <p className="section-label">Rating picked automatically — you can change it</p>
+      <DeleteWord card={card} onDeleted={onDeleted} />
     </section>
   );
 }
