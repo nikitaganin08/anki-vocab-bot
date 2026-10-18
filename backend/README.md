@@ -35,7 +35,8 @@ Pronunciation:
 - A daily reminder loop runs in the FastAPI lifespan when `TELEGRAM_BOT_TOKEN` is set; set
   `DISABLE_REMINDERS=1` to turn it off (tests do).
 - Bot command `/review` opens the review view; rare words (`frequency < learn_threshold`) are
-  saved as not learning and the bot asks "Учить?" with inline buttons.
+  saved as not learning and the bot asks "Rare word (N/10). Learn it?" with inline "Learn" / "Skip"
+  buttons. All bot copy is English.
 
 Webhook mode:
 - Telegram delivers updates to `POST /telegram/webhook`.

@@ -26,7 +26,8 @@ Rules:
 - Order candidates from most likely to less likely.
 - If the description is too vague or you cannot infer at least 3 plausible lexical units,
   return found=false.
-- message_for_user must be brief, clear, and user-facing."""
+- message_for_user must be brief, clear, and user-facing.
+- message_for_user must be written in English."""
 
 
 def build_description_lookup_messages(description: str) -> list[dict[str, str]]:

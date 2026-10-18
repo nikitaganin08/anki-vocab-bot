@@ -26,7 +26,7 @@ keeps it for 12+ weeks; metrics from `review_logs` show it.
 | Day boundary | Midnight in the configured timezone (default `Europe/Moscow`). The timezone follows the device: on each Mini App load the shell saves `Intl.DateTimeFormat().resolvedOptions().timeZone` when it differs from the stored one and refreshes the summary; a zone picked by hand in Settings lasts until the next load with a different device zone (hint under the field). Like Anki, review cards and learning cards on an interday step are due for the whole study day of their due date; intraday learning steps keep their exact time (+20 min look-ahead). |
 | Limits | 5 new / 50 reviews per day (settings). Due backlog above the review limit is carried over and shown as "отложено". |
 | What is learned | One flag `is_learning` (renamed from `eligible_for_anki`) drives both SRS queue and Anki sync. |
-| Rare words | `frequency >= learn_threshold` (default 3) → learning automatically. Below → saved, not learning; bot asks "Учить?" with inline buttons. Batch import: rare → not learning, toggle in Mini App. |
+| Rare words | `frequency >= learn_threshold` (default 3) → learning automatically. Below → saved, not learning; bot asks "Rare word (N/10). Learn it?" with inline buttons. Batch import: rare → not learning, toggle in Mini App. |
 | Card content | `chunks` (0–5 frequent usage chunks `{text, target, translation}`) become the main content; examples reduced to 1 for new cards. |
 | Front side | Chunk with `target` replaced by `___` + chunk translation; chunks rotate per review (`review count % len(chunks)`). No chunks → Russian translation, type the English unit. |
 | Typing | Always required. New cards: intro (full card, "Got it") first, typed question later in the same session. |
@@ -49,7 +49,7 @@ keeps it for 12+ weeks; metrics from `review_logs` show it.
 Intro screens are not logged as reviews (FSRS sees the first typed answer).
 
 `app_settings` (new, single row id=1):
-`timezone, reminder_hour, reminder_anchor (text, e.g. "после кофе"), new_per_day, reviews_per_day, desired_retention, learn_threshold, last_reminder_on (date), ignored_reminders (int)`.
+`timezone, reminder_hour, reminder_anchor (text, e.g. "after coffee"), new_per_day, reviews_per_day, desired_retention, learn_threshold, last_reminder_on (date), ignored_reminders (int)`.
 
 ## LLM contract changes
 
@@ -63,8 +63,10 @@ Backfill pass for existing cards (one-off script, run 2026-10-17 and deleted, se
 
 ## Bot flows
 
+Bot copy is English, sentence case, like the Mini App (changed 2026-10-18 from Russian): replies, button labels, reminders, the bot profile and command descriptions set by the deploy workflow; the LLM prompts ask for `message_for_user` in English. Card content (translations) stays Russian data, and `reminder_anchor` stays user-provided free text.
+
 - New card accepted, `frequency >= learn_threshold` → as today + `is_learning=True`.
-- Below threshold → card saved `is_learning=False`; reply = card + "Редкое слово (N/10). Учить?" with inline buttons `learn:<id>` / `skip:<id>`. Callback sets the flag, edits the message to drop buttons and states the choice. Duplicate of a not-learning card → same buttons again.
+- Below threshold → card saved `is_learning=False`; reply = card + "Rare word (N/10). Learn it?" with inline buttons "Learn" / "Skip" (`learn:<id>` / `skip:<id>`). Callback sets the flag, edits the message to drop buttons and states the choice ("Learning: <word>" / "Not learning: <word>", "Card not found"). Duplicate of a not-learning card → same buttons again.
 - `/admin` stays; add `/review` → web_app button that opens the review screen directly.
 
 ## Review API (Mini App auth, same `require_telegram_webapp_user`)
@@ -82,7 +84,7 @@ Normalise: NFKC, casefold, trim, collapse spaces, `’`→`'`, strip trailing pu
 
 ## Reminders (`app/services/reminders.py`)
 
-Loop every 5 minutes in FastAPI lifespan (`asyncio.create_task`; single uvicorn worker — ceiling noted in code). Send when: local time ≥ `reminder_hour`, `last_reminder_on != today`, no review logs today, due+new > 0, backoff allows (`ignored_reminders` ≥3 → every other day, ≥7 → paused until next session; any session resets to 0). Message (M1): 12 rotating short templates with counts and minutes, optional anchor prefix, no warm-up chunk; Monday adds last week's summary (active days, learned delta, retention). Inline web_app button opens `?view=review`. No streak mentions, no evening ping.
+Loop every 5 minutes in FastAPI lifespan (`asyncio.create_task`; single uvicorn worker — ceiling noted in code). Send when: local time ≥ `reminder_hour`, `last_reminder_on != today`, no review logs today, due+new > 0, backoff allows (`ignored_reminders` ≥3 → every other day, ≥7 → paused until next session; any session resets to 0). Message (M1): 12 rotating short English templates with counts and minutes, optional anchor prefix, no warm-up chunk; Monday adds last week's summary (active days, learned delta, retention). Inline web_app button opens `?view=review`. No streak mentions, no evening ping.
 
 ## Mini App (design approved 2026-10-17)
 
@@ -105,8 +107,8 @@ Views switched by `?view=` (no router): `home`, `review`, `cards`, `settings`; t
 - **Round end — R1:** "✓ Round complete", "Today X of Y" with a progress bar to the daily goal (X = `done_today`, Y = `done_today + due_today + new_today` from the summary fetched after the round: the same distinct-card counts as Home, so an Again that is due again does not count as done), "~N min left", accent "Another round", secondary "Done for today". When nothing is left: "Done for today", "Tomorrow ~X cards", single "Close" (back to Home).
 - **Settings — S1:** one plain list: New cards per day, Reviews per day, Target retention (80–95 %), Reminder (hour), Reminder anchor (text, optional), Learn threshold (0–10), Time zone (filled from the device automatically, editable as an override; hint "Detected from your device on every launch"); "Save", then "Saved".
 - **Words:** existing list (search, filters, batch import, delete) + per-card "Learning" toggle (`PATCH is_learning`). Errors read "Couldn't load data" with "Try again"; outside Telegram the app asks to open it from Telegram.
-- **Бот, редкое слово — B1:** card message, then a separate message "Редкое слово (N/10). Учить?" with "Учить" / "Не учить" (as implemented).
-- **Бот, напоминание — M1:** short: "{anchor — }17 карточек, ~6 минут." + button "Повторить"; Monday appends the weekly block; no warm-up chunk.
+- **Bot, rare word — B1:** card message, then a separate message "Rare word (N/10). Learn it?" with "Learn" / "Skip" (as implemented).
+- **Bot, reminder — M1:** short: "{anchor — }17 cards for today, ~6 min." + button "Review"; Monday appends the weekly block ("Weekly summary", "Days reviewed: N of 7", "Learned: +N", "30-day retention: N%"); no warm-up chunk.
 
 Input UX: rounds of 10; Again re-queues via the next round (learning look-ahead), never grows the current denominator; on 409 from `grade` the client refetches the session.
 

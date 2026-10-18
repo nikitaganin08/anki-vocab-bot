@@ -23,20 +23,20 @@ logger = logging.getLogger(__name__)
 BACKOFF_AFTER_IGNORED = 3
 PAUSE_AFTER_IGNORED = 7
 
-# Draft copy: no streaks, no guilt; "{cards}" is "12 карточек", "{minutes}" a number.
+# Draft copy: no streaks, no guilt; "{cards}" is "12 cards", "{minutes}" a number.
 REMINDER_TEMPLATES: tuple[str, ...] = (
-    "На сегодня {cards}, ~{minutes} мин.",
-    "Слова ждут тебя: {cards}, ~{minutes} мин.",
-    "Короткий подход: {cards} за ~{minutes} мин.",
-    "Сегодняшняя порция слов: {cards}, ~{minutes} мин.",
-    "Самое время освежить слова: {cards}, ~{minutes} мин.",
-    "Твои слова на сегодня: {cards}, ~{minutes} мин.",
-    "Небольшая тренировка: {cards}, ~{minutes} мин.",
-    "Освежим память? {cards}, ~{minutes} мин.",
-    "Повторение на ~{minutes} мин: {cards}.",
-    "Пора повторить: {cards}, ~{minutes} мин.",
-    "Слова на сегодня готовы: {cards}, ~{minutes} мин.",
-    "Минутка английского: {cards}, ~{minutes} мин.",
+    "{cards} for today, ~{minutes} min.",
+    "Your words are waiting: {cards}, ~{minutes} min.",
+    "A short session: {cards} in ~{minutes} min.",
+    "Today's batch of words: {cards}, ~{minutes} min.",
+    "Time to refresh your words: {cards}, ~{minutes} min.",
+    "Your words for today: {cards}, ~{minutes} min.",
+    "A little workout: {cards}, ~{minutes} min.",
+    "Shall we refresh your memory? {cards}, ~{minutes} min.",
+    "A ~{minutes} min review: {cards}.",
+    "Time to review: {cards}, ~{minutes} min.",
+    "Today's words are ready: {cards}, ~{minutes} min.",
+    "A minute of English: {cards}, ~{minutes} min.",
 )
 
 
@@ -57,11 +57,7 @@ def should_send(
 
 
 def _cards(count: int) -> str:
-    if count % 10 == 1 and count % 100 != 11:
-        return f"{count} карточка"
-    if 2 <= count % 10 <= 4 and not 12 <= count % 100 <= 14:
-        return f"{count} карточки"
-    return f"{count} карточек"
+    return f"{count} card" if count == 1 else f"{count} cards"
 
 
 def build_reminder_text(
@@ -83,12 +79,12 @@ def build_reminder_text(
 def _weekly_block(summary: ReviewSummary) -> str:
     active_days = sum(count > 0 for count in summary.heatmap[-8:-1])  # the 7 days before today
     lines = [
-        "Итоги недели",
-        f"Дней с повторением: {active_days} из 7",
-        f"Выучено: +{summary.learned_delta_7d}",
+        "Weekly summary",
+        f"Days reviewed: {active_days} of 7",
+        f"Learned: +{summary.learned_delta_7d}",
     ]
     if summary.retention_30d is not None:
-        lines.append(f"Удержание за 30 дней: {round(summary.retention_30d * 100)}%")
+        lines.append(f"30-day retention: {round(summary.retention_30d * 100)}%")
     return "\n".join(lines)
 
 
@@ -135,7 +131,7 @@ async def send_reminder_if_due(
             config.telegram_allowed_user_id,
             text,
             reply_markup=_web_app_keyboard(
-                "Повторить", f"{config.resolved_telegram_webapp_url}?view=review"
+                "Review", f"{config.resolved_telegram_webapp_url}?view=review"
             ),
         )
         settings.last_reminder_on = today

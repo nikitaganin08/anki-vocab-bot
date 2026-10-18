@@ -24,6 +24,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 - Telegram Web App (Mini App) with a review dashboard, the daily review flow, settings, and the card list (import, filter, delete, toggle learning)
 - FSRS review of learning cards with typed answers and usage chunks
 - Daily review reminder from the bot
+- Bot copy is English, sentence case, like the Mini App (replies, buttons, reminders, bot profile and command list); Russian appears only as card data (translations, chunk translations) and the free-text `reminder_anchor`. The LLM is told to write `message_for_user` (rejections) in English
 - Local sync helper for Anki via AnkiConnect
 - The production migrations to the SRS model (chunks backfill, Anki deck import, General American IPA backfill) were run on 2026-10-17 and their scripts removed; see git history
 
@@ -80,6 +81,7 @@ The app receives words and stable expressions from Telegram, generates learning 
   this repo owns only its `/anki/` routes in `deploy/nginx/anki.conf`, which the deploy workflow
   copies to `/opt/nginx/snippets/anki.conf` and applies with `nginx -t` + reload (restoring the
   previous file if the test fails)
+- The deploy workflow also sets the bot's name, short description, description and command list (English) through the Bot API
 - In production, admin access is expected through Telegram Web App auth tied to the allowed Telegram user
 - Docker uses a multi-stage build:
   - frontend build stage
@@ -104,7 +106,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 11. If a canonical duplicate is found, the backend returns the existing card and marks it as already in the dictionary.
 12. Otherwise, the backend stores the card in SQLite.
 13. The backend renders and sends the Telegram response from stored structured fields.
-14. Cards with `frequency >= learn_threshold` (`app_settings`, default 3) are stored with `is_learning = true`; rarer cards are stored with `is_learning = false` and the bot asks "Учить?" with inline `learn:<id>` / `skip:<id>` buttons (also on a duplicate of a not-learning card).
+14. Cards with `frequency >= learn_threshold` (`app_settings`, default 3) are stored with `is_learning = true`; rarer cards are stored with `is_learning = false` and the bot asks "Rare word (N/10). Learn it?" with "Learn" / "Skip" inline buttons (`learn:<id>` / `skip:<id>`) (also on a duplicate of a not-learning card).
 15. Learning cards enter the FSRS review queue in the Mini App; a local sync helper also pulls pending learning cards from the backend and sends them to AnkiConnect.
 
 ## Review (SRS)
@@ -127,7 +129,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 - `app/services/reminders.py` runs a loop every 5 minutes in the FastAPI lifespan (only when `TELEGRAM_BOT_TOKEN` is set and `DISABLE_REMINDERS` is not `1`; single uvicorn worker assumed).
 - One message a day at `reminder_hour` local time when nothing was reviewed today and cards are due; never mentions streaks, no evening reminder.
 - Backoff: after 3 ignored reminders only every other day, after 7 paused until the next review; any review resets the counter.
-- Short rotating Russian templates with card count and minutes, optional `reminder_anchor` prefix, no warm-up chunk; Mondays add last week's summary. Inline button "Повторить" opens the Mini App at `?view=review`.
+- Short rotating English templates with card count ("1 card", "12 cards") and minutes, optional `reminder_anchor` prefix, no warm-up chunk; Mondays add a "Weekly summary" block (days reviewed, learned, 30-day retention). Inline button "Review" opens the Mini App at `?view=review`.
 
 ## LLM Contract
 
@@ -232,7 +234,7 @@ Validation rules:
 
 - `timezone` (default `Europe/Moscow`; the Mini App replaces it with the device timezone)
 - `reminder_hour` (default `10`)
-- `reminder_anchor` (optional text, e.g. "после кофе")
+- `reminder_anchor` (optional text, e.g. "after coffee")
 - `new_per_day` (default `5`)
 - `reviews_per_day` (default `50`)
 - `desired_retention` (default `0.9`)
