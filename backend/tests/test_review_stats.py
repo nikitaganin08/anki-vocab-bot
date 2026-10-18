@@ -206,7 +206,8 @@ def test_hard_and_again_shares_of_mature_answers(session: Session) -> None:
 
     summary = build_summary(session, get_app_settings(session), NOW)
 
-    assert summary.retention_30d == 7 / 8
+    # Good/Easy count fully, Hard half, Again not at all: (5 + 0.5 * 2) / 8.
+    assert summary.retention_30d == 6 / 8
     assert summary.hard_share_30d == 2 / 8
     assert summary.again_share_30d == 1 / 8
 
