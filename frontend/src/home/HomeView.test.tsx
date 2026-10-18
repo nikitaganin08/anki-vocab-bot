@@ -93,6 +93,15 @@ describe("HomeView", () => {
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
 
+  it("says all done instead of 0 left when everything is finished", async () => {
+    renderHome(summary({ done_today: 12, due_today: 0, new_today: 0 }));
+
+    expect(await screen.findByRole("heading", { name: "12 of 12 done today" })).toBeInTheDocument();
+    expect(screen.getByText("All done")).toBeInTheDocument();
+    expect(screen.queryByText(/left/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/~\d+ min/)).not.toBeInTheDocument();
+  });
+
   it("shows the Hard and Again shares under the retention goal", async () => {
     renderHome(summary());
 

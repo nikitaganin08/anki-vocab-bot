@@ -38,10 +38,16 @@ function GoalCard({ summary, onStart }: { summary: ReviewSummary } & HomeViewPro
             {summary.done_today} of {total} done today
           </h2>
           <progress aria-label="Today's progress" value={summary.done_today} max={total} />
-          <div className="review-progress-line">
-            <span>{left} left</span>
-            <span>~{summary.est_minutes} min</span>
-          </div>
+          {left === 0 ? (
+            <div className="review-progress-line">
+              <span>All done</span>
+            </div>
+          ) : (
+            <div className="review-progress-line">
+              <span>{left} left</span>
+              <span>~{summary.est_minutes} min</span>
+            </div>
+          )}
         </>
       )}
       <button type="button" className="primary-button" onClick={() => onStart({})}>
