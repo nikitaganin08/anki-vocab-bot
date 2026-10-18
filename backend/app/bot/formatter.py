@@ -22,7 +22,7 @@ def format_card_payload(card: Card) -> str:
         f"• {_html(chunk['text'])} — {_html(chunk['translation'])}"
         for chunk in card.chunks_json or []
     )
-    chunks_section = f"🧩 Как используется\n{chunks}\n\n" if chunks else ""
+    chunks_section = f"🧩 Usage\n{chunks}\n\n" if chunks else ""
     example = _html(card.examples_json[0]) if card.examples_json else "—"
     transcription = _html(card.transcription) if card.transcription else "—"
     frequency_note = _html(card.frequency_note) if card.frequency_note else "—"
@@ -55,7 +55,7 @@ def format_duplicate_message(card: Card) -> str:
 
 
 def format_rare_word_prompt(card: Card) -> str:
-    return f"Редкое слово ({card.frequency}/10). Учить?"
+    return f"Rare word ({card.frequency}/10). Learn it?"
 
 
 def format_card_service_result(result: CardServiceResult) -> tuple[str, str | None]:

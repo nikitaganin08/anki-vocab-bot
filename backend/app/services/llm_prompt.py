@@ -94,7 +94,8 @@ Rules:
 - frequency must be an integer from 0 to 10.
 - If you cannot provide one primary Russian translation
   and at least one Russian synonym/variant, reject.
-- If unsure whether the input is a stable lexical unit, reject it."""
+- If unsure whether the input is a stable lexical unit, reject it.
+- message_for_user must be written in English."""
 )
 
 

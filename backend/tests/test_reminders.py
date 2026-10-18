@@ -19,6 +19,7 @@ from app.models.review_log import ReviewLogEntry
 from app.services.app_settings import get_app_settings
 from app.services.reminders import (
     REMINDER_TEMPLATES,
+    _weekly_block,
     build_reminder_text,
     send_reminder_if_due,
     should_send,
@@ -38,6 +39,7 @@ def _moscow(day: int, hour: int, minute: int = 0) -> datetime:
 
 def _summary(**overrides: Any) -> ReviewSummary:
     values: dict[str, Any] = dict(
+        done_today=0,
         due_today=10,
         new_today=2,
         est_minutes=4,
@@ -107,21 +109,33 @@ def test_text_has_counts_and_no_streak_word() -> None:
     assert len(REMINDER_TEMPLATES) == 12
     for index in range(len(REMINDER_TEMPLATES)):
         text = build_reminder_text(_summary(), None, index, None)
-        assert "12 карточек" in text
-        assert "4 мин" in text
-        assert "серия" not in text.casefold()
+        assert "12 cards" in text
+        assert "4 min" in text
         assert "streak" not in text.casefold()
 
-    assert "1 карточка" in build_reminder_text(_summary(due_today=1, new_today=0), None, 0, None)
-    anchored = build_reminder_text(_summary(), "после кофе", 0, None)
-    assert anchored.startswith("После кофе — ")
+    anchored = build_reminder_text(_summary(), "after coffee", 1, None)
+    assert anchored.startswith("After coffee — your words")
+
+
+def test_cards_are_pluralized() -> None:
+    for count, label in ((1, "1 card"), (2, "2 cards"), (12, "12 cards"), (21, "21 cards")):
+        text = build_reminder_text(_summary(due_today=count, new_today=0), None, 0, None)
+        assert text == f"{label} for today, ~4 min."
 
 
 def test_reminder_text_has_no_warmup() -> None:
     text = build_reminder_text(_summary(due_today=15, new_today=2, est_minutes=6), None, 0, None)
 
-    assert text == "На сегодня 17 карточек, ~6 мин."
-    assert "Разминка" not in text
+    assert text == "17 cards for today, ~6 min."
+    assert "warm" not in text.casefold()
+
+
+def test_weekly_block_is_english() -> None:
+    heatmap = [0] * 90 + [1, 0, 2, 0, 0, 0, 0] + [4]  # the last cell is today
+    block = _weekly_block(_summary(heatmap=heatmap, learned_delta_7d=3, retention_30d=0.9))
+
+    assert block == "Weekly summary\nDays reviewed: 2 of 7\nLearned: +3\n30-day retention: 90%"
+    assert "retention" not in _weekly_block(_summary(retention_30d=None))
 
 
 @dataclass
@@ -163,10 +177,10 @@ def test_send_if_due_updates_last_reminder_on(
     assert len(bot.sent) == 1
     message = bot.sent[0]
     assert message["chat_id"] == TELEGRAM_ALLOWED_USER_ID
-    assert "1 карточка" in message["text"]
-    assert "Итоги недели" not in message["text"]
+    assert "1 card" in message["text"]
+    assert "Weekly summary" not in message["text"]
     button = message["reply_markup"].inline_keyboard[0][0]
-    assert button.text == "Повторить"
+    assert button.text == "Review"
     assert button.web_app.url == "https://example.test/webapp?view=review"
     session.expire_all()
     assert get_app_settings(session).last_reminder_on == TUESDAY
@@ -194,16 +208,16 @@ def test_monday_includes_weekly_block(
         due=now - timedelta(hours=1),
         last_review=now - timedelta(days=10),
     ).to_json()
-    get_app_settings(session).reminder_anchor = "после кофе"
+    get_app_settings(session).reminder_anchor = "after coffee"
     session.commit()
     bot = FakeBot()
 
     assert _send(session_factory, bot, now)
 
     text = bot.sent[0]["text"]
-    assert text.startswith("После кофе — ")
-    assert "Разминка" not in text
-    assert "Итоги недели" in text
+    assert text.startswith("After coffee — ")
+    assert "warm" not in text.casefold()
+    assert text.endswith("Weekly summary\nDays reviewed: 0 of 7\nLearned: +0")
 
 
 def _log(session: Session, reviewed_at: datetime) -> None:

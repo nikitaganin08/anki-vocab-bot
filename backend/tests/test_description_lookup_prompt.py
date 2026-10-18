@@ -21,6 +21,10 @@ def test_system_prompt_requires_english_lexical_unit_without_infinitive_marker()
     assert "candidates must contain 3 to 5 items." in SYSTEM_PROMPT
 
 
+def test_system_prompt_requires_english_rejection_message() -> None:
+    assert "message_for_user must be written in English." in SYSTEM_PROMPT
+
+
 def test_build_description_lookup_messages_includes_description() -> None:
     messages = build_description_lookup_messages("to move snow away with a shovel")
 

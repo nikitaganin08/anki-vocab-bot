@@ -24,6 +24,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 - Telegram Web App (Mini App) with a review dashboard, the daily review flow, settings, and the word list (add words, search, filter, delete, toggle learning)
 - FSRS review of learning cards with typed answers and usage chunks
 - Daily review reminder from the bot
+- Bot copy is English, sentence case, like the Mini App (replies, buttons, reminders, bot profile and command list); Russian appears only as card data (translations, chunk translations) and the free-text `reminder_anchor`. The LLM is told to write `message_for_user` (rejections) in English
 - The production migrations to the SRS model (chunks backfill, Anki deck import, General American IPA backfill) were run on 2026-10-17 and their scripts removed; the Anki integration itself (sync helper, `/api/anki/*`, `anki_*` card columns, sync token) was removed on 2026-10-18; see git history
 
 ## Architecture
@@ -78,6 +79,7 @@ The app receives words and stable expressions from Telegram, generates learning 
   this repo owns only its `/anki/` routes in `deploy/nginx/anki.conf`, which the deploy workflow
   copies to `/opt/nginx/snippets/anki.conf` and applies with `nginx -t` + reload (restoring the
   previous file if the test fails)
+- The deploy workflow also sets the bot's name, short description, description and command list (English) through the Bot API
 - In production, admin access is expected through Telegram Web App auth tied to the allowed Telegram user
 - Docker uses a multi-stage build:
   - frontend build stage
@@ -102,7 +104,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 11. If a canonical duplicate is found, the backend returns the existing card and marks it as already in the dictionary.
 12. Otherwise, the backend stores the card in SQLite.
 13. The backend renders and sends the Telegram response from stored structured fields.
-14. Cards with `frequency >= learn_threshold` (`app_settings`, default 3) are stored with `is_learning = true`; rarer cards are stored with `is_learning = false` and the bot asks "Учить?" with inline `learn:<id>` / `skip:<id>` buttons (also on a duplicate of a not-learning card).
+14. Cards with `frequency >= learn_threshold` (`app_settings`, default 3) are stored with `is_learning = true`; rarer cards are stored with `is_learning = false` and the bot asks "Rare word (N/10). Learn it?" with "Learn" / "Skip" inline buttons (`learn:<id>` / `skip:<id>`) (also on a duplicate of a not-learning card).
 15. Learning cards enter the FSRS review queue in the Mini App.
 
 ## Review (SRS)
@@ -125,7 +127,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 - `app/services/reminders.py` runs a loop every 5 minutes in the FastAPI lifespan (only when `TELEGRAM_BOT_TOKEN` is set and `DISABLE_REMINDERS` is not `1`; single uvicorn worker assumed).
 - One message a day at `reminder_hour` local time when nothing was reviewed today and cards are due; never mentions streaks, no evening reminder.
 - Backoff: after 3 ignored reminders only every other day, after 7 paused until the next review; any review resets the counter.
-- Short rotating Russian templates with card count and minutes, optional `reminder_anchor` prefix, no warm-up chunk; Mondays add last week's summary. Inline button "Повторить" opens the Mini App at `?view=review`.
+- Short rotating English templates with card count ("1 card", "12 cards") and minutes, optional `reminder_anchor` prefix, no warm-up chunk; Mondays add a "Weekly summary" block (days reviewed, learned, 30-day retention). Inline button "Review" opens the Mini App at `?view=review`.
 
 ## LLM Contract
 
@@ -227,7 +229,7 @@ Validation rules:
 
 - `timezone` (default `Europe/Moscow`; the Mini App replaces it with the device timezone)
 - `reminder_hour` (default `10`)
-- `reminder_anchor` (optional text, e.g. "после кофе")
+- `reminder_anchor` (optional text, e.g. "after coffee")
 - `new_per_day` (default `5`)
 - `reviews_per_day` (default `50`)
 - `desired_retention` (default `0.9`)
@@ -247,7 +249,7 @@ Validation rules:
 - `POST /api/cards/batch`
 - `PATCH /api/cards/{card_id}` (`{is_learning}`)
 - `DELETE /api/cards/{card_id}`
-- `GET /api/review/summary` (today goal, backlog, `due_all`, `days_away`, retention 30d, learned, streak, heatmap, forecast)
+- `GET /api/review/summary` (today goal as distinct cards: `done_today` + `due_today` + `new_today`, backlog, `due_all`, `days_away`, retention 30d, learned, streak, heatmap, forecast)
 - `GET /api/review/session?size=10&include_backlog=false` (next round; the expected answer is not sent; `include_backlog=true` ignores the daily review cap)
 - `POST /api/review/{card_id}/check` (verdict, expected answer, auto rating, intervals; no DB write)
 - `POST /api/review/{card_id}/grade` (409 on a stale `expected_due_at`)
@@ -265,8 +267,8 @@ Validation rules:
 Views are switched by `?view=` (`history.replaceState`, other params and the hash kept); unknown or missing values open `home`. The bot's `/review` command and reminders open `?view=review`. Screen content and the English UI copy follow the "Mini App" section of `docs/superpowers/specs/2026-10-17-srs-review-design.md`.
 
 - Bottom tab bar (`src/components/TabBar.tsx`): Home (`home`), Review (`review`), Words (`cards`), Settings (`settings`). Hidden during a review; the Telegram BackButton leaves the review to Home.
-- Home (`src/home/`): today's goal with "Start" and "Quick: 5 cards" (ends after 5 graded cards), retention and learned tiles, 14-week heatmap, streak line (only from 3 days), forecast, backlog. After 3+ study days away with cards due it shows "Welcome back" instead: "5 minutes" (card cap from today's pace), "Regular session", "All at once (N)" (`include_backlog=true`).
-- Review (`src/review/`): `useReviewSession` drives the flow in rounds of 10 (5 for "Quick") from `GET /api/review/session`. New cards show an intro ("New word" chip, full card, "Got it"), and the typed question for that card comes two items later in the same round. Question → `check` → back side with the diff, the full card and four grade buttons "Again / Hard / Good / Easy" (auto rating highlighted; after a wrong answer "My answer was right" forces Good) → `grade`. `grade` echoes `srs_due_at` verbatim as `expected_due_at`; a 409 refetches the round. After each round: "Round complete" with progress to the daily goal; an empty session shows "Done for today".
+- Home (`src/home/`): today's goal (`done_today + due_today + new_today` distinct cards, plus a muted "X done · R left" line once something is done) with "Start" and "Quick: 5 cards" (ends after 5 graded cards), retention and learned tiles, 14-week heatmap, streak line (only from 3 days), forecast, backlog. After 3+ study days away with cards due it shows "Welcome back" instead: "5 minutes" (card cap from today's pace), "Regular session", "All at once (N)" (`include_backlog=true`).
+- Review (`src/review/`): `useReviewSession` drives the flow in rounds of 10 (5 for "Quick") from `GET /api/review/session`. New cards show an intro ("New word" chip, full card, "Got it"), and the typed question for that card comes two items later in the same round. Question → `check` → back side with the diff, the full card and four grade buttons "Again / Hard / Good / Easy" (auto rating highlighted; after a wrong answer "My answer was right" forces Good) → `grade`. `grade` echoes `srs_due_at` verbatim as `expected_due_at`; a 409 refetches the round. After each round: "Round complete" with "Today X of Y" from the same distinct-card counts as Home (an Again does not count as done until the card passes); an empty session shows "Done for today".
 - Full card (`CardDetails` in `src/review/IntroCard.tsx`, intro and back side): word + speaker + IPA → translations → explanation (full English definition) → "Usage" chunks → one example → word family, one form per line ("distinguishable (adjective) — различимый").
 - Settings (`src/settings/`): daily limits, desired retention, reminder hour and anchor, learn threshold, timezone; saved with `PUT /api/settings`. On each Mini App load the shell saves the device timezone (`Intl.DateTimeFormat().resolvedOptions().timeZone`) when it differs from the stored one; a zone picked by hand in Settings is replaced on the next load if the device reports another.
 - Words (`src/pages/CardsPage.tsx`, sheets in `AddWordsSheet.tsx` and `CardSheet.tsx`, shared `src/components/Sheet.tsx`): a search box (debounced) with a "+" button, filter chips "All" / "Learning" / "Not learning" (`is_learning`), then a compact row per card: status dot (blue new, amber learning/relearning, green review, grey not learning), word, primary translation and a right-hand label ("new", "today", "N d", "off"; the day follows the browser's local time). 50 cards per page with "Load more" (offset paging). `q` and `filter` live in the query string. "+" opens the "Add words" sheet (batch import, 5 words per request). A row tap opens a bottom sheet with the full card (`CardDetails`), a "Learning" switch (`PATCH /api/cards/{card_id}`), "Delete" (with a confirm dialog) and "Close"; Escape or a backdrop tap closes it and focus returns to the row.

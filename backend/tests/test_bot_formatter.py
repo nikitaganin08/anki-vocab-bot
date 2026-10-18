@@ -81,10 +81,10 @@ def test_format_card_payload_shows_chunks() -> None:
 
     payload = format_card_payload(card)
 
-    assert "🧩 Как используется" in payload
+    assert "🧩 Usage" in payload
     assert "give up smoking — бросить курить" in payload
     assert "never give up — никогда не сдаваться" in payload
-    assert payload.index("Как используется") < payload.index("The plane will take off")
+    assert payload.index("Usage") < payload.index("The plane will take off")
     assert "Please take off your shoes." not in payload
 
 
@@ -92,4 +92,4 @@ def test_format_rare_word_prompt() -> None:
     card = _make_card(["взлетать"])
     card.frequency = 2
 
-    assert format_rare_word_prompt(card) == "Редкое слово (2/10). Учить?"
+    assert format_rare_word_prompt(card) == "Rare word (2/10). Learn it?"

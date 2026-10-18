@@ -91,6 +91,8 @@ export interface CardBatchImportResponse {
 }
 
 export interface ReviewSummary {
+  // Distinct cards answered today that are not due again; due/new are what remains.
+  done_today: number;
   due_today: number;
   new_today: number;
   est_minutes: number;

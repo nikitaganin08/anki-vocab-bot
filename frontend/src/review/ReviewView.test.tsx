@@ -71,6 +71,7 @@ function item(
 
 function summary(overrides: Partial<ReviewSummary> = {}): ReviewSummary {
   return {
+    done_today: 0,
     due_today: 8,
     new_today: 2,
     est_minutes: 5,
@@ -290,10 +291,9 @@ describe("ReviewView", () => {
     mockedSession
       .mockResolvedValueOnce([item(1, "give", "___ up")])
       .mockResolvedValueOnce([item(2, "take", "___ off")]);
-    const heatmap = Array.from({ length: 98 }, (_, i) => (i === 97 ? 12 : 3));
     mockedSummary
       .mockResolvedValueOnce(summary())
-      .mockResolvedValueOnce(summary({ heatmap, due_today: 6, new_today: 2, est_minutes: 4 }));
+      .mockResolvedValueOnce(summary({ done_today: 12, due_today: 6, new_today: 2, est_minutes: 4 }));
     const onExit = renderReview();
 
     await answer("give");
@@ -312,6 +312,29 @@ describe("ReviewView", () => {
     expect(await screen.findByText("___ off")).toBeInTheDocument();
     expect(screen.getByText("Round 2 · 1 of 1")).toBeInTheDocument();
     expect(onExit).not.toHaveBeenCalled();
+  });
+
+  it("round end counts distinct cards: an Again does not add to done", async () => {
+    mockedSession
+      .mockResolvedValueOnce([item(1, "give", "___ up"), item(2, "take", "___ off")])
+      .mockResolvedValueOnce([item(2, "take", "___ off")]);
+    // Two answers were graded, but the Again card is due again, so only one card is done.
+    const heatmap = Array.from({ length: 98 }, (_, i) => (i === 97 ? 2 : 0));
+    mockedSummary
+      .mockResolvedValueOnce(summary())
+      .mockResolvedValueOnce(summary({ heatmap, done_today: 1, due_today: 1, new_today: 0 }));
+    renderReview();
+
+    await answer("give");
+    await grade(/^Good/);
+    await answer("tke");
+    await grade(/^Again/);
+
+    expect(await screen.findByRole("heading", { name: "✓ Round complete" })).toBeInTheDocument();
+    expect(screen.getByText("Today 1 of 2")).toBeInTheDocument();
+    const progress = screen.getByRole("progressbar");
+    expect(progress).toHaveAttribute("value", "1");
+    expect(progress).toHaveAttribute("max", "2");
   });
 
   it("stops after capCards graded cards", async () => {
