@@ -22,6 +22,8 @@ function summary(overrides: Partial<ReviewSummary> = {}): ReviewSummary {
     backlog: 3,
     due_all: 15,
     retention_30d: 0.912,
+    hard_share_30d: 0.18,
+    again_share_30d: 0.088,
     learned_total: 140,
     learned_delta_7d: 9,
     streak_days: 4,
@@ -54,7 +56,7 @@ describe("HomeView", () => {
   it("shows goal and minutes", async () => {
     const onStart = renderHome(summary());
 
-    expect(await screen.findByText("Today's goal: 17 cards · ~6 min")).toBeInTheDocument();
+    expect(await screen.findByText("0 of 17 done today")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Start" })).toHaveClass("primary-button");
     expect(screen.getByText("91%")).toBeInTheDocument();
     expect(screen.getByText("goal 90%")).toBeInTheDocument();
@@ -63,7 +65,6 @@ describe("HomeView", () => {
     expect(screen.getByText("streak 4 days · best 11")).toBeInTheDocument();
     expect(screen.getByText("Tomorrow ~14 · week ~11/day")).toBeInTheDocument();
     expect(screen.getByText("Postponed: 3")).toBeInTheDocument();
-    expect(screen.queryByText(/done ·/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
     expect(onStart).toHaveBeenLastCalledWith({});
@@ -71,11 +72,32 @@ describe("HomeView", () => {
     expect(onStart).toHaveBeenLastCalledWith({ capCards: 5 });
   });
 
-  it("adds done and left counts to the goal once something is done", async () => {
+  it("shows the goal as a progress bar with left and minutes on one row", async () => {
     renderHome(summary({ done_today: 4, due_today: 6, new_today: 2 }));
 
-    expect(await screen.findByText("Today's goal: 12 cards · ~6 min")).toBeInTheDocument();
-    expect(screen.getByText("4 done · 8 left")).toBeInTheDocument();
+    expect(await screen.findByText("4 of 12 done today")).toBeInTheDocument();
+    const bar = screen.getByRole("progressbar");
+    expect(bar).toHaveAttribute("value", "4");
+    expect(bar).toHaveAttribute("max", "12");
+    const left = screen.getByText("8 left");
+    const minutes = screen.getByText("~6 min");
+    expect(left.parentElement).toBe(minutes.parentElement);
+    expect(left.parentElement).toHaveTextContent("8 left~6 min");
+    expect(screen.queryByText(/·/, { selector: ".home-card *" })).not.toBeInTheDocument();
+  });
+
+  it("says done for today when nothing is done or due", async () => {
+    renderHome(summary({ done_today: 0, due_today: 0, new_today: 0 }));
+
+    expect(await screen.findByRole("heading", { name: "Done for today" })).toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+  });
+
+  it("shows the Hard and Again shares under the retention goal", async () => {
+    renderHome(summary());
+
+    expect(await screen.findByText("91%")).toBeInTheDocument();
+    expect(screen.getByText("Hard 18% · Again 9%")).toBeInTheDocument();
   });
 
   it("captions the heatmap and lays rows out Monday to Sunday", async () => {
@@ -93,10 +115,21 @@ describe("HomeView", () => {
   });
 
   it("hides streak below three days", async () => {
-    renderHome(summary({ streak_days: 2, backlog: 0, retention_30d: null, due_today: 1, new_today: 0 }));
+    renderHome(
+      summary({
+        streak_days: 2,
+        backlog: 0,
+        retention_30d: null,
+        hard_share_30d: null,
+        again_share_30d: null,
+        due_today: 1,
+        new_today: 0,
+      }),
+    );
 
-    expect(await screen.findByText("Today's goal: 1 card · ~6 min")).toBeInTheDocument();
+    expect(await screen.findByText("0 of 1 done today")).toBeInTheDocument();
     expect(screen.queryByText(/streak/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Hard \d+%/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Postponed/)).not.toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument();
   });
@@ -123,7 +156,7 @@ describe("HomeView", () => {
 
     expect(await screen.findByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
     expect(screen.getByText("How about today?")).toBeInTheDocument();
-    expect(screen.queryByText(/Today's goal/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/done today/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Start" })).not.toBeInTheDocument();
 
     const fiveMinutes = screen.getByRole("button", { name: "5 minutes" });

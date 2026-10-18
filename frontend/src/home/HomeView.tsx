@@ -27,16 +27,23 @@ function fiveMinuteCap(summary: ReviewSummary): number {
 
 function GoalCard({ summary, onStart }: { summary: ReviewSummary } & HomeViewProps): JSX.Element {
   const left = summary.due_today + summary.new_today;
+  const total = summary.done_today + left;
   return (
     <section className="surface-panel home-card">
-      <h2>
-        Today's goal: {cardsLabel(summary.done_today + left)} · ~{summary.est_minutes} min
-      </h2>
-      {summary.done_today > 0 ? (
-        <p className="section-label">
-          {summary.done_today} done · {left} left
-        </p>
-      ) : null}
+      {total === 0 ? (
+        <h2>Done for today</h2>
+      ) : (
+        <>
+          <h2>
+            {summary.done_today} of {total} done today
+          </h2>
+          <progress value={summary.done_today} max={total} />
+          <div className="review-progress-line">
+            <span>{left} left</span>
+            <span>~{summary.est_minutes} min</span>
+          </div>
+        </>
+      )}
       <button type="button" className="primary-button" onClick={() => onStart({})}>
         Start
       </button>
@@ -87,8 +94,8 @@ export function HomeView({ onStart }: HomeViewProps): JSX.Element {
   }
 
   const welcomeBack = data.days_away !== null && data.days_away >= 3 && data.due_all > 0;
-  const retention =
-    data.retention_30d === null ? "—" : `${Math.round(data.retention_30d * 100)}%`;
+  const percent = (share: number): string => `${Math.round(share * 100)}%`;
+  const retention = data.retention_30d === null ? "—" : percent(data.retention_30d);
 
   return (
     <div className="home-view">
@@ -103,6 +110,11 @@ export function HomeView({ onStart }: HomeViewProps): JSX.Element {
           <span className="section-label">Retention (30 days)</span>
           <strong>{retention}</strong>
           <span className="section-label">goal 90%</span>
+          {data.hard_share_30d !== null && data.again_share_30d !== null ? (
+            <span className="section-label">
+              Hard {percent(data.hard_share_30d)} · Again {percent(data.again_share_30d)}
+            </span>
+          ) : null}
         </section>
         <section className="surface-panel stat-tile">
           <span className="section-label">Learned</span>

@@ -104,6 +104,8 @@ def test_empty_db_summary(session: Session) -> None:
         backlog=0,
         due_all=0,
         retention_30d=None,
+        hard_share_30d=None,
+        again_share_30d=None,
         learned_total=0,
         learned_delta_7d=0,
         streak_days=0,
@@ -192,6 +194,21 @@ def test_retention_counts_only_mature(session: Session) -> None:
     summary = build_summary(session, get_app_settings(session), NOW)
 
     assert summary.retention_30d == 0.5
+    assert (summary.hard_share_30d, summary.again_share_30d) == (0.0, 0.5)
+
+
+def test_hard_and_again_shares_of_mature_answers(session: Session) -> None:
+    card = _add(session, "give up", "review", NOW + timedelta(days=10))
+    day = timedelta(days=1)
+    for rating in (1, 2, 2, 3, 3, 3, 4, 4):  # mature: 1 Again, 2 Hard, 5 Good/Easy
+        _log(session, card, NOW - day, rating=rating, previous_review=NOW - 11 * day)
+    _log(session, card, NOW - day, rating=2, previous_review=NOW - 3 * day)  # young
+
+    summary = build_summary(session, get_app_settings(session), NOW)
+
+    assert summary.retention_30d == 7 / 8
+    assert summary.hard_share_30d == 2 / 8
+    assert summary.again_share_30d == 1 / 8
 
 
 def test_streak_forgives_two_days_per_week(session: Session) -> None:

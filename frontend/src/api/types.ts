@@ -98,7 +98,10 @@ export interface ReviewSummary {
   est_minutes: number;
   backlog: number;
   due_all: number;
+  // Shares of the mature answers of the last 30 days; retention is everything but Again.
   retention_30d: number | null;
+  hard_share_30d: number | null;
+  again_share_30d: number | null;
   learned_total: number;
   learned_delta_7d: number;
   streak_days: number;
