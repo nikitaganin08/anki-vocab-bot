@@ -452,6 +452,17 @@ describe("ReviewView", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  it("the hint hides the word inside its own explanation", async () => {
+    const genuine = item(1, "genuine", "___ article");
+    genuine.card.explanation = "Something that is genuine is real. Genuinely true.";
+    mockedSession.mockResolvedValue([genuine]);
+    renderReview();
+
+    await press(await screen.findByRole("button", { name: "What's this word?" }));
+
+    expect(screen.getByText("Something that is ___ is real. ___ true.")).toBeInTheDocument();
+  });
+
   it("keys 1-4 grade like the buttons", async () => {
     mockedSession.mockResolvedValue([item(1, "give", "___ up")]);
     renderReview();

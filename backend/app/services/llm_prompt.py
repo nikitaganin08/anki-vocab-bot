@@ -58,6 +58,8 @@ Rules:
 - Use the same accepted contract for both source_language values ("ru" and "en").
 - source_language describes the language of input only and must not change the response shape.
 - canonical_text, explanation, examples, and chunk text must be English.
+- explanation must not contain canonical_text or its inflected forms: define it with other words
+  (it is shown as a hint while the learner is asked to recall the word).
 - canonical_text for verbs and phrasal verbs must be lemma-like English form without
   the infinitive marker "to " (use "shovel away", not "to shovel away").
 - transcription is the pronunciation of canonical_text (null only if you cannot produce one).

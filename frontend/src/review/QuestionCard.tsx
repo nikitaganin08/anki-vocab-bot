@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 
 import type { ReviewSessionItem } from "../api/types";
+import { maskWord } from "./maskWord";
 import type { Round } from "./useReviewSession";
 
 interface QuestionCardProps {
@@ -69,7 +70,7 @@ export function QuestionCard({ item, round, estMinutes, busy, onCheck }: Questio
       >
         What's this word?
       </button>
-      {hintUsed ? <p className="review-explanation">{item.card.explanation}</p> : null}
+      {hintUsed ? <p className="review-explanation">{maskWord(item.card.explanation, item.card.canonical_text)}</p> : null}
       <button type="submit" className="primary-button" disabled={busy}>
         Check
       </button>

@@ -119,7 +119,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 - Prompt: a usage chunk with its `target` masked as `___` plus the chunk translation, rotating chunks per review; cards without chunks prompt with the Russian translations and expect `canonical_text`.
 - Answer checking (`app/services/answer_check.py`): NFKC, casefold, curly apostrophes, trailing punctuation, ЙЦУКЕН→QWERTY layout fix; for a chunk prompt, the card's `canonical_text` typed where the sentence needs an inflected form ("be had" for "being had") is `form`; one Damerau-Levenshtein edit when the expected answer has 5+ chars is a `typo` (counts as correct).
 - "Delete word" under the card on the intro and the back side (confirm dialog, `DELETE /api/cards/{id}`): the card leaves the round without being graded.
-- Question screen: chunk prompts show the chunk translation plus the word's own translations; "What's this word?" reveals the card's English explanation and sets `hint_used`.
+- Question screen: chunk prompts show the chunk translation plus the word's own translations; "What's this word?" reveals the card's English explanation with the asked word and its inflections replaced by `___` (`maskWord`) and sets `hint_used`.
 - Auto rating: wrong → Again (1); `form`, or correct/typo with hint → Hard (2); correct/typo → Good (3). Easy (4) only by user choice. On the back side the keys 1-4 grade like the buttons.
 - A grade carries the `srs_due_at` the client saw; a mismatch (e.g. double tap) returns 409 and logs nothing.
 
@@ -166,7 +166,7 @@ Validation rules:
   - `expression`
 - `canonical_text` must be English
 - `transcription` is General American (US) IPA wrapped in slashes, e.g. `/ˈhɔːnt/` (no square brackets, no syllable dots, stress marks included, US vowels and r-coloured vowels instead of the British ɒ, əʊ, ɪə, eə, ʊə); multi-word units are transcribed word by word inside one pair of slashes; `null` only when the model cannot produce one. The format is a prompt rule, not validated
-- `explanation` must be English
+- `explanation` must be English and, by prompt rule, must not contain the word itself (older cards may; the hint masks it)
 - `examples` must be English
 - `translation_variants` must contain 2 to 3 Russian translations
 - `examples` must contain 1 to 3 items (the prompt asks for exactly 1; older cards keep 3)
