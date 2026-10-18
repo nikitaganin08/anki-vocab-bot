@@ -72,6 +72,7 @@ const settingsPayload = {
 };
 
 const summaryPayload = {
+  done_today: 0,
   due_today: 0,
   new_today: 0,
   est_minutes: 0,

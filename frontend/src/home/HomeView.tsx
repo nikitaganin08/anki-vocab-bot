@@ -26,12 +26,17 @@ function fiveMinuteCap(summary: ReviewSummary): number {
 }
 
 function GoalCard({ summary, onStart }: { summary: ReviewSummary } & HomeViewProps): JSX.Element {
-  const goal = summary.due_today + summary.new_today;
+  const left = summary.due_today + summary.new_today;
   return (
     <section className="surface-panel home-card">
       <h2>
-        Today's goal: {cardsLabel(goal)} · ~{summary.est_minutes} min
+        Today's goal: {cardsLabel(summary.done_today + left)} · ~{summary.est_minutes} min
       </h2>
+      {summary.done_today > 0 ? (
+        <p className="section-label">
+          {summary.done_today} done · {left} left
+        </p>
+      ) : null}
       <button type="button" className="primary-button" onClick={() => onStart({})}>
         Start
       </button>

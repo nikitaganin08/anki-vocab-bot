@@ -38,6 +38,7 @@ def _moscow(day: int, hour: int, minute: int = 0) -> datetime:
 
 def _summary(**overrides: Any) -> ReviewSummary:
     values: dict[str, Any] = dict(
+        done_today=0,
         due_today=10,
         new_today=2,
         est_minutes=4,

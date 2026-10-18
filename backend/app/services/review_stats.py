@@ -25,6 +25,8 @@ MATURE_ELAPSED = timedelta(days=7)
 
 @dataclass(slots=True)
 class ReviewSummary:
+    # Distinct cards answered today that are not due again; due_today/new_today are what remains.
+    done_today: int
     due_today: int
     new_today: int
     est_minutes: int
@@ -109,6 +111,11 @@ def build_summary(session: Session, settings: AppSettings, now: datetime) -> Rev
             upcoming.append(day)
 
     today_logs = [log for log in logs if start <= as_utc(log.reviewed_at) < end]
+    by_id = {card.id: card for card in cards}
+    done_today = sum(
+        card is not None and card.srs_state is not None and not is_due(card, now, start, end)
+        for card in (by_id.get(card_id) for card_id in {log.card_id for log in today_logs})
+    )
     reviews_done = sum(log.state_before == "review" for log in today_logs)
     new_done = sum(log.state_before is None for log in today_logs)
     reviews_today = min(due_reviews, max(0, settings.reviews_per_day - reviews_done))
@@ -153,6 +160,7 @@ def build_summary(session: Session, settings: AppSettings, now: datetime) -> Rev
     last_answer = max((as_utc(log.reviewed_at) for log in logs), default=None)
 
     return ReviewSummary(
+        done_today=done_today,
         due_today=due_today,
         new_today=new_today,
         est_minutes=est_minutes,
