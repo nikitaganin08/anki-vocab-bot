@@ -60,9 +60,7 @@ class RejectedDescriptionLookupResponse(BaseModel):
         return _normalize_text(value, field_name="message_for_user")
 
 
-DescriptionLookupResponse = (
-    FoundDescriptionLookupResponse | RejectedDescriptionLookupResponse
-)
+DescriptionLookupResponse = FoundDescriptionLookupResponse | RejectedDescriptionLookupResponse
 DESCRIPTION_LOOKUP_ADAPTER = TypeAdapter(DescriptionLookupResponse)
 
 

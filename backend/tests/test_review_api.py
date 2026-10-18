@@ -20,12 +20,8 @@ CHUNKS = [{"text": "give up smoking", "target": "give up", "translation": "бр�
 
 
 def _add_card(session: Session, **overrides: object) -> Card:
-    card = make_card(
-        canonical_text="give up",
-        canonical_text_normalized="give up",
-        chunks_json=CHUNKS,
-        **overrides,
-    )
+    fields: dict[str, object] = {"chunks_json": CHUNKS, **overrides}
+    card = make_card(canonical_text="give up", canonical_text_normalized="give up", **fields)
     session.add(card)
     session.commit()
     return card
@@ -99,6 +95,21 @@ def test_session_endpoint_include_backlog(client: TestClient, session: Session) 
 
     assert capped.json()["items"] == []
     assert [item["card"]["id"] for item in backlog.json()["items"]] == [card.id]
+
+
+def test_check_inflected_chunk_with_base_form_is_form(client: TestClient, session: Session) -> None:
+    chunks = [{"text": "never gave up", "target": "gave up", "translation": "не сдавался"}]
+    card = _add_card(session, chunks_json=chunks)
+
+    response = client.post(
+        f"/api/review/{card.id}/check",
+        json={"typed": "give up", "prompt_kind": "chunk", "prompt_index": 0, "hint_used": False},
+        headers=telegram_headers(),
+    )
+
+    assert response.json()["verdict"] == "form"
+    assert response.json()["expected"] == "gave up"
+    assert response.json()["auto_rating"] == 2
 
 
 def test_check_then_grade_flow(client: TestClient, session: Session) -> None:

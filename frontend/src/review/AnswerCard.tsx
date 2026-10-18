@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 import type { Card } from "../api/types";
 import { CardDetails } from "./IntroCard";
 import type { CheckedAnswer } from "./useReviewSession";
@@ -59,6 +61,18 @@ interface AnswerCardProps {
 export function AnswerCard({ card, answer, busy, onGrade }: AnswerCardProps): JSX.Element {
   const { typed, result } = answer;
 
+  // Keys 1-4 grade like the buttons; the picked rating is also focused, so Enter takes it.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      const rating = Number(event.key);
+      if (!busy && rating >= 1 && rating <= 4 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        onGrade(rating);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [busy, onGrade]);
+
   return (
     <section className="review-screen">
       {result.verdict === "correct" ? (
@@ -67,6 +81,11 @@ export function AnswerCard({ card, answer, busy, onGrade }: AnswerCardProps): JS
         <p className="review-verdict">
           You: <s className="verdict-typed">{typed}</s> → correct:{" "}
           <span className="verdict-expected">{result.expected}</span>
+        </p>
+      ) : result.verdict === "form" ? (
+        <p className="review-verdict">
+          You: {typed} → here: <span className="verdict-expected">{result.expected}</span>
+          <span className="info-chip">form</span>
         </p>
       ) : (
         <p className="review-verdict">
