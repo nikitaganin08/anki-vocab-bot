@@ -97,6 +97,7 @@ def test_empty_db_summary(session: Session) -> None:
     summary = build_summary(session, get_app_settings(session), NOW)
 
     assert summary == ReviewSummary(
+        done_today=0,
         due_today=0,
         new_today=0,
         est_minutes=0,
@@ -112,6 +113,32 @@ def test_empty_db_summary(session: Session) -> None:
         forecast_week_avg=0,
         days_away=None,
     )
+
+
+def test_done_today_counts_distinct_cards_that_are_not_due(session: Session) -> None:
+    settings = get_app_settings(session)
+    hour_ago = NOW - timedelta(hours=1)
+
+    passed = _add(session, "passed", "review", NOW + timedelta(days=10))
+    _log(session, passed, hour_ago, rating=3)
+    assert build_summary(session, settings, NOW).done_today == 1
+
+    # Again on a new card: it comes back within the look-ahead, so it is not done yet.
+    again = _add(session, "again", "learning", NOW + timedelta(minutes=1))
+    _log(session, again, hour_ago, rating=1, state_before=None)
+    summary = build_summary(session, settings, NOW)
+    assert (summary.done_today, summary.due_today) == (1, 1)
+
+    # Two answers on one card count once.
+    twice = _add(session, "twice", "review", NOW + timedelta(days=4))
+    _log(session, twice, hour_ago - timedelta(minutes=5), rating=1)
+    _log(session, twice, hour_ago, rating=3)
+    assert build_summary(session, settings, NOW).done_today == 2
+
+    # Answered yesterday: not part of today.
+    old = _add(session, "old", "review", NOW + timedelta(days=4))
+    _log(session, old, NOW - timedelta(days=1))
+    assert build_summary(session, settings, NOW).done_today == 2
 
 
 def test_backlog_beyond_limit(session: Session) -> None:

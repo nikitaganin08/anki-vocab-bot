@@ -15,6 +15,7 @@ const mockedGetReviewSummary = vi.mocked(getReviewSummary);
 
 function summary(overrides: Partial<ReviewSummary> = {}): ReviewSummary {
   return {
+    done_today: 0,
     due_today: 12,
     new_today: 5,
     est_minutes: 6,
@@ -62,11 +63,19 @@ describe("HomeView", () => {
     expect(screen.getByText("streak 4 days · best 11")).toBeInTheDocument();
     expect(screen.getByText("Tomorrow ~14 · week ~11/day")).toBeInTheDocument();
     expect(screen.getByText("Postponed: 3")).toBeInTheDocument();
+    expect(screen.queryByText(/done ·/)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
     expect(onStart).toHaveBeenLastCalledWith({});
     fireEvent.click(screen.getByRole("button", { name: "Quick: 5 cards" }));
     expect(onStart).toHaveBeenLastCalledWith({ capCards: 5 });
+  });
+
+  it("adds done and left counts to the goal once something is done", async () => {
+    renderHome(summary({ done_today: 4, due_today: 6, new_today: 2 }));
+
+    expect(await screen.findByText("Today's goal: 12 cards · ~6 min")).toBeInTheDocument();
+    expect(screen.getByText("4 done · 8 left")).toBeInTheDocument();
   });
 
   it("captions the heatmap and lays rows out Monday to Sunday", async () => {

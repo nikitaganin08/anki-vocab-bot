@@ -285,10 +285,10 @@ def test_admin_handler_sends_webapp_button() -> None:
 
     asyncio.run(handler.handle_message(message))
 
-    assert message.answers == ["Словарь, статистика и настройки."]
+    assert message.answers == ["Dictionary, stats and settings."]
     markup = message.reply_markups[0]
     assert markup is not None
-    assert markup.inline_keyboard[0][0].text == "Открыть Wordloop"
+    assert markup.inline_keyboard[0][0].text == "Open Wordloop"
     assert markup.inline_keyboard[0][0].web_app is not None
     assert markup.inline_keyboard[0][0].web_app.url == "https://bot.example.com/telegram/webapp"
 
@@ -390,13 +390,13 @@ def test_rare_word_sends_learn_prompt() -> None:
     asyncio.run(handler.handle_message(message))
 
     assert len(message.answers) == 2
-    assert message.answers[1] == "Редкое слово (2/10). Учить?"
+    assert message.answers[1] == "Rare word (2/10). Learn it?"
     markup = message.reply_markups[1]
     assert markup is not None
     buttons = markup.inline_keyboard[0]
     assert [(b.text, b.callback_data) for b in buttons] == [
-        ("Учить", "learn:7"),
-        ("Не учить", "skip:7"),
+        ("Learn", "learn:7"),
+        ("Skip", "skip:7"),
     ]
 
 
@@ -425,8 +425,8 @@ def test_learn_callback_sets_flag_and_edits_message() -> None:
     asyncio.run(handler.handle_callback(skip))
 
     assert set_learning.calls == [(7, True), (7, False)]
-    assert learn.message.edits == [("Учим: take off", None)]
-    assert skip.message.edits == [("Не учим: take off", None)]
+    assert learn.message.edits == [("Learning: take off", None)]
+    assert skip.message.edits == [("Not learning: take off", None)]
     assert learn.answered == 1
     assert skip.answered == 1
 
@@ -451,9 +451,10 @@ def test_review_command_opens_review_view() -> None:
 
     asyncio.run(handler.handle_message(message))
 
-    assert message.answers == ["Повторение"]
+    assert message.answers == ["Review"]
     markup = message.reply_markups[0]
     assert markup is not None
     button = markup.inline_keyboard[0][0]
+    assert button.text == "Review words"
     assert button.web_app is not None
     assert button.web_app.url == "https://bot.example.com/telegram/webapp?view=review"

@@ -25,8 +25,8 @@ def build_learn_keyboard(card_id: int) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="Учить", callback_data=f"learn:{card_id}"),
-                InlineKeyboardButton(text="Не учить", callback_data=f"skip:{card_id}"),
+                InlineKeyboardButton(text="Learn", callback_data=f"learn:{card_id}"),
+                InlineKeyboardButton(text="Skip", callback_data=f"skip:{card_id}"),
             ]
         ]
     )
@@ -149,8 +149,8 @@ class TelegramAdminWebAppHandler:
             return
 
         await message.answer(
-            "Словарь, статистика и настройки.",
-            reply_markup=_web_app_keyboard("Открыть Wordloop", self.webapp_url),
+            "Dictionary, stats and settings.",
+            reply_markup=_web_app_keyboard("Open Wordloop", self.webapp_url),
         )
 
 
@@ -164,8 +164,8 @@ class TelegramReviewWebAppHandler:
             return
 
         await message.answer(
-            "Повторение",
-            reply_markup=_web_app_keyboard("Повторить", f"{self.webapp_url}?view=review"),
+            "Review",
+            reply_markup=_web_app_keyboard("Review words", f"{self.webapp_url}?view=review"),
         )
 
 
@@ -182,8 +182,8 @@ class TelegramLearnCallbackHandler:
         is_learning = action == "learn"
         card = await asyncio.to_thread(self.set_learning, int(raw_card_id), is_learning)
         if card is None:
-            text = "Карточка не найдена"
+            text = "Card not found"
         else:
-            text = f"{'Учим' if is_learning else 'Не учим'}: {card.canonical_text}"
+            text = f"{'Learning' if is_learning else 'Not learning'}: {card.canonical_text}"
         await callback.message.edit_text(text)
         await callback.answer()

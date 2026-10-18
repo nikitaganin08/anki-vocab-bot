@@ -21,6 +21,10 @@ def test_system_prompt_requires_same_contract_for_ru_and_en() -> None:
     )
 
 
+def test_system_prompt_requires_english_rejection_message() -> None:
+    assert "message_for_user must be written in English." in SYSTEM_PROMPT
+
+
 def test_system_prompt_requires_primary_translation_and_synonyms_order() -> None:
     assert (
         "translation_variants[0] must be the primary Russian translation of canonical_text."
