@@ -76,7 +76,7 @@ describe("HomeView", () => {
     renderHome(summary({ done_today: 4, due_today: 6, new_today: 2 }));
 
     expect(await screen.findByText("4 of 12 done today")).toBeInTheDocument();
-    const bar = screen.getByRole("progressbar");
+    const bar = screen.getByRole("progressbar", { name: "Today's progress" });
     expect(bar).toHaveAttribute("value", "4");
     expect(bar).toHaveAttribute("max", "12");
     const left = screen.getByText("8 left");

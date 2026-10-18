@@ -37,7 +37,7 @@ function GoalCard({ summary, onStart }: { summary: ReviewSummary } & HomeViewPro
           <h2>
             {summary.done_today} of {total} done today
           </h2>
-          <progress value={summary.done_today} max={total} />
+          <progress aria-label="Today's progress" value={summary.done_today} max={total} />
           <div className="review-progress-line">
             <span>{left} left</span>
             <span>~{summary.est_minutes} min</span>
