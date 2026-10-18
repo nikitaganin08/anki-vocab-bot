@@ -32,7 +32,9 @@ class ReviewSummary:
     est_minutes: int
     backlog: int
     due_all: int  # due learning + review cards, ignoring the daily limit
-    retention_30d: float | None
+    retention_30d: float | None  # share of non-Again answers among mature ones
+    hard_share_30d: float | None  # share of Hard (2) among the same mature answers
+    again_share_30d: float | None  # share of Again (1) among the same mature answers
     learned_total: int
     learned_delta_7d: int
     streak_days: int
@@ -127,14 +129,14 @@ def build_summary(session: Session, settings: AppSettings, now: datetime) -> Rev
     est_minutes = math.ceil((due_today + new_today * 2) * median_ms / 60_000)
 
     # Previous review comes from the card state before the answer (covers imported cards too).
-    mature = []
+    mature: list[int] = []  # ratings of answers given 7+ days after the previous review
     for log in logs:
         reviewed_at = as_utc(log.reviewed_at)
         if reviewed_at < now - timedelta(days=30):
             continue
         previous = _previous_review(log.card_before_json)
         if previous is not None and reviewed_at - previous >= MATURE_ELAPSED:
-            mature.append(log.rating > 1)
+            mature.append(log.rating)
 
     # Graduation = a learning (or new) card's answer that left it in review; happens once.
     # A log's resulting state is the next log's state_before, or the card's current state.
@@ -166,7 +168,9 @@ def build_summary(session: Session, settings: AppSettings, now: datetime) -> Rev
         est_minutes=est_minutes,
         backlog=due_reviews - reviews_today,
         due_all=due_reviews + due_learning,
-        retention_30d=sum(mature) / len(mature) if mature else None,
+        retention_30d=1 - mature.count(1) / len(mature) if mature else None,
+        hard_share_30d=mature.count(2) / len(mature) if mature else None,
+        again_share_30d=mature.count(1) / len(mature) if mature else None,
         learned_total=len(learned),
         learned_delta_7d=len(graduated & learned),
         streak_days=streak,

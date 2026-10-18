@@ -45,6 +45,8 @@ def _summary(**overrides: Any) -> ReviewSummary:
         est_minutes=4,
         backlog=0,
         retention_30d=None,
+        hard_share_30d=None,
+        again_share_30d=None,
         learned_total=0,
         learned_delta_7d=0,
         streak_days=0,

@@ -78,6 +78,8 @@ function summary(overrides: Partial<ReviewSummary> = {}): ReviewSummary {
     backlog: 0,
     due_all: 8,
     retention_30d: 0.9,
+    hard_share_30d: null,
+    again_share_30d: null,
     learned_total: 10,
     learned_delta_7d: 1,
     streak_days: 0,

@@ -78,6 +78,8 @@ const summaryPayload = {
   backlog: 0,
   due_all: 0,
   retention_30d: null,
+  hard_share_30d: null,
+  again_share_30d: null,
   learned_total: 0,
   learned_delta_7d: 0,
   streak_days: 0,
