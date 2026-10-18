@@ -88,6 +88,7 @@ function mergeBatchResponses(
 export function AddWordsSheet({ onClose }: { onClose: () => void }): JSX.Element {
   const queryClient = useQueryClient();
   const [batchInput, setBatchInput] = useState("");
+  const [importedInput, setImportedInput] = useState<string | null>(null);
   const [batchValidationError, setBatchValidationError] = useState<string | null>(null);
   const [batchFatalError, setBatchFatalError] = useState<string | null>(null);
   const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
@@ -136,13 +137,26 @@ export function AddWordsSheet({ onClose }: { onClose: () => void }): JSX.Element
       return;
     }
 
+    setImportedInput(batchInput);
     batchImportMutation.mutate(sourceTexts);
   };
 
+  // Escape and a backdrop tap must not throw away a typed list or an import in flight; the
+  // Close button always works, and so does dismissing once the text has been imported.
+  const dismissLocked =
+    batchImportMutation.isPending || (batchInput.trim() !== "" && batchInput !== importedInput);
+
   return (
-    <Sheet label="Add words" onClose={onClose}>
+    <Sheet
+      label="Add words"
+      onClose={() => {
+        if (!dismissLocked) {
+          onClose();
+        }
+      }}
+    >
       <div>
-        <h3>Add words</h3>
+        <h3 className="sheet-title">Add words</h3>
         <p className="section-label">One word or expression per line, {BATCH_CHUNK_SIZE} per request</p>
       </div>
 
@@ -212,7 +226,6 @@ export function AddWordsSheet({ onClose }: { onClose: () => void }): JSX.Element
           ) : null}
         </div>
       ) : null}
-
     </Sheet>
   );
 }

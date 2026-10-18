@@ -134,8 +134,7 @@ button {
   font-size: 13px;
 }
 
-.sheet h3,
-.confirm-dialog h3 {
+.sheet-title {
   font-size: 17px;
 }
 
@@ -714,6 +713,7 @@ progress::-moz-progress-bar {
   padding: 16px;
   border-radius: var(--radius);
   background: var(--bg);
+  outline: none;
 }
 
 @keyframes pulse {

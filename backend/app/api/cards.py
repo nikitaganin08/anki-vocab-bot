@@ -61,7 +61,10 @@ def list_cards(
 
     total: int = session.execute(select(func.count()).select_from(base.subquery())).scalar_one()
     cards = (
-        session.execute(base.order_by(Card.created_at.desc()).offset(offset).limit(limit))
+        session.execute(
+            # id breaks created_at ties so offset paging never repeats or skips a card.
+            base.order_by(Card.created_at.desc(), Card.id.desc()).offset(offset).limit(limit)
+        )
         .scalars()
         .all()
     )

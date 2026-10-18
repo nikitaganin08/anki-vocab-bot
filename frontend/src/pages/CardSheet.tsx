@@ -1,10 +1,10 @@
 import { useMutation } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { deleteCard, setCardLearning } from "../api/client";
 import type { Card } from "../api/types";
 import { ErrorState } from "../components/PageState";
-import { Sheet } from "../components/Sheet";
+import { Sheet, trapTab } from "../components/Sheet";
 import { CardDetails } from "../review/IntroCard";
 
 interface CardSheetProps {
@@ -16,6 +16,7 @@ interface CardSheetProps {
 
 export function CardSheet({ card, onClose, onLearningSaved, onDeleted }: CardSheetProps): JSX.Element {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const deleteButtonRef = useRef<HTMLButtonElement>(null);
 
   const learningMutation = useMutation({
     mutationFn: (isLearning: boolean) => setCardLearning(card.id, isLearning),
@@ -29,6 +30,7 @@ export function CardSheet({ card, onClose, onLearningSaved, onDeleted }: CardShe
   const cancelDelete = (): void => {
     deleteMutation.reset();
     setConfirmingDelete(false);
+    deleteButtonRef.current?.focus();
   };
 
   return (
@@ -53,7 +55,12 @@ export function CardSheet({ card, onClose, onLearningSaved, onDeleted }: CardShe
         ) : null}
 
         <div className="sheet-actions">
-          <button type="button" className="danger-button" onClick={() => setConfirmingDelete(true)}>
+          <button
+            ref={deleteButtonRef}
+            type="button"
+            className="danger-button"
+            onClick={() => setConfirmingDelete(true)}
+          >
             Delete
           </button>
           <button type="button" className="secondary-button" onClick={onClose}>
@@ -64,9 +71,16 @@ export function CardSheet({ card, onClose, onLearningSaved, onDeleted }: CardShe
 
       {confirmingDelete ? (
         <div className="modal-backdrop" role="presentation">
-          <section className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-card-title">
+          <section
+            className="confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-card-title"
+            tabIndex={-1}
+            onKeyDown={trapTab}
+          >
             <p className="section-label">Delete</p>
-            <h3 id="delete-card-title">Delete “{card.canonical_text}”?</h3>
+            <h3 id="delete-card-title" className="sheet-title">Delete “{card.canonical_text}”?</h3>
             <p>The card will be removed from your dictionary.</p>
 
             {deleteMutation.isError ? (

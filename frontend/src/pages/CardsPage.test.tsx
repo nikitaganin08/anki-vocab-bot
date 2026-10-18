@@ -23,8 +23,6 @@ const mockedDeleteCard = vi.mocked(deleteCard);
 const mockedImportCardsBatch = vi.mocked(importCardsBatch);
 const mockedSetCardLearning = vi.mocked(setCardLearning);
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 function makeCard(overrides: Partial<Card> = {}): Card {
   return {
     id: 7,
@@ -118,10 +116,15 @@ describe("rowStatus", () => {
     expect(rowStatus(scheduled("review", new Date(2026, 9, 18, 23, 59, 59)), now).label).toBe("today");
   });
 
-  it("counts days until due, rounded up, from local midnight on", () => {
-    expect(rowStatus(scheduled("review", new Date(2026, 9, 19, 0, 0, 0)), now).label).toBe("1 d");
-    expect(rowStatus(scheduled("review", new Date(2026, 9, 20, 15, 0, 0)), now).label).toBe("2 d");
-    expect(rowStatus(scheduled("review", new Date(2026, 9, 20, 15, 0, 1)), now).label).toBe("3 d");
+  it("counts local calendar days until the due day, whatever the time of day", () => {
+    const justAfterMidnight = new Date(2026, 9, 18, 0, 1);
+    for (const due of [new Date(2026, 9, 19, 0, 2), new Date(2026, 9, 19, 23, 59)]) {
+      expect(rowStatus(scheduled("review", due), justAfterMidnight).label).toBe("1 d");
+      expect(rowStatus(scheduled("review", due), now).label).toBe("1 d");
+    }
+    expect(rowStatus(scheduled("review", new Date(2026, 9, 20, 0, 2)), justAfterMidnight).label).toBe("2 d");
+    expect(rowStatus(scheduled("review", new Date(2026, 9, 20, 23, 59)), now).label).toBe("2 d");
+    expect(rowStatus(scheduled("review", new Date(2026, 9, 17, 23, 59)), justAfterMidnight).label).toBe("today");
   });
 
   it("maps the FSRS state to the dot kind", () => {
@@ -143,6 +146,9 @@ describe("CardsPage", () => {
   });
 
   it("renders a compact row per card with word, translation, status dot and label", async () => {
+    const threeDaysAhead = new Date();
+    threeDaysAhead.setDate(threeDaysAhead.getDate() + 3);
+    threeDaysAhead.setHours(12, 0, 0, 0);
     mockedGetCards.mockResolvedValue(
       listOf([
         makeCard({ id: 1, canonical_text: "fresh", translation_variants: ["свежий", "новый"] }),
@@ -158,7 +164,7 @@ describe("CardsPage", () => {
           canonical_text: "later",
           translation_variants: ["позже"],
           srs_state: "review",
-          srs_due_at: new Date(Date.now() + 2.5 * DAY_MS).toISOString(),
+          srs_due_at: threeDaysAhead.toISOString(),
         }),
         makeCard({ id: 4, canonical_text: "parked", translation_variants: ["отложенный"], is_learning: false }),
       ]),
@@ -287,6 +293,25 @@ describe("CardsPage", () => {
     expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
   });
 
+  it("shows a card once when it appears on two pages, without a duplicate key warning", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const card = (id: number): Card =>
+      makeCard({ id, canonical_text: `word-${id}`, canonical_text_normalized: `word-${id}` });
+    mockedGetCards.mockImplementation(async ({ offset = 0 }) =>
+      offset === 0 ? listOf([card(1), card(2)], 4, 0) : listOf([card(2), card(3)], 4, 2),
+    );
+
+    renderCardsPage();
+    await screen.findByText("word-1", { selector: "strong" });
+    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
+
+    await screen.findByText("word-3", { selector: "strong" });
+    expect(screen.getAllByText("word-2", { selector: "strong" })).toHaveLength(1);
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    expect(errors).not.toHaveBeenCalled();
+    errors.mockRestore();
+  });
+
   describe("card sheet", () => {
     beforeEach(() => {
       mockedGetCards.mockResolvedValue(listOf([makeCard()]));
@@ -330,6 +355,56 @@ describe("CardsPage", () => {
       fireEvent.click(screen.getByText("turn down", { selector: "strong" }));
       fireEvent.click(screen.getByRole("dialog", { name: "turn down" }).parentElement as HTMLElement);
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("keeps Tab inside the sheet, wrapping at both ends", async () => {
+      renderCardsPage();
+      fireEvent.click(await screen.findByText("turn down", { selector: "strong" }));
+      const sheet = screen.getByRole("dialog", { name: "turn down" });
+      const controls = sheet.querySelectorAll<HTMLElement>("button, input");
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      expect(last).toBe(within(sheet).getByRole("button", { name: "Close" }));
+
+      last.focus();
+      expect(fireEvent.keyDown(last, { key: "Tab" })).toBe(false);
+      expect(first).toHaveFocus();
+
+      expect(fireEvent.keyDown(first, { key: "Tab", shiftKey: true })).toBe(false);
+      expect(last).toHaveFocus();
+
+      // From the sheet itself (where focus starts) Shift+Tab also wraps; Tab in the middle is left alone.
+      sheet.focus();
+      expect(fireEvent.keyDown(sheet, { key: "Tab", shiftKey: true })).toBe(false);
+      expect(last).toHaveFocus();
+      first.focus();
+      expect(fireEvent.keyDown(first, { key: "Tab" })).toBe(true);
+    });
+
+    it("returns focus to Delete when the confirmation closes, and keeps Tab inside it", async () => {
+      renderCardsPage();
+      fireEvent.click(await screen.findByText("turn down", { selector: "strong" }));
+      const deleteButton = screen.getByRole("button", { name: "Delete" });
+
+      fireEvent.click(deleteButton);
+      const confirm = screen.getByRole("dialog", { name: "Delete “turn down”?" });
+      const cancel = within(confirm).getByRole("button", { name: "Cancel" });
+      const confirmDelete = within(confirm).getByRole("button", { name: "Delete card" });
+      expect(cancel).toHaveFocus();
+
+      expect(fireEvent.keyDown(cancel, { key: "Tab", shiftKey: true })).toBe(false);
+      expect(confirmDelete).toHaveFocus();
+      expect(fireEvent.keyDown(confirmDelete, { key: "Tab" })).toBe(false);
+      expect(cancel).toHaveFocus();
+
+      fireEvent.click(cancel);
+      expect(confirm).not.toBeInTheDocument();
+      expect(deleteButton).toHaveFocus();
+
+      fireEvent.click(deleteButton);
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(screen.queryByRole("dialog", { name: "Delete “turn down”?" })).not.toBeInTheDocument();
+      expect(deleteButton).toHaveFocus();
     });
 
     it("toggles learning from the sheet and updates the row without reloading the list", async () => {
@@ -399,6 +474,58 @@ describe("CardsPage", () => {
       expect(within(sheet).getByRole("button", { name: "Import" })).toHaveClass("primary-button");
 
       fireEvent.click(within(sheet).getByRole("button", { name: "Close" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("keeps a typed list on Escape and a backdrop tap, but Close still closes", async () => {
+      renderCardsPage();
+      await screen.findByText("No words yet");
+      openAddWords();
+      const sheet = screen.getByRole("dialog", { name: "Add words" });
+
+      fireEvent.change(within(sheet).getByLabelText("List"), { target: { value: "look up" } });
+      fireEvent.keyDown(document, { key: "Escape" });
+      fireEvent.click(sheet.parentElement as HTMLElement);
+      expect(screen.getByRole("dialog", { name: "Add words" })).toBeInTheDocument();
+      expect(within(sheet).getByLabelText("List")).toHaveValue("look up");
+
+      // Nothing to lose once the list is empty again.
+      fireEvent.change(within(sheet).getByLabelText("List"), { target: { value: "  " } });
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+      openAddWords();
+      fireEvent.change(screen.getByLabelText("List"), { target: { value: "look up" } });
+      fireEvent.click(screen.getByRole("button", { name: "Close" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("stays open while importing and may be dismissed once the import has finished", async () => {
+      let finish: (response: CardBatchImportResponse) => void = () => undefined;
+      mockedImportCardsBatch.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+      renderCardsPage();
+      await screen.findByText("No words yet");
+      openAddWords();
+      const sheet = screen.getByRole("dialog", { name: "Add words" });
+
+      fireEvent.change(within(sheet).getByLabelText("List"), { target: { value: "look up" } });
+      fireEvent.click(within(sheet).getByRole("button", { name: "Import" }));
+      fireEvent.change(within(sheet).getByLabelText("List"), { target: { value: "" } });
+      fireEvent.keyDown(document, { key: "Escape" });
+      fireEvent.click(sheet.parentElement as HTMLElement);
+      expect(screen.getByRole("dialog", { name: "Add words" })).toBeInTheDocument();
+
+      fireEvent.change(within(sheet).getByLabelText("List"), { target: { value: "look up" } });
+      finish(importResponse(["look up"]));
+      expect(await screen.findByText("Total processed: 1")).toBeInTheDocument();
+      expect(within(sheet).getByLabelText("List")).toHaveValue("look up");
+
+      // The finished list may go; a new one is a draft again.
+      fireEvent.change(within(sheet).getByLabelText("List"), { target: { value: "look up\nbreak down" } });
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(screen.getByRole("dialog", { name: "Add words" })).toBeInTheDocument();
+      fireEvent.change(within(sheet).getByLabelText("List"), { target: { value: "look up" } });
+      fireEvent.keyDown(document, { key: "Escape" });
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 

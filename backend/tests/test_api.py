@@ -135,6 +135,29 @@ def test_list_cards_pagination(client: TestClient, session: Session) -> None:
     assert len(resp2.json()["items"]) == 2
 
 
+def test_list_cards_pages_are_stable_for_equal_created_at(
+    client: TestClient, session: Session
+) -> None:
+    created_at = datetime(2026, 10, 18, 12, 0, 0)
+    for i in range(5):
+        session.add(
+            make_card(
+                source_text=f"word{i}",
+                canonical_text_normalized=f"word{i}",
+                created_at=created_at,
+            )
+        )
+    session.commit()
+
+    ids: list[int] = []
+    for offset in (0, 2, 4):
+        resp = client.get(f"/api/cards?limit=2&offset={offset}", headers=telegram_headers())
+        ids += [item["id"] for item in resp.json()["items"]]
+
+    assert ids == sorted(ids, reverse=True)
+    assert len(set(ids)) == 5
+
+
 def test_list_cards_filter_source_language(client: TestClient, session: Session) -> None:
     session.add(make_card(source_language="en", canonical_text_normalized="take off"))
     session.add(

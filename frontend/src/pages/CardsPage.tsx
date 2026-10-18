@@ -27,8 +27,8 @@ export interface RowStatus {
   label: string;
 }
 
-// The right-hand label: "off", "new" (learning, never reviewed), "today" (due before local
-// midnight, overdue included) or "N d" (days until due, rounded up).
+// The right-hand label: "off", "new" (learning, never reviewed), "today" (due by the end of the
+// local day, overdue included) or "N d" (local calendar days until the due day).
 export function rowStatus(card: Card, now: Date): RowStatus {
   if (!card.is_learning) {
     return { kind: "off", label: "off" };
@@ -39,11 +39,10 @@ export function rowStatus(card: Card, now: Date): RowStatus {
 
   const kind = card.srs_state === "review" ? "review" : "learning";
   const due = new Date(card.srs_due_at);
-  const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  return {
-    kind,
-    label: due < endOfToday ? "today" : `${Math.ceil((due.getTime() - now.getTime()) / DAY_MS)} d`,
-  };
+  // UTC on the local date parts: whole days apart, whatever DST does in between.
+  const day = (date: Date): number => Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
+  const days = (day(due) - day(now)) / DAY_MS;
+  return { kind, label: days <= 0 ? "today" : `${days} d` };
 }
 
 // Search and filter live in the query string; replaceState keeps Telegram's back button out of
@@ -121,7 +120,15 @@ export function CardsPage(): JSX.Element {
     placeholderData: keepPreviousData,
   });
 
-  const items = cardsQuery.data?.pages.flatMap((page) => page.items) ?? [];
+  // A card added while paging can show up on two pages; keep the first.
+  const seen = new Set<number>();
+  const items = (cardsQuery.data?.pages.flatMap((page) => page.items) ?? []).filter((card) => {
+    if (seen.has(card.id)) {
+      return false;
+    }
+    seen.add(card.id);
+    return true;
+  });
   const selected = items.find((card) => card.id === selectedId) ?? null;
   const now = new Date();
 
