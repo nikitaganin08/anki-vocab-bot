@@ -16,15 +16,6 @@ class PronunciationAudioError(RuntimeError):
         self.user_message = user_message
 
 
-def build_pronunciation_filename(card_id: int) -> str:
-    return f"avb-pronunciation-{card_id}.mp3"
-
-
-def build_pronunciation_sound_field(card_id: int) -> str:
-    filename = build_pronunciation_filename(card_id)
-    return f"[sound:{filename}]"
-
-
 class TtsClient(Protocol):
     def synthesize(self, text: str) -> bytes: ...
 

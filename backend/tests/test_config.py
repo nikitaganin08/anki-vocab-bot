@@ -34,7 +34,6 @@ def test_validate_runtime_config_passes_with_required_values() -> None:
         TELEGRAM_ALLOWED_USER_ID=42,
         TELEGRAM_WEBAPP_URL="https://bot.example.com/telegram/webapp",
         OPENROUTER_API_KEY="openrouter-key",
-        ANKI_SYNC_TOKEN="anki-token",
     )
 
     settings.validate_runtime_config()
@@ -46,7 +45,6 @@ def test_validate_runtime_config_derives_webapp_url_from_webhook_url() -> None:
         TELEGRAM_ALLOWED_USER_ID=42,
         TELEGRAM_WEBHOOK_URL="https://bot.example.com/anki/telegram/webhook",
         OPENROUTER_API_KEY="openrouter-key",
-        ANKI_SYNC_TOKEN="anki-token",
     )
 
     settings.validate_runtime_config()
@@ -59,7 +57,6 @@ def test_validate_runtime_config_requires_webapp_url() -> None:
         TELEGRAM_BOT_TOKEN="bot-token",
         TELEGRAM_ALLOWED_USER_ID=42,
         OPENROUTER_API_KEY="openrouter-key",
-        ANKI_SYNC_TOKEN="anki-token",
     )
 
     with pytest.raises(

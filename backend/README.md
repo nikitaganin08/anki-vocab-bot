@@ -1,11 +1,11 @@
 # anki-vocab-bot backend
 
 This package contains the FastAPI app, Telegram bot runtime, persistence layer,
-and sync helpers for the anki-vocab-bot monorepo.
+and review (FSRS) services for the anki-vocab-bot monorepo.
 
 Useful local commands:
 - `uv run uvicorn app.main:app --reload` for API development.
-- `uv run python -m app.scripts.sync_anki --limit 50` for one sync pass.
+- `uv run pytest` and `uv run ruff check` for the quality gates.
 
 Review (SRS):
 - FSRS scheduling (`fsrs` package) runs server-side; state lives on `cards.srs_*`, every answer
@@ -15,8 +15,8 @@ Review (SRS):
 
 Pronunciation:
 - Yandex SpeechKit or Google Cloud Text-to-Speech, proxied by the backend:
-  `GET /api/cards/{id}/audio` (Web App auth) and `GET /api/anki/cards/{id}/audio` (bearer token)
-  return an MP3 of `canonical_text`, synthesized per request; nothing is stored on the server.
+  `GET /api/cards/{id}/audio` (Web App auth) returns an MP3 of `canonical_text`, synthesized per
+  request; nothing is stored on the server.
 - Provider selection: `YANDEX_TTS_API_KEY` set -> Yandex (optional `YANDEX_TTS_VOICE`, default
   `john`, the only English SpeechKit voice); else `GOOGLE_TTS_API_KEY` set -> Google (optional
   `GOOGLE_TTS_VOICE`, default `en-US-Chirp3-HD-Aoede`). If both are set, Yandex wins. With
@@ -45,31 +45,6 @@ Webhook mode:
 - Required runtime env var for the Web App launcher: `TELEGRAM_WEBAPP_URL`.
 - Bot command `/find <description>` asks the LLM for 3 to 5 likely English lexical units
   from a clue and returns them without creating a card.
-
-## Sync helper
-
-`app.scripts.sync_anki` pulls pending cards from backend API and pushes them to
-AnkiConnect. If AnkiConnect is unavailable, the script tries to launch the Anki
-desktop app locally first and waits for AnkiConnect to come up.
-
-Required environment variables for sync:
-- `ANKI_SYNC_TOKEN`
-- `BACKEND_API_BASE_URL` (default: `http://127.0.0.1:8000`)
-- `ANKI_CONNECT_URL` (default: `http://127.0.0.1:8765`)
-- `ANKI_SYNC_BATCH_LIMIT` (default: `50`)
-- `ANKI_SYNC_HTTP_TIMEOUT_SECONDS` (default: `15`)
-
-Optional local desktop launch variables:
-- `ANKI_DESKTOP_STARTUP_TIMEOUT_SECONDS` (default: `20`)
-
-Idempotency policy:
-- each card is tagged in Anki as `avb-card-<card_id>`
-- sync checks `findNotes` by tag before creating a note
-- if found, sync acknowledges the existing note id instead of creating duplicate
-- pronunciation audio is downloaded from `GET /api/anki/cards/<card_id>/audio` and uploaded to
-  Anki media as `avb-pronunciation-<card_id>.mp3`; best-effort: on any audio failure (e.g. 503
-  before a TTS key is set) the note is added with an empty `PronunciationAudio`
-  field, one warning with the cause is logged and the rest of the run skips audio
 
 ## Docker
 

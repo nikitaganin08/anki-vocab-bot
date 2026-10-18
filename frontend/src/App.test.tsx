@@ -48,9 +48,8 @@ const cardsPayload = {
       frequency: 4,
       frequency_note: null,
       is_learning: true,
-      anki_sync_status: "pending",
-      anki_note_id: null,
-      anki_sync_error: null,
+      srs_state: null,
+      srs_due_at: null,
       llm_model: "test-model",
       created_at: "2026-01-01T00:00:00Z",
       updated_at: "2026-01-01T00:00:00Z",
@@ -58,7 +57,7 @@ const cardsPayload = {
   ],
   total: 1,
   offset: 0,
-  limit: 20,
+  limit: 50,
 };
 
 const settingsPayload = {
@@ -172,7 +171,7 @@ describe("App", () => {
     render(<App />);
     fireEvent.click(screen.getByRole("button", { name: "Words" }));
 
-    expect(await screen.findByRole("heading", { name: "Words" })).toBeInTheDocument();
+    expect(await screen.findByRole("searchbox", { name: "Search words" })).toBeInTheDocument();
     const params = new URLSearchParams(window.location.search);
     expect(params.get("view")).toBe("cards");
     expect(params.get("x")).toBe("1");
@@ -237,7 +236,7 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "Words" })).toBeInTheDocument();
+    expect(await screen.findByRole("searchbox", { name: "Search words" })).toBeInTheDocument();
     expect((await screen.findAllByText("take off")).length).toBeGreaterThan(0);
   });
 
@@ -247,9 +246,9 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "Words" })).toBeInTheDocument();
+    expect(await screen.findByRole("searchbox", { name: "Search words" })).toBeInTheDocument();
     expect(global.fetch).toHaveBeenCalledWith(
-      "/anki/api/cards?offset=0&limit=20",
+      "/anki/api/cards?offset=0&limit=50",
       expect.objectContaining({
         headers: {
           Accept: "application/json",

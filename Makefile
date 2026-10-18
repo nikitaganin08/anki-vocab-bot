@@ -1,4 +1,4 @@
-.PHONY: pull-backups backend-dev frontend-dev backend-test frontend-test test build-frontend sync-anki docker-build docker-up docker-down
+.PHONY: pull-backups backend-dev frontend-dev backend-test frontend-test test build-frontend docker-build docker-up docker-down
 
 backend-dev:
 	cd backend && DISABLE_REMINDERS=1 uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -16,9 +16,6 @@ test: backend-test frontend-test
 
 build-frontend:
 	cd frontend && npm run build
-
-sync-anki:
-	cd backend && uv run python -m app.scripts.sync_anki
 
 docker-build:
 	docker build -t anki-vocab-bot:local .

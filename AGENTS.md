@@ -6,7 +6,7 @@ This repository contains a personal vocabulary assistant built as a monorepo wit
 - a Python backend
 - a React Telegram Web App frontend
 
-The app receives words and stable expressions from Telegram, generates learning cards with an LLM, stores them in a local database, schedules them for FSRS review in the Telegram Mini App, sends one daily review reminder, and queues learning cards for optional sync into Anki.
+The app receives words and stable expressions from Telegram, generates learning cards with an LLM, stores them in a local database, schedules them for FSRS review in the Telegram Mini App, and sends one daily review reminder.
 
 ## Product Scope
 
@@ -21,12 +21,11 @@ The app receives words and stable expressions from Telegram, generates learning 
 - Input length limit: 1 to 8 tokens
 - The resulting card always targets an English lexical unit
 - The LLM decides whether the input is a valid lexical unit or just a free-form phrase/sentence
-- Telegram Web App (Mini App) with a review dashboard, the daily review flow, settings, and the card list (import, filter, delete, toggle learning)
+- Telegram Web App (Mini App) with a review dashboard, the daily review flow, settings, and the word list (add words, search, filter, delete, toggle learning)
 - FSRS review of learning cards with typed answers and usage chunks
 - Daily review reminder from the bot
 - Bot copy is English, sentence case, like the Mini App (replies, buttons, reminders, bot profile and command list); Russian appears only as card data (translations, chunk translations) and the free-text `reminder_anchor`. The LLM is told to write `message_for_user` (rejections) in English
-- Local sync helper for Anki via AnkiConnect
-- The production migrations to the SRS model (chunks backfill, Anki deck import, General American IPA backfill) were run on 2026-10-17 and their scripts removed; see git history
+- The production migrations to the SRS model (chunks backfill, Anki deck import, General American IPA backfill) were run on 2026-10-17 and their scripts removed; the Anki integration itself (sync helper, `/api/anki/*`, `anki_*` card columns, sync token) was removed on 2026-10-18; see git history
 
 ## Architecture
 
@@ -55,7 +54,6 @@ The app receives words and stable expressions from Telegram, generates learning 
   - `app/schemas/` for LLM contract validation
   - `app/clients/` for external integrations such as OpenRouter
   - `app/services/` for prompts and domain workflows
-  - `app/scripts/` for local helper entrypoints
 
 ### Frontend
 
@@ -107,13 +105,13 @@ The app receives words and stable expressions from Telegram, generates learning 
 12. Otherwise, the backend stores the card in SQLite.
 13. The backend renders and sends the Telegram response from stored structured fields.
 14. Cards with `frequency >= learn_threshold` (`app_settings`, default 3) are stored with `is_learning = true`; rarer cards are stored with `is_learning = false` and the bot asks "Rare word (N/10). Learn it?" with "Learn" / "Skip" inline buttons (`learn:<id>` / `skip:<id>`) (also on a duplicate of a not-learning card).
-15. Learning cards enter the FSRS review queue in the Mini App; a local sync helper also pulls pending learning cards from the backend and sends them to AnkiConnect.
+15. Learning cards enter the FSRS review queue in the Mini App.
 
 ## Review (SRS)
 
 - Server-side scheduling with `fsrs.Scheduler(desired_retention=app_settings.desired_retention, learning_steps=(1m, 1d), relearning_steps=(10m,), enable_fuzzing=False)`: a new card is Again 1m, Good 1 day, Easy 2 days.
 - Easy vs Good (`_outcomes`, shared by preview and grade): for a new/learning card whose Good is ≥ 1 day away, Easy = 2 × Good; for review/relearning cards FSRS Easy is capped at 2 × Good; review outcomes keep Good ≥ Hard + 1 day, Easy ≥ Good + 1 day.
-- Due dates of a day or more count from the start of their study day (local midnight), like Anki; intraday learning steps keep their exact time.
+- Due dates of a day or more count from the start of their study day (local midnight); intraday learning steps keep their exact time.
 - SRS state lives on `cards` (`srs_card_json` = `fsrs.Card.to_json()`, `srs_due_at`, `srs_state`, `srs_reps`, `srs_lapses`); every graded answer is appended to `review_logs` (with the card state before, for undo). Intro screens of new cards are not logged.
 - All datetimes are UTC; values read from SQLite are naive and go through `as_utc()`.
 - The day starts at midnight in `app_settings.timezone` (default `Europe/Moscow`, then follows the device, see Settings below); daily limits (`new_per_day` 5, `reviews_per_day` 50) are counted per that window. Due reviews beyond the limit are reported as `backlog`.
@@ -197,10 +195,7 @@ Validation rules:
 - `examples_json`
 - `frequency`
 - `frequency_note`
-- `is_learning` (drives both the review queue and Anki sync; renamed from `eligible_for_anki`)
-- `anki_sync_status` (`pending`, `synced`, `failed`)
-- `anki_note_id`
-- `anki_sync_error` (last sync failure, cleared on ack)
+- `is_learning` (drives the review queue)
 - `word_family_json`
 - `chunks_json` (list of `{text, target, translation}`, default `[]`)
 - `srs_card_json` (`fsrs.Card.to_json()`; null = never scheduled)
@@ -250,7 +245,7 @@ Validation rules:
 
 ### Web App API (Telegram Web App auth)
 
-- `GET /api/cards` (filters include `is_learning`)
+- `GET /api/cards` (filters include `is_learning`; each card carries `srs_state` and `srs_due_at`, both null until its first review)
 - `POST /api/cards/batch`
 - `PATCH /api/cards/{card_id}` (`{is_learning}`)
 - `DELETE /api/cards/{card_id}`
@@ -267,15 +262,6 @@ Validation rules:
 
 - `POST /telegram/webhook`
 
-### Anki Sync API
-
-- `GET /api/anki/pending?limit=50`
-- `POST /api/anki/ack`
-- `POST /api/anki/fail`
-- `GET /api/anki/cards/{card_id}/audio` (same MP3 as the Web App route)
-
-The Anki sync API uses bearer token authentication.
-
 ## Telegram Web App
 
 Views are switched by `?view=` (`history.replaceState`, other params and the hash kept); unknown or missing values open `home`. The bot's `/review` command and reminders open `?view=review`. Screen content and the English UI copy follow the "Mini App" section of `docs/superpowers/specs/2026-10-17-srs-review-design.md`.
@@ -285,39 +271,19 @@ Views are switched by `?view=` (`history.replaceState`, other params and the has
 - Review (`src/review/`): `useReviewSession` drives the flow in rounds of 10 (5 for "Quick") from `GET /api/review/session`. New cards show an intro ("New word" chip, full card, "Got it"), and the typed question for that card comes two items later in the same round. Question → `check` → back side with the diff, the full card and four grade buttons "Again / Hard / Good / Easy" (auto rating highlighted; after a wrong answer "My answer was right" forces Good) → `grade`. `grade` echoes `srs_due_at` verbatim as `expected_due_at`; a 409 refetches the round. After each round: "Round complete" with "Today X of Y" from the same distinct-card counts as Home (an Again does not count as done until the card passes); an empty session shows "Done for today".
 - Full card (`CardDetails` in `src/review/IntroCard.tsx`, intro and back side): word + speaker + IPA → translations → explanation (full English definition) → "Usage" chunks → one example → word family, one form per line ("distinguishable (adjective) — различимый").
 - Settings (`src/settings/`): daily limits, desired retention, reminder hour and anchor, learn threshold, timezone; saved with `PUT /api/settings`. On each Mini App load the shell saves the device timezone (`Intl.DateTimeFormat().resolvedOptions().timeZone`) when it differs from the stored one; a zone picked by hand in Settings is replaced on the next load if the device reports another.
-- Words (`src/pages/CardsPage.tsx`): cards list with search and filters (including `is_learning`), batch import, deletion, and a per-card "Learning" toggle (`PATCH /api/cards/{card_id}`).
+- Words (`src/pages/CardsPage.tsx`, sheets in `AddWordsSheet.tsx` and `CardSheet.tsx`, shared `src/components/Sheet.tsx`): a search box (debounced) with a "+" button, filter chips "All" / "Learning" / "Not learning" (`is_learning`), then a compact row per card: status dot (blue new, amber learning/relearning, green review, grey not learning), word, primary translation and a right-hand label ("new", "today", "N d", "off"; the day follows the browser's local time). 50 cards per page with "Load more" (offset paging). `q` and `filter` live in the query string. "+" opens the "Add words" sheet (batch import, 5 words per request). A row tap opens a bottom sheet with the full card (`CardDetails`), a "Learning" switch (`PATCH /api/cards/{card_id}`), "Delete" (with a confirm dialog) and "Close"; Escape or a backdrop tap closes it and focus returns to the row.
 
 The UI reads only from backend JSON endpoints.
 
 Production exposure (`deploy/nginx/anki.conf`):
 - `/anki/telegram/*` → Mini App static files and the webhook (secret token)
-- `/anki/api/*` → every backend API route; each authenticates itself (Telegram Web App init data
-  or the bearer token), except the health check
+- `/anki/api/*` → every backend API route; each authenticates itself (Telegram Web App init data),
+  except the health check
 - other backend paths (e.g. FastAPI docs) are not exposed
-
-## Anki Integration
-
-- Deck: `English::Inbox`
-- Note type: `VocabularyCard`
-- Fields:
-  - `Word`
-  - `Transcription`
-  - `PronunciationAudio`
-  - `Translation`
-  - `Explanation`
-  - `Example`
-
-Mapping:
-- `Word` -> `canonical_text_normalized` (lowercased, whitespace-collapsed `canonical_text`)
-- `Transcription` -> `transcription`
-- `PronunciationAudio` -> `[sound:avb-pronunciation-<card_id>.mp3]`; `sync_anki` downloads the MP3 from `GET /api/anki/cards/{card_id}/audio` and uploads it to Anki media. Best-effort: on any audio failure (including 503 before a TTS key is set) the note is still added with an empty field and the card is acked; the run logs one warning with the cause and stops requesting audio
-- `Translation` -> comma-joined translations
-- `Explanation` -> `explanation`
-- `Example` -> chunk lines (`text — translation`), blank line, first English example, then the word family block
 
 ## Pronunciation
 
-- Two providers behind one interface (`app/services/pronunciation.py`: `TtsClient.synthesize(text) -> bytes`, `PronunciationAudioError` on any failure): `YandexTtsClient` (Yandex SpeechKit v1) and `GoogleTtsClient` (Google Cloud Text-to-Speech). Proxied by the backend: `GET /api/cards/{card_id}/audio` (Web App auth) and `GET /api/anki/cards/{card_id}/audio` (bearer token) synthesize `canonical_text` per request and return `audio/mpeg` with `Cache-Control: private, max-age=31536000, immutable`. Nothing is stored on the server
+- Two providers behind one interface (`app/services/pronunciation.py`: `TtsClient.synthesize(text) -> bytes`, `PronunciationAudioError` on any failure): `YandexTtsClient` (Yandex SpeechKit v1) and `GoogleTtsClient` (Google Cloud Text-to-Speech). Proxied by the backend: `GET /api/cards/{card_id}/audio` (Web App auth) synthesizes `canonical_text` per request and return `audio/mpeg` with `Cache-Control: private, max-age=31536000, immutable`. Nothing is stored on the server
 - Provider selection (`get_tts_client` in `app/api/deps.py`): `YANDEX_TTS_API_KEY` set -> Yandex; else `GOOGLE_TTS_API_KEY` set -> Google; both set -> Yandex wins. `tts_enabled` is true when either key is set
 - Inert until a key is set: 503 `Pronunciation is not configured`; unknown card 404; provider failure 502 (cause logged)
 - Yandex request: `POST https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize`, header `Authorization: Api-Key <key>`, form fields `text`, `lang=en-US`, `voice` (default `john`, the only English voice), `format=mp3`; no `folderId` with a service-account API key; the response body is raw MP3. Not verified live yet: `lang=en-US` with `john` is documented only on the SpeechKit voices page
@@ -341,7 +307,6 @@ Required environment variables:
 - `TELEGRAM_WEBHOOK_SECRET`
 - `TELEGRAM_WEBAPP_URL`
 - `OPENROUTER_API_KEY`
-- `ANKI_SYNC_TOKEN`
 - `DATABASE_URL` (default: `sqlite:///backend/data/app.db`)
 - `LLM_MODEL` (default: `google/gemini-2.5-flash-lite`)
 
@@ -377,7 +342,6 @@ The repository should maintain a `Makefile` with at least:
 - `make frontend-dev`
 - `make test`
 - `make build-frontend`
-- `make sync-anki`
 
 ## Testing Scope
 
@@ -389,7 +353,6 @@ Focus areas:
 - acceptance/rejection of lexical units
 - deduplication by source text and canonical form
 - card persistence
-- Anki queue status transitions
 - answer checking (layout, typos, inflected chunk targets)
 - FSRS scheduling, session queue limits and the midnight day boundary, grade/undo
 - review summary metrics and reminder decisions
@@ -404,7 +367,7 @@ Focus areas:
 - Review defaults: 5 new / 50 reviews per day, desired retention 0.9, learn threshold 3, reminder at 10:00, day starts at local midnight, timezone follows the device
 - Default LLM model: `google/gemini-2.5-flash-lite`
 - Cards are rejected when the model is not confident the input is a stable lexical unit
-- Backend is the source of truth for all stored cards and sync state
+- Backend is the source of truth for all stored cards and review state
 
 ## Landing the Plane (Session Completion)
 

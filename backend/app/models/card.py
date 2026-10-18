@@ -27,12 +27,6 @@ class EntryType(str, Enum):
     EXPRESSION = "expression"
 
 
-class AnkiSyncStatus(str, Enum):
-    PENDING = "pending"
-    SYNCED = "synced"
-    FAILED = "failed"
-
-
 class Card(Base):
     __tablename__ = "cards"
 
@@ -61,13 +55,6 @@ class Card(Base):
     frequency: Mapped[int] = mapped_column(Integer, nullable=False)
     frequency_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_learning: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    anki_sync_status: Mapped[AnkiSyncStatus] = mapped_column(
-        SqlEnum(AnkiSyncStatus, native_enum=False, values_callable=_enum_values),
-        nullable=False,
-        default=AnkiSyncStatus.PENDING,
-    )
-    anki_note_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    anki_sync_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     srs_card_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     srs_due_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True

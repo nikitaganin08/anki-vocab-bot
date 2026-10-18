@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,7 +11,7 @@ import app.api.deps as deps_mod
 from app.api.deps import get_openrouter_client
 from app.clients.openrouter import OpenRouterError
 from app.main import app
-from app.models.card import AnkiSyncStatus, Card
+from app.models.card import Card
 from app.schemas.llm import AcceptedLlmResponse, RejectedLlmResponse
 
 from .conftest import (
@@ -96,6 +97,26 @@ def test_list_cards_returns_card(client: TestClient, session: Session) -> None:
     ]
 
 
+def test_list_cards_exposes_srs_schedule(client: TestClient, session: Session) -> None:
+    session.add(make_card(canonical_text_normalized="new one"))
+    # SQLite drops the timezone; the API still reports the stored instant as UTC.
+    session.add(
+        make_card(
+            canonical_text_normalized="scheduled",
+            srs_state="review",
+            srs_due_at=datetime(2026, 10, 20, 8, 30, 15),
+        )
+    )
+    session.commit()
+
+    items = client.get("/api/cards", headers=telegram_headers()).json()["items"]
+
+    by_word = {item["canonical_text_normalized"]: item for item in items}
+    assert (by_word["new one"]["srs_state"], by_word["new one"]["srs_due_at"]) == (None, None)
+    assert by_word["scheduled"]["srs_state"] == "review"
+    assert by_word["scheduled"]["srs_due_at"] == "2026-10-20T08:30:15Z"
+
+
 def test_list_cards_pagination(client: TestClient, session: Session) -> None:
     for i in range(5):
         session.add(make_card(source_text=f"word{i}", canonical_text_normalized=f"word{i}"))
@@ -112,6 +133,29 @@ def test_list_cards_pagination(client: TestClient, session: Session) -> None:
     resp2 = client.get("/api/cards?limit=2&offset=2", headers=telegram_headers())
     assert resp2.json()["offset"] == 2
     assert len(resp2.json()["items"]) == 2
+
+
+def test_list_cards_pages_are_stable_for_equal_created_at(
+    client: TestClient, session: Session
+) -> None:
+    created_at = datetime(2026, 10, 18, 12, 0, 0)
+    for i in range(5):
+        session.add(
+            make_card(
+                source_text=f"word{i}",
+                canonical_text_normalized=f"word{i}",
+                created_at=created_at,
+            )
+        )
+    session.commit()
+
+    ids: list[int] = []
+    for offset in (0, 2, 4):
+        resp = client.get(f"/api/cards?limit=2&offset={offset}", headers=telegram_headers())
+        ids += [item["id"] for item in resp.json()["items"]]
+
+    assert ids == sorted(ids, reverse=True)
+    assert len(set(ids)) == 5
 
 
 def test_list_cards_filter_source_language(client: TestClient, session: Session) -> None:
@@ -142,17 +186,6 @@ def test_list_cards_filter_entry_type(client: TestClient, session: Session) -> N
     data = resp.json()
     assert data["total"] == 1
     assert data["items"][0]["entry_type"] == "idiom"
-
-
-def test_list_cards_filter_anki_sync_status(client: TestClient, session: Session) -> None:
-    session.add(make_card(anki_sync_status=AnkiSyncStatus.PENDING, canonical_text_normalized="a"))
-    session.add(make_card(anki_sync_status=AnkiSyncStatus.SYNCED, canonical_text_normalized="b"))
-    session.commit()
-
-    resp = client.get("/api/cards?anki_sync_status=synced", headers=telegram_headers())
-    data = resp.json()
-    assert data["total"] == 1
-    assert data["items"][0]["anki_sync_status"] == "synced"
 
 
 def test_list_cards_filter_is_learning(client: TestClient, session: Session) -> None:
@@ -345,180 +378,4 @@ def test_delete_card(client: TestClient, session: Session) -> None:
 
 def test_delete_card_not_found(client: TestClient) -> None:
     resp = client.delete("/api/cards/9999", headers=telegram_headers())
-    assert resp.status_code == 404
-
-
-# ---------------------------------------------------------------------------
-# Anki auth guard
-# ---------------------------------------------------------------------------
-
-
-def test_anki_pending_no_token_is_401(client: TestClient) -> None:
-    resp = client.get("/api/anki/pending")
-    assert resp.status_code == 401
-
-
-def test_anki_ack_no_token_is_401(client: TestClient) -> None:
-    resp = client.post("/api/anki/ack", json={"card_id": 1, "anki_note_id": 123})
-    assert resp.status_code == 401
-
-
-def test_anki_fail_no_token_is_401(client: TestClient) -> None:
-    resp = client.post("/api/anki/fail", json={"card_id": 1, "error_message": "oops"})
-    assert resp.status_code == 401
-
-
-def test_anki_wrong_token_is_403(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.core.config import get_settings
-
-    monkeypatch.setattr(deps_mod, "get_settings", lambda: get_settings())
-    # settings.anki_sync_token is None in test env; any Bearer value mismatches
-    resp = client.get("/api/anki/pending", headers={"Authorization": "Bearer wrong-token"})
-    assert resp.status_code == 403
-
-
-# ---------------------------------------------------------------------------
-# GET /api/anki/pending
-# ---------------------------------------------------------------------------
-
-
-def test_anki_pending_empty(authed_client: TestClient) -> None:
-    resp = authed_client.get("/api/anki/pending")
-    assert resp.status_code == 200
-    assert resp.json() == []
-
-
-def test_anki_pending_returns_learning_cards(authed_client: TestClient, session: Session) -> None:
-    session.add(make_card(is_learning=True, anki_sync_status=AnkiSyncStatus.PENDING))
-    session.add(
-        make_card(
-            is_learning=True,
-            anki_sync_status=AnkiSyncStatus.FAILED,
-            canonical_text="failed word",
-            canonical_text_normalized="failed word",
-        )
-    )
-    # not learning — should be excluded
-    session.add(
-        make_card(
-            is_learning=False,
-            anki_sync_status=AnkiSyncStatus.PENDING,
-            canonical_text_normalized="other",
-        )
-    )
-    # already synced — should be excluded
-    session.add(
-        make_card(
-            is_learning=True,
-            anki_sync_status=AnkiSyncStatus.SYNCED,
-            canonical_text_normalized="synced",
-        )
-    )
-    session.commit()
-
-    resp = authed_client.get("/api/anki/pending")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert len(data) == 2
-    assert data[0]["canonical_text"] == "take off"
-    assert data[0]["canonical_text_normalized"] == "take off"
-    assert data[1]["canonical_text"] == "failed word"
-    # Only Anki-relevant fields are exposed — no source_text
-    assert "source_text" not in data[0]
-
-
-def test_anki_pending_puts_new_cards_before_failed_ones(
-    authed_client: TestClient,
-    session: Session,
-) -> None:
-    session.add(
-        make_card(
-            anki_sync_status=AnkiSyncStatus.FAILED,
-            canonical_text="old failure",
-            canonical_text_normalized="old failure",
-        )
-    )
-    session.commit()
-    session.add(make_card(canonical_text="fresh", canonical_text_normalized="fresh"))
-    session.commit()
-
-    resp = authed_client.get("/api/anki/pending?limit=1")
-
-    assert [item["canonical_text"] for item in resp.json()] == ["fresh"]
-
-
-def test_anki_pending_limit(authed_client: TestClient, session: Session) -> None:
-    for i in range(5):
-        session.add(
-            make_card(
-                is_learning=True,
-                anki_sync_status=AnkiSyncStatus.PENDING,
-                canonical_text_normalized=f"word{i}",
-            )
-        )
-    session.commit()
-
-    resp = authed_client.get("/api/anki/pending?limit=3")
-    assert resp.status_code == 200
-    assert len(resp.json()) == 3
-
-
-# ---------------------------------------------------------------------------
-# POST /api/anki/ack
-# ---------------------------------------------------------------------------
-
-
-def test_anki_ack_updates_card(authed_client: TestClient, session: Session) -> None:
-    card = make_card()
-    session.add(card)
-    session.commit()
-    session.refresh(card)
-
-    resp = authed_client.post(
-        "/api/anki/ack",
-        json={"card_id": card.id, "anki_note_id": 42},
-    )
-    assert resp.status_code == 204
-
-    session.refresh(card)
-    assert card.anki_sync_status == AnkiSyncStatus.SYNCED
-    assert card.anki_note_id == 42
-    assert card.anki_sync_error is None
-
-
-def test_anki_ack_not_found(authed_client: TestClient) -> None:
-    resp = authed_client.post(
-        "/api/anki/ack",
-        json={"card_id": 9999, "anki_note_id": 1},
-    )
-    assert resp.status_code == 404
-
-
-# ---------------------------------------------------------------------------
-# POST /api/anki/fail
-# ---------------------------------------------------------------------------
-
-
-def test_anki_fail_updates_card(authed_client: TestClient, session: Session) -> None:
-    card = make_card()
-    session.add(card)
-    session.commit()
-    session.refresh(card)
-
-    resp = authed_client.post(
-        "/api/anki/fail",
-        json={"card_id": card.id, "error_message": "AnkiConnect refused"},
-    )
-    assert resp.status_code == 204
-
-    session.refresh(card)
-    assert card.anki_sync_status == AnkiSyncStatus.FAILED
-    assert card.anki_sync_error == "AnkiConnect refused"
-
-
-def test_anki_fail_not_found(authed_client: TestClient) -> None:
-    resp = authed_client.post(
-        "/api/anki/fail",
-        json={"card_id": 9999, "error_message": "err"},
-    )
     assert resp.status_code == 404

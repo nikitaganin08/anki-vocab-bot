@@ -86,7 +86,6 @@ export async function getCards(query: CardsQuery): Promise<CardListResponse> {
     search: query.search,
     source_language: query.source_language,
     entry_type: query.entry_type,
-    anki_sync_status: query.anki_sync_status,
     is_learning: query.is_learning,
   })) {
     if (value !== undefined && value !== null && value !== "") {
