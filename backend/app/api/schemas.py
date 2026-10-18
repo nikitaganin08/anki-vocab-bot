@@ -136,7 +136,7 @@ class ReviewCheckRequest(BaseModel):
 
 
 class ReviewCheckResponse(BaseModel):
-    verdict: Literal["correct", "typo", "wrong"]
+    verdict: Literal["correct", "typo", "form", "wrong"]
     expected: str
     auto_rating: int
     intervals: dict[int, int]
@@ -149,7 +149,7 @@ class ReviewGradeRequest(BaseModel):
     typed: str = Field(max_length=200)
     prompt_kind: PromptKind
     prompt_index: int = Field(ge=0)
-    verdict: Literal["correct", "typo", "wrong", "skipped"]
+    verdict: Literal["correct", "typo", "form", "wrong", "skipped"]
     hint_used: bool
     response_ms: int = Field(ge=0)
     expected_due_at: datetime | None

@@ -40,6 +40,17 @@ def test_optional_to_prefix() -> None:
     assert check_answer("to give up", "give up").verdict == "wrong"
 
 
+def test_base_form_for_inflected_target_is_form() -> None:
+    result = check_answer("be had", "being had", base_form="be had")
+
+    assert result.verdict == "form"
+    assert result.expected == "being had"
+    assert check_answer("to be had", "being had", optional_prefixes=PREFIXES, base_form="be had")
+    assert check_answer("make", "makes", base_form="make").verdict == "form"
+    assert check_answer("being had", "being had", base_form="be had").verdict == "correct"
+    assert check_answer("take", "makes", base_form="make").verdict == "wrong"
+
+
 def test_empty_is_wrong() -> None:
     assert check_answer("", "give up").verdict == "wrong"
     assert check_answer("  ?! ", "give up").verdict == "wrong"
@@ -51,6 +62,7 @@ def test_auto_rating_matrix() -> None:
     assert auto_rating("correct", hint_used=True) == 2
     assert auto_rating("typo", hint_used=True) == 2
     assert auto_rating("typo", hint_used=False) == 3
+    assert auto_rating("form", hint_used=False) == 2
     assert auto_rating("correct", hint_used=False) == 3
 
 

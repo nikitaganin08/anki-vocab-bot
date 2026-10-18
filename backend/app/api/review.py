@@ -95,7 +95,12 @@ def check(card_id: int, body: ReviewCheckRequest, session: SessionDep) -> Review
         chunks, card.translation_variants_json, card.canonical_text, body.prompt_index
     )
     prefixes = TRANSLATION_OPTIONAL_PREFIXES if prompt.kind == "translation" else ()
-    result = check_answer(body.typed, prompt.expected, optional_prefixes=prefixes)
+    result = check_answer(
+        body.typed,
+        prompt.expected,
+        optional_prefixes=prefixes,
+        base_form=card.canonical_text if prompt.kind == "chunk" else None,
+    )
     intervals = preview_intervals(build_scheduler(settings), card, datetime.now(UTC))
     return ReviewCheckResponse(
         verdict=result.verdict,

@@ -10,12 +10,11 @@ def test_system_prompt_requires_english_lexical_unit_without_infinitive_marker()
     )
     assert (
         "Do not return a definition, explanation, or translation gloss "
-        "instead of the lexical unit itself."
-        in SYSTEM_PROMPT
+        "instead of the lexical unit itself." in SYSTEM_PROMPT
     )
     assert "Prefer established lexical units over literal paraphrases." in SYSTEM_PROMPT
     assert (
-        'For verbs and phrasal verbs, return the lemma-like form without the infinitive '
+        "For verbs and phrasal verbs, return the lemma-like form without the infinitive "
         'marker "to ".'
     ) in SYSTEM_PROMPT
     assert "candidates must contain 3 to 5 items." in SYSTEM_PROMPT

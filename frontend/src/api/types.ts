@@ -132,7 +132,7 @@ export interface ReviewSessionResponse {
   items: ReviewSessionItem[];
 }
 
-export type Verdict = "correct" | "typo" | "wrong";
+export type Verdict = "correct" | "typo" | "form" | "wrong";
 
 export interface CheckRequest {
   typed: string;
