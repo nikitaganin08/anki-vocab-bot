@@ -437,6 +437,21 @@ describe("ReviewView", () => {
     expect(await screen.findByRole("heading", { name: "✓ Round complete" })).toBeInTheDocument();
   });
 
+  it("the next new word opens without a confirm dialog", async () => {
+    mockedSession.mockResolvedValue([
+      item(1, "cosmetics", "___ up", { intro: true }),
+      item(2, "give", "___ up", { intro: true }),
+    ]);
+    mockedDelete.mockResolvedValue(undefined);
+    renderReview();
+
+    await press(await screen.findByRole("button", { name: "Delete word" }));
+    await press(await screen.findByRole("button", { name: "Delete card" }));
+
+    expect(await screen.findByRole("heading", { name: "give" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("keys 1-4 grade like the buttons", async () => {
     mockedSession.mockResolvedValue([item(1, "give", "___ up")]);
     renderReview();

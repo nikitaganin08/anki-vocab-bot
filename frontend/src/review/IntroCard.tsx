@@ -99,7 +99,7 @@ export function IntroCard({ card, onRemember, onDeleted }: IntroCardProps): JSX.
       <button type="button" className="primary-button" autoFocus onClick={onRemember}>
         Got it
       </button>
-      <DeleteWord card={card} onDeleted={onDeleted} />
+      <DeleteWord key={card.id} card={card} onDeleted={onDeleted} />
     </section>
   );
 }
