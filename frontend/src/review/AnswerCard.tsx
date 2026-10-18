@@ -120,7 +120,7 @@ export function AnswerCard({ card, answer, busy, onGrade, onDeleted }: AnswerCar
         ))}
       </div>
       <p className="section-label">Rating picked automatically — you can change it</p>
-      <DeleteWord card={card} onDeleted={onDeleted} />
+      <DeleteWord key={card.id} card={card} onDeleted={onDeleted} />
     </section>
   );
 }
