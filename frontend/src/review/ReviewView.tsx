@@ -21,7 +21,7 @@ export function ReviewView({ mode, onExit }: ReviewViewProps): JSX.Element | nul
     case "error":
       return <ErrorState error={session.error} onRetry={session.retry} />;
     case "intro":
-      return <IntroCard card={item.card} onRemember={session.remember} />;
+      return <IntroCard card={item.card} onRemember={session.remember} onDeleted={() => void session.removeCard()} />;
     case "question":
       return (
         <QuestionCard
@@ -39,6 +39,7 @@ export function ReviewView({ mode, onExit }: ReviewViewProps): JSX.Element | nul
           answer={session.answer}
           busy={session.busy}
           onGrade={(rating, overridden) => void session.grade(rating, overridden)}
+          onDeleted={() => void session.removeCard()}
         />
       ) : null;
     case "roundEnd":

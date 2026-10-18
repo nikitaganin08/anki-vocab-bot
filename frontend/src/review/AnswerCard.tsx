@@ -1,5 +1,5 @@
 import type { Card } from "../api/types";
-import { CardDetails } from "./IntroCard";
+import { CardDetails, DeleteWord } from "./IntroCard";
 import type { CheckedAnswer } from "./useReviewSession";
 
 const GRADES = [
@@ -54,9 +54,10 @@ interface AnswerCardProps {
   answer: CheckedAnswer;
   busy: boolean;
   onGrade: (rating: number, overridden?: boolean) => void;
+  onDeleted: () => void;
 }
 
-export function AnswerCard({ card, answer, busy, onGrade }: AnswerCardProps): JSX.Element {
+export function AnswerCard({ card, answer, busy, onGrade, onDeleted }: AnswerCardProps): JSX.Element {
   const { typed, result } = answer;
 
   return (
@@ -99,6 +100,7 @@ export function AnswerCard({ card, answer, busy, onGrade }: AnswerCardProps): JS
         ))}
       </div>
       <p className="section-label">Rating picked automatically — you can change it</p>
+      <DeleteWord card={card} onDeleted={onDeleted} />
     </section>
   );
 }

@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, checkAnswer, getReviewSession, getReviewSummary, gradeCard } from "../api/client";
+import { ApiError, checkAnswer, deleteCard, getReviewSession, getReviewSummary, gradeCard } from "../api/client";
 import type { Card, CheckResponse, ReviewSessionItem, ReviewSummary } from "../api/types";
 import type { ReviewMode } from "../home/HomeView";
 import { formatInterval } from "./AnswerCard";
@@ -16,6 +16,7 @@ vi.mock("../api/client", async (importOriginal) => {
     getReviewSummary: vi.fn(),
     checkAnswer: vi.fn(),
     gradeCard: vi.fn(),
+    deleteCard: vi.fn(),
   };
 });
 
@@ -23,6 +24,7 @@ const mockedSession = vi.mocked(getReviewSession);
 const mockedSummary = vi.mocked(getReviewSummary);
 const mockedCheck = vi.mocked(checkAnswer);
 const mockedGrade = vi.mocked(gradeCard);
+const mockedDelete = vi.mocked(deleteCard);
 
 function card(id: number, word: string): Card {
   return {
@@ -392,6 +394,33 @@ describe("ReviewView", () => {
       1,
       expect.objectContaining({ rating: 3, auto_rating: 1, overridden: true, verdict: "wrong" }),
     );
+  });
+
+  it("deleting from the back side skips the card without grading", async () => {
+    mockedSession.mockResolvedValue([item(1, "cosmetics", "___ up"), item(2, "give", "___ up")]);
+    mockedDelete.mockResolvedValue(undefined);
+    renderReview();
+
+    await answer("cosmetics");
+    await press(await screen.findByRole("button", { name: "Delete word" }));
+    await press(await screen.findByRole("button", { name: "Delete card" }));
+
+    expect(mockedDelete).toHaveBeenCalledWith(1);
+    expect(mockedGrade).not.toHaveBeenCalled();
+    expect(await screen.findByRole("textbox", { name: "Answer" })).toBeInTheDocument();
+    expect(screen.getByText("Round 1 · 1 of 1")).toBeInTheDocument();
+  });
+
+  it("deleting a new word at the intro drops its typed question", async () => {
+    mockedSession.mockResolvedValue([item(1, "cosmetics", "___ up", { intro: true })]);
+    mockedDelete.mockResolvedValue(undefined);
+    renderReview();
+
+    await press(await screen.findByRole("button", { name: "Delete word" }));
+    await press(await screen.findByRole("button", { name: "Delete card" }));
+
+    expect(mockedDelete).toHaveBeenCalledWith(1);
+    expect(await screen.findByRole("heading", { name: "✓ Round complete" })).toBeInTheDocument();
   });
 
   it("chunk question also shows the word's own translation", async () => {

@@ -1,7 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 import { getSettings } from "../api/client";
 import type { Card } from "../api/types";
+import { DeleteCardDialog } from "../components/DeleteCardDialog";
 import { canSpeak, playPronunciation } from "./speak";
 
 // Tabler "volume" outline icon (MIT), 24x24.
@@ -68,7 +70,28 @@ export function CardDetails({ card }: { card: Card }): JSX.Element {
   );
 }
 
-export function IntroCard({ card, onRemember }: { card: Card; onRemember: () => void }): JSX.Element {
+// "Delete word" under the card: for a word that should never have been added.
+export function DeleteWord({ card, onDeleted }: { card: Card; onDeleted: () => void }): JSX.Element {
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <>
+      <button type="button" className="link-button" onClick={() => setConfirming(true)}>
+        Delete word
+      </button>
+      {confirming ? (
+        <DeleteCardDialog card={card} onCancel={() => setConfirming(false)} onDeleted={onDeleted} />
+      ) : null}
+    </>
+  );
+}
+
+interface IntroCardProps {
+  card: Card;
+  onRemember: () => void;
+  onDeleted: () => void;
+}
+
+export function IntroCard({ card, onRemember, onDeleted }: IntroCardProps): JSX.Element {
   return (
     <section className="review-screen">
       <span className="info-chip">New word</span>
@@ -76,6 +99,7 @@ export function IntroCard({ card, onRemember }: { card: Card; onRemember: () => 
       <button type="button" className="primary-button" autoFocus onClick={onRemember}>
         Got it
       </button>
+      <DeleteWord card={card} onDeleted={onDeleted} />
     </section>
   );
 }

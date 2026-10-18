@@ -160,6 +160,18 @@ export function useReviewSession(mode: ReviewMode) {
     }));
   }
 
+  // The card is already deleted on the server: drop its remaining queue entries and move on.
+  async function removeCard(): Promise<void> {
+    const { queue, pos, total } = state.round;
+    const kept = queue.filter((entry, i) => i < pos || entry.card.id !== item.card.id);
+    const round = { ...state.round, queue: kept, total: total - 1 };
+    if (pos >= kept.length) {
+      setState((s) => ({ ...s, round }));
+      return fetchRound((items) => ({ phase: "roundEnd", next: items }));
+    }
+    setState((s) => ({ ...s, phase: "item", answer: null, busy: false, round }));
+  }
+
   function nextRound(): void {
     setState((s) => ({ ...s, phase: "item", round: newRound(s.round.number + 1, s.next), next: [] }));
   }
@@ -178,6 +190,7 @@ export function useReviewSession(mode: ReviewMode) {
     remember,
     check,
     grade,
+    removeCard,
     nextRound,
     retry: () => void loadRound(state.round.number),
   };
