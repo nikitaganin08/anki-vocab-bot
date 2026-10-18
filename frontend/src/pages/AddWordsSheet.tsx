@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { ApiError, importCardsBatch } from "../api/client";
 import type {
@@ -88,7 +88,9 @@ function mergeBatchResponses(
 export function AddWordsSheet({ onClose }: { onClose: () => void }): JSX.Element {
   const queryClient = useQueryClient();
   const [batchInput, setBatchInput] = useState("");
+  // The list that was imported completely; text from a failed or stopped import stays a draft.
   const [importedInput, setImportedInput] = useState<string | null>(null);
+  const submittedInput = useRef("");
   const [batchValidationError, setBatchValidationError] = useState<string | null>(null);
   const [batchFatalError, setBatchFatalError] = useState<string | null>(null);
   const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
@@ -123,6 +125,7 @@ export function AddWordsSheet({ onClose }: { onClose: () => void }): JSX.Element
     onSuccess: (result) => {
       setBatchResponse(result.response);
       setBatchFatalError(result.fatalErrorMessage);
+      setImportedInput(result.fatalErrorMessage === null ? submittedInput.current : null);
       void queryClient.invalidateQueries({ queryKey: ["cards"] });
     },
   });
@@ -137,7 +140,8 @@ export function AddWordsSheet({ onClose }: { onClose: () => void }): JSX.Element
       return;
     }
 
-    setImportedInput(batchInput);
+    submittedInput.current = batchInput;
+    setImportedInput(null);
     batchImportMutation.mutate(sourceTexts);
   };
 

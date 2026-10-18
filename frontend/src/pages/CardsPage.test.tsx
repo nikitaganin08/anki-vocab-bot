@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { deleteCard, getCards, importCardsBatch, setCardLearning } from "../api/client";
+import { ApiError, deleteCard, getCards, importCardsBatch, setCardLearning } from "../api/client";
 import type { Card, CardBatchImportResponse, CardListResponse } from "../api/types";
 import { CardsPage, rowStatus } from "./CardsPage";
 
@@ -527,6 +527,23 @@ describe("CardsPage", () => {
       fireEvent.change(within(sheet).getByLabelText("List"), { target: { value: "look up" } });
       fireEvent.keyDown(document, { key: "Escape" });
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    it("keeps the list when an import fails: Escape and a backdrop tap do not drop it", async () => {
+      mockedImportCardsBatch.mockRejectedValue(new ApiError("boom", 500));
+      renderCardsPage();
+      await screen.findByText("No words yet");
+      openAddWords();
+      const sheet = screen.getByRole("dialog", { name: "Add words" });
+
+      fireEvent.change(within(sheet).getByLabelText("List"), { target: { value: "look up" } });
+      fireEvent.click(within(sheet).getByRole("button", { name: "Import" }));
+      expect(await screen.findByText(/boom/)).toBeInTheDocument();
+
+      fireEvent.keyDown(document, { key: "Escape" });
+      fireEvent.click(sheet.parentElement as HTMLElement);
+      expect(screen.getByRole("dialog", { name: "Add words" })).toBeInTheDocument();
+      expect(within(sheet).getByLabelText("List")).toHaveValue("look up");
     });
 
     it("asks for input when the list is empty", async () => {
