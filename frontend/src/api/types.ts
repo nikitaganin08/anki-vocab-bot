@@ -35,6 +35,9 @@ export interface Card {
   frequency: number;
   frequency_note: string | null;
   is_learning: boolean;
+  // FSRS state ('learning' | 'review' | 'relearning'); null until the first review.
+  srs_state: string | null;
+  srs_due_at: string | null;
   llm_model: string;
   created_at: string;
   updated_at: string;

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -94,6 +95,26 @@ def test_list_cards_returns_card(client: TestClient, session: Session) -> None:
         "Take off your shoes, please.",
         "Her career really took off last year.",
     ]
+
+
+def test_list_cards_exposes_srs_schedule(client: TestClient, session: Session) -> None:
+    session.add(make_card(canonical_text_normalized="new one"))
+    # SQLite drops the timezone; the API still reports the stored instant as UTC.
+    session.add(
+        make_card(
+            canonical_text_normalized="scheduled",
+            srs_state="review",
+            srs_due_at=datetime(2026, 10, 20, 8, 30, 15),
+        )
+    )
+    session.commit()
+
+    items = client.get("/api/cards", headers=telegram_headers()).json()["items"]
+
+    by_word = {item["canonical_text_normalized"]: item for item in items}
+    assert (by_word["new one"]["srs_state"], by_word["new one"]["srs_due_at"]) == (None, None)
+    assert by_word["scheduled"]["srs_state"] == "review"
+    assert by_word["scheduled"]["srs_due_at"] == "2026-10-20T08:30:15Z"
 
 
 def test_list_cards_pagination(client: TestClient, session: Session) -> None:

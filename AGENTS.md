@@ -21,7 +21,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 - Input length limit: 1 to 8 tokens
 - The resulting card always targets an English lexical unit
 - The LLM decides whether the input is a valid lexical unit or just a free-form phrase/sentence
-- Telegram Web App (Mini App) with a review dashboard, the daily review flow, settings, and the card list (import, filter, delete, toggle learning)
+- Telegram Web App (Mini App) with a review dashboard, the daily review flow, settings, and the word list (add words, search, filter, delete, toggle learning)
 - FSRS review of learning cards with typed answers and usage chunks
 - Daily review reminder from the bot
 - The production migrations to the SRS model (chunks backfill, Anki deck import, General American IPA backfill) were run on 2026-10-17 and their scripts removed; the Anki integration itself (sync helper, `/api/anki/*`, `anki_*` card columns, sync token) was removed on 2026-10-18; see git history
@@ -243,7 +243,7 @@ Validation rules:
 
 ### Web App API (Telegram Web App auth)
 
-- `GET /api/cards` (filters include `is_learning`)
+- `GET /api/cards` (filters include `is_learning`; each card carries `srs_state` and `srs_due_at`, both null until its first review)
 - `POST /api/cards/batch`
 - `PATCH /api/cards/{card_id}` (`{is_learning}`)
 - `DELETE /api/cards/{card_id}`
@@ -269,7 +269,7 @@ Views are switched by `?view=` (`history.replaceState`, other params and the has
 - Review (`src/review/`): `useReviewSession` drives the flow in rounds of 10 (5 for "Quick") from `GET /api/review/session`. New cards show an intro ("New word" chip, full card, "Got it"), and the typed question for that card comes two items later in the same round. Question → `check` → back side with the diff, the full card and four grade buttons "Again / Hard / Good / Easy" (auto rating highlighted; after a wrong answer "My answer was right" forces Good) → `grade`. `grade` echoes `srs_due_at` verbatim as `expected_due_at`; a 409 refetches the round. After each round: "Round complete" with progress to the daily goal; an empty session shows "Done for today".
 - Full card (`CardDetails` in `src/review/IntroCard.tsx`, intro and back side): word + speaker + IPA → translations → explanation (full English definition) → "Usage" chunks → one example → word family, one form per line ("distinguishable (adjective) — различимый").
 - Settings (`src/settings/`): daily limits, desired retention, reminder hour and anchor, learn threshold, timezone; saved with `PUT /api/settings`. On each Mini App load the shell saves the device timezone (`Intl.DateTimeFormat().resolvedOptions().timeZone`) when it differs from the stored one; a zone picked by hand in Settings is replaced on the next load if the device reports another.
-- Words (`src/pages/CardsPage.tsx`): cards list with search and filters (including `is_learning`), batch import, deletion, and a per-card "Learning" toggle (`PATCH /api/cards/{card_id}`).
+- Words (`src/pages/CardsPage.tsx`, sheets in `AddWordsSheet.tsx` and `CardSheet.tsx`, shared `src/components/Sheet.tsx`): a search box (debounced) with a "+" button, filter chips "All" / "Learning" / "Not learning" (`is_learning`), then a compact row per card: status dot (blue new, amber learning/relearning, green review, grey not learning), word, primary translation and a right-hand label ("new", "today", "N d", "off"; the day follows the browser's local time). 50 cards per page with "Load more" (offset paging). `q` and `filter` live in the query string. "+" opens the "Add words" sheet (batch import, 5 words per request). A row tap opens a bottom sheet with the full card (`CardDetails`), a "Learning" switch (`PATCH /api/cards/{card_id}`), "Delete" (with a confirm dialog) and "Close"; Escape or a backdrop tap closes it and focus returns to the row.
 
 The UI reads only from backend JSON endpoints.
 

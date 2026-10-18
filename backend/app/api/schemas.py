@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.card import Card, EntryType, SourceLanguage
 from app.schemas.llm import CardChunk, WordFamilyItem, valid_chunks
+from app.services.srs import as_utc
 
 
 class CardResponse(BaseModel):
@@ -26,6 +27,8 @@ class CardResponse(BaseModel):
     frequency: int
     frequency_note: str | None
     is_learning: bool
+    srs_state: str | None
+    srs_due_at: datetime | None
     llm_model: str
     created_at: datetime
     updated_at: datetime
@@ -48,6 +51,8 @@ class CardResponse(BaseModel):
             frequency=c.frequency,
             frequency_note=c.frequency_note,
             is_learning=c.is_learning,
+            srs_state=c.srs_state,
+            srs_due_at=as_utc(c.srs_due_at) if c.srs_due_at else None,
             llm_model=c.llm_model,
             created_at=c.created_at,
             updated_at=c.updated_at,
