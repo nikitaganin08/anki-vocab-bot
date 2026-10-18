@@ -20,7 +20,7 @@ from app.api.schemas import (
 from app.bot.input_validation import validate_source_input
 from app.clients.openrouter import OpenRouterClient, OpenRouterError
 from app.db.session import get_session
-from app.models.card import AnkiSyncStatus, Card, EntryType, SourceLanguage
+from app.models.card import Card, EntryType, SourceLanguage
 from app.services.card_service import apply_source_text
 from app.services.pronunciation import PronunciationAudioError, TtsClient
 
@@ -37,26 +37,6 @@ OpenRouterClientDep = Annotated[OpenRouterClient, Depends(get_openrouter_client)
 TtsClientDep = Annotated[TtsClient, Depends(get_tts_client)]
 
 
-def card_audio_response(session: Session, card_id: int, tts_client: TtsClient) -> Response:
-    """MP3 of the card's word, synthesized per request; the server keeps no copy."""
-    card = session.get(Card, card_id)
-    if card is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
-    try:
-        audio = tts_client.synthesize(card.canonical_text)
-    except PronunciationAudioError as exc:
-        logger.warning("Pronunciation failed for card %s: %s", card_id, exc)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY, detail=exc.user_message
-        ) from exc
-    # The word never changes for a card id, so the client may cache it for good.
-    return Response(
-        audio,
-        media_type="audio/mpeg",
-        headers={"Cache-Control": "private, max-age=31536000, immutable"},
-    )
-
-
 @router.get("", response_model=CardListResponse)
 def list_cards(
     session: SessionDep,
@@ -65,7 +45,6 @@ def list_cards(
     search: Annotated[str | None, Query()] = None,
     source_language: Annotated[SourceLanguage | None, Query()] = None,
     entry_type: Annotated[EntryType | None, Query()] = None,
-    anki_sync_status: Annotated[AnkiSyncStatus | None, Query()] = None,
     is_learning: Annotated[bool | None, Query()] = None,
 ) -> CardListResponse:
     base = select(Card)
@@ -77,8 +56,6 @@ def list_cards(
         base = base.where(Card.source_language == source_language)
     if entry_type is not None:
         base = base.where(Card.entry_type == entry_type)
-    if anki_sync_status is not None:
-        base = base.where(Card.anki_sync_status == anki_sync_status)
     if is_learning is not None:
         base = base.where(Card.is_learning == is_learning)
 
@@ -168,7 +145,23 @@ def batch_import_cards(
 
 @router.get("/{card_id}/audio", response_class=Response)
 def get_card_audio(card_id: int, session: SessionDep, tts_client: TtsClientDep) -> Response:
-    return card_audio_response(session, card_id, tts_client)
+    """MP3 of the card's word, synthesized per request; the server keeps no copy."""
+    card = session.get(Card, card_id)
+    if card is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
+    try:
+        audio = tts_client.synthesize(card.canonical_text)
+    except PronunciationAudioError as exc:
+        logger.warning("Pronunciation failed for card %s: %s", card_id, exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=exc.user_message
+        ) from exc
+    # The word never changes for a card id, so the client may cache it for good.
+    return Response(
+        audio,
+        media_type="audio/mpeg",
+        headers={"Cache-Control": "private, max-age=31536000, immutable"},
+    )
 
 
 @router.patch("/{card_id}", response_model=CardResponse)

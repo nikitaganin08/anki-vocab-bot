@@ -10,7 +10,6 @@
   --muted-fill: rgba(127, 127, 127, 0.14);
   --danger: #e5484d;
   --ok: #2e9d5b;
-  --warn: #c77c1e;
   --radius: 12px;
   color: var(--text);
   background: var(--bg);
@@ -156,8 +155,7 @@ summary::-webkit-details-marker {
   font-size: 17px;
 }
 
-.info-chip,
-.status-pill {
+.info-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -167,18 +165,6 @@ summary::-webkit-details-marker {
   background: var(--muted-fill);
   font-size: 13px;
   white-space: nowrap;
-}
-
-.status-pending {
-  color: var(--warn);
-}
-
-.status-synced {
-  color: var(--ok);
-}
-
-.status-failed {
-  color: var(--danger);
 }
 
 /* Forms */

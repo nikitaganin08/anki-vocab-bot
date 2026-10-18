@@ -7,8 +7,6 @@ export type EntryType =
   | "idiom"
   | "expression";
 
-export type AnkiSyncStatus = "pending" | "synced" | "failed";
-
 export interface WordFamilyItem {
   word: string;
   part_of_speech: string;
@@ -37,9 +35,6 @@ export interface Card {
   frequency: number;
   frequency_note: string | null;
   is_learning: boolean;
-  anki_sync_status: AnkiSyncStatus;
-  anki_note_id: number | null;
-  anki_sync_error: string | null;
   llm_model: string;
   created_at: string;
   updated_at: string;
@@ -58,7 +53,6 @@ export interface CardsQuery {
   search?: string;
   source_language?: SourceLanguage;
   entry_type?: EntryType;
-  anki_sync_status?: AnkiSyncStatus;
   is_learning?: boolean;
 }
 

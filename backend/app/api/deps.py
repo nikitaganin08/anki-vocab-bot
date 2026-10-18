@@ -1,26 +1,13 @@
 from __future__ import annotations
 
-import hmac
 from typing import Annotated
 
-from fastapi import Header, HTTPException, Security, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import Header, HTTPException, status
 
 from app.api.telegram_webapp_auth import parse_and_validate_init_data
 from app.clients.openrouter import OpenRouterClient
 from app.core.config import get_settings
 from app.services.pronunciation import GoogleTtsClient, TtsClient, YandexTtsClient
-
-_bearer = HTTPBearer()
-
-
-def require_anki_token(
-    credentials: HTTPAuthorizationCredentials = Security(_bearer),  # noqa: B008
-) -> None:
-    settings = get_settings()
-    expected = settings.anki_sync_token
-    if not expected or not hmac.compare_digest(credentials.credentials, expected):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid token")
 
 
 def get_openrouter_client() -> OpenRouterClient:

@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.card import AnkiSyncStatus, Card, EntryType, SourceLanguage
+from app.models.card import Card, EntryType, SourceLanguage
 from app.schemas.llm import CardChunk, WordFamilyItem, valid_chunks
 
 
@@ -26,9 +26,6 @@ class CardResponse(BaseModel):
     frequency: int
     frequency_note: str | None
     is_learning: bool
-    anki_sync_status: AnkiSyncStatus
-    anki_note_id: int | None
-    anki_sync_error: str | None
     llm_model: str
     created_at: datetime
     updated_at: datetime
@@ -51,9 +48,6 @@ class CardResponse(BaseModel):
             frequency=c.frequency,
             frequency_note=c.frequency_note,
             is_learning=c.is_learning,
-            anki_sync_status=c.anki_sync_status,
-            anki_note_id=c.anki_note_id,
-            anki_sync_error=c.anki_sync_error,
             llm_model=c.llm_model,
             created_at=c.created_at,
             updated_at=c.updated_at,
@@ -102,32 +96,6 @@ class CardBatchImportSummaryResponse(BaseModel):
 class CardBatchImportResponse(BaseModel):
     items: list[CardBatchImportItemResponse]
     summary: CardBatchImportSummaryResponse
-
-
-class AnkiPendingCardResponse(BaseModel):
-    id: int
-    canonical_text: str
-    canonical_text_normalized: str
-    transcription: str | None
-    translation_variants: list[str]
-    word_family: list[WordFamilyItem]
-    explanation: str
-    examples: list[str]
-    chunks: list[CardChunk]
-
-    @classmethod
-    def from_card(cls, c: Card) -> "AnkiPendingCardResponse":
-        return cls(
-            id=c.id,
-            canonical_text=c.canonical_text,
-            canonical_text_normalized=c.canonical_text_normalized,
-            transcription=c.transcription,
-            translation_variants=c.translation_variants_json,
-            word_family=c.word_family_json or [],
-            explanation=c.explanation,
-            examples=c.examples_json,
-            chunks=valid_chunks(c.chunks_json),
-        )
 
 
 class CardPatchRequest(BaseModel):
@@ -214,13 +182,3 @@ class AppSettingsPayload(BaseModel):
 
 class AppSettingsResponse(AppSettingsPayload):
     tts_enabled: bool  # read-only: YANDEX_TTS_API_KEY or GOOGLE_TTS_API_KEY is set
-
-
-class AnkiAckRequest(BaseModel):
-    card_id: int
-    anki_note_id: int
-
-
-class AnkiFailRequest(BaseModel):
-    card_id: int
-    error_message: str

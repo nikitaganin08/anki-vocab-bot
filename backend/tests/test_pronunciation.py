@@ -16,7 +16,7 @@ from app.api.deps import get_tts_client, is_tts_enabled
 from app.main import app
 from app.services.pronunciation import GoogleTtsClient, PronunciationAudioError, YandexTtsClient
 
-from .conftest import TelegramSettingsStub, anki_headers, make_card, telegram_headers
+from .conftest import TelegramSettingsStub, make_card, telegram_headers
 
 CACHE_CONTROL = "private, max-age=31536000, immutable"
 
@@ -164,24 +164,17 @@ class FakeTts:
         return b"mp3"
 
 
-Headers = Callable[[], dict[str, str]]
-AUDIO_ROUTES = [
-    ("/api/cards/{id}/audio", telegram_headers),
-    ("/api/anki/cards/{id}/audio", anki_headers),
-]
+AUDIO_URL = "/api/cards/{id}/audio"
 
 
-@pytest.mark.parametrize(("route", "headers"), AUDIO_ROUTES)
-def test_audio_endpoint_returns_mp3(
-    client: TestClient, session: Session, route: str, headers: Headers
-) -> None:
+def test_audio_endpoint_returns_mp3(client: TestClient, session: Session) -> None:
     card = make_card(canonical_text="Take Off")
     session.add(card)
     session.commit()
     fake = FakeTts()
     app.dependency_overrides[get_tts_client] = lambda: fake
 
-    resp = client.get(route.format(id=card.id), headers=headers())
+    resp = client.get(AUDIO_URL.format(id=card.id), headers=telegram_headers())
 
     assert resp.status_code == 200
     assert resp.content == b"mp3"
@@ -190,49 +183,39 @@ def test_audio_endpoint_returns_mp3(
     assert fake.texts == ["Take Off"]
 
 
-@pytest.mark.parametrize(("route", "headers"), AUDIO_ROUTES)
-def test_audio_endpoint_is_503_without_key(
-    client: TestClient, session: Session, route: str, headers: Headers
-) -> None:
+def test_audio_endpoint_is_503_without_key(client: TestClient, session: Session) -> None:
     card = make_card()
     session.add(card)
     session.commit()
 
-    resp = client.get(route.format(id=card.id), headers=headers())
+    resp = client.get(AUDIO_URL.format(id=card.id), headers=telegram_headers())
 
     assert resp.status_code == 503
     assert resp.json() == {"detail": "Pronunciation is not configured"}
 
 
-@pytest.mark.parametrize(("route", "headers"), AUDIO_ROUTES)
-def test_audio_endpoint_is_404_for_unknown_card(
-    client: TestClient, route: str, headers: Headers
-) -> None:
+def test_audio_endpoint_is_404_for_unknown_card(client: TestClient) -> None:
     app.dependency_overrides[get_tts_client] = lambda: FakeTts()
 
-    resp = client.get(route.format(id=999), headers=headers())
+    resp = client.get(AUDIO_URL.format(id=999), headers=telegram_headers())
 
     assert resp.status_code == 404
 
 
-@pytest.mark.parametrize(("route", "headers"), AUDIO_ROUTES)
-def test_audio_endpoint_is_502_when_tts_fails(
-    client: TestClient, session: Session, route: str, headers: Headers
-) -> None:
+def test_audio_endpoint_is_502_when_tts_fails(client: TestClient, session: Session) -> None:
     card = make_card()
     session.add(card)
     session.commit()
     error = PronunciationAudioError("403", user_message="Pronunciation service returned status 403")
     app.dependency_overrides[get_tts_client] = lambda: FakeTts(error)
 
-    resp = client.get(route.format(id=card.id), headers=headers())
+    resp = client.get(AUDIO_URL.format(id=card.id), headers=telegram_headers())
 
     assert resp.status_code == 502
     assert resp.json() == {"detail": "Pronunciation service returned status 403"}
 
 
-@pytest.mark.parametrize(("route", "_headers"), AUDIO_ROUTES)
-def test_audio_endpoint_requires_auth(client: TestClient, route: str, _headers: Headers) -> None:
+def test_audio_endpoint_requires_auth(client: TestClient) -> None:
     app.dependency_overrides[get_tts_client] = lambda: FakeTts()
 
-    assert client.get(route.format(id=1)).status_code in (401, 403)
+    assert client.get(AUDIO_URL.format(id=1)).status_code in (401, 403)

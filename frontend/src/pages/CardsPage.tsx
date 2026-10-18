@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 
 import { ApiError, deleteCard, getCards, importCardsBatch, setCardLearning } from "../api/client";
 import type {
-  AnkiSyncStatus,
   Card,
   CardBatchImportItemStatus,
   CardBatchImportResponse,
@@ -49,12 +48,6 @@ const ENTRY_TYPES: Record<EntryType, string> = {
   collocation: "collocation",
   idiom: "idiom",
   expression: "expression",
-};
-
-const ANKI_STATUSES: Record<AnkiSyncStatus, string> = {
-  pending: "waiting for sync",
-  synced: "in Anki",
-  failed: "sync failed",
 };
 
 const BATCH_STATUSES: Record<CardBatchImportItemStatus, string> = {
@@ -133,14 +126,12 @@ function hasActiveFilters(
   search: string,
   sourceLanguage: SourceLanguage | "",
   entryType: EntryType | "",
-  ankiStatus: AnkiSyncStatus | "",
   learning: LearningFilter,
 ): boolean {
   return (
     search.length > 0 ||
     sourceLanguage.length > 0 ||
     entryType.length > 0 ||
-    ankiStatus.length > 0 ||
     learning !== "all"
   );
 }
@@ -169,7 +160,6 @@ export function CardsPage(): JSX.Element {
   const search = searchParams.get("search") ?? "";
   const sourceLanguage = (searchParams.get("source_language") ?? "") as SourceLanguage | "";
   const entryType = (searchParams.get("entry_type") ?? "") as EntryType | "";
-  const ankiStatus = (searchParams.get("anki_sync_status") ?? "") as AnkiSyncStatus | "";
   const learning = (searchParams.get("is_learning") ?? "all") as LearningFilter;
   const [searchDraft, setSearchDraft] = useState(search);
   const [batchInput, setBatchInput] = useState("");
@@ -179,7 +169,7 @@ export function CardsPage(): JSX.Element {
   const [batchResponse, setBatchResponse] = useState<CardBatchImportResponse | null>(null);
   const [pendingDeleteCard, setPendingDeleteCard] = useState<Card | null>(null);
   const [filtersExpanded, setFiltersExpanded] = useState(
-    hasActiveFilters(search, sourceLanguage, entryType, ankiStatus, learning),
+    hasActiveFilters(search, sourceLanguage, entryType, learning),
   );
 
   useEffect(() => {
@@ -187,7 +177,7 @@ export function CardsPage(): JSX.Element {
   }, [search]);
 
   const cardsQuery = useQuery({
-    queryKey: ["cards", { page, search, sourceLanguage, entryType, ankiStatus, learning }],
+    queryKey: ["cards", { page, search, sourceLanguage, entryType, learning }],
     queryFn: () =>
       getCards({
         offset: (page - 1) * PAGE_SIZE,
@@ -195,7 +185,6 @@ export function CardsPage(): JSX.Element {
         search: search || undefined,
         source_language: sourceLanguage || undefined,
         entry_type: entryType || undefined,
-        anki_sync_status: ankiStatus || undefined,
         is_learning: learning === "all" ? undefined : learning === "true",
       }),
   });
@@ -285,7 +274,7 @@ export function CardsPage(): JSX.Element {
 
   const total = cardsQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const filtersOpen = hasActiveFilters(search, sourceLanguage, entryType, ankiStatus, learning);
+  const filtersOpen = hasActiveFilters(search, sourceLanguage, entryType, learning);
 
   return (
     <section className="cards-page">
@@ -437,21 +426,6 @@ export function CardsPage(): JSX.Element {
             </label>
 
             <label>
-              Anki status
-              <select
-                value={ankiStatus}
-                onChange={(event) => updateParams({ anki_sync_status: event.target.value || null })}
-              >
-                <option value="">All</option>
-                {Object.entries(ANKI_STATUSES).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label>
               Learning
               <select
                 value={learning}
@@ -505,12 +479,7 @@ export function CardsPage(): JSX.Element {
                     <p className="section-label">Card</p>
                     <h3>{card.canonical_text}</h3>
                   </div>
-                  <span className={`status-pill status-${card.anki_sync_status}`}>
-                    {ANKI_STATUSES[card.anki_sync_status]}
-                  </span>
                 </div>
-
-                {card.anki_sync_error ? <p className="batch-message-error">{card.anki_sync_error}</p> : null}
 
                 <div className="card-meta-grid">
                   <p>

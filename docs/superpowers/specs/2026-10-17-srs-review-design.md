@@ -1,13 +1,14 @@
 # SRS review in the Telegram Mini App — design
 
 Date: 2026-10-17. Status: agreed in chat (sections 1–4); Mini App design approved 2026-10-17.
+Update 2026-10-18: the Anki integration was removed (sync helper, `/api/anki/*`, `anki_sync_*` columns, bearer token); the Mini App is the only study path. Anki mentions below are history.
 Research inputs: `docs/research/market-research-2026-10.md`, `docs/research/motivation-ux-2026-10.md`.
 
 ## Goal
 
 Turn the bot from "Anki card generator" into a self-contained vocabulary trainer: words captured in
 Telegram are reviewed inside the Telegram Mini App with FSRS scheduling, typed answers and usage
-chunks. The bot sends one daily reminder. Anki sync stays as an optional parallel path (offline use).
+chunks. The bot sends one daily reminder. ~~Anki sync stays as an optional parallel path (offline use).~~ Removed 2026-10-18.
 
 Success: the owner moves daily practice from Anki to the Mini App (5 new / 50 reviews a day) and
 keeps it for 12+ weeks; metrics from `review_logs` show it.
@@ -25,14 +26,14 @@ keeps it for 12+ weeks; metrics from `review_logs` show it.
 | Scheduler | Server-side `fsrs` (py-fsrs ≥ 6.3.2, MIT). `desired_retention` from settings (default 0.9), Anki-like learning steps 1m then 1 day (a new card: Again 1m, Good 1 day, Easy 2 days), relearning 10m, `enable_fuzzing=False` so interval labels are exact. Review-state outcomes follow Anki's ordering: Good ≥ Hard + 1 day, Easy ≥ Good + 1 day. Easy vs Good: when a new/learning card's Good is ≥ 1 day away, Easy = 2 × Good; for review/relearning cards FSRS Easy is capped at 2 × Good (all capped at the maximum interval; same adjusted due for preview and grade). |
 | Day boundary | Midnight in the configured timezone (default `Europe/Moscow`). The timezone follows the device: on each Mini App load the shell saves `Intl.DateTimeFormat().resolvedOptions().timeZone` when it differs from the stored one and refreshes the summary; a zone picked by hand in Settings lasts until the next load with a different device zone (hint under the field). Like Anki, review cards and learning cards on an interday step are due for the whole study day of their due date; intraday learning steps keep their exact time (+20 min look-ahead). |
 | Limits | 5 new / 50 reviews per day (settings). Due backlog above the review limit is carried over and shown as "отложено". |
-| What is learned | One flag `is_learning` (renamed from `eligible_for_anki`) drives both SRS queue and Anki sync. |
+| What is learned | One flag `is_learning` (renamed from `eligible_for_anki`) drives the SRS queue (it also drove Anki sync, removed 2026-10-18). |
 | Rare words | `frequency >= learn_threshold` (default 3) → learning automatically. Below → saved, not learning; bot asks "Учить?" with inline buttons. Batch import: rare → not learning, toggle in Mini App. |
 | Card content | `chunks` (0–5 frequent usage chunks `{text, target, translation}`) become the main content; examples reduced to 1 for new cards. |
 | Front side | Chunk with `target` replaced by `___` + chunk translation; chunks rotate per review (`review count % len(chunks)`). No chunks → Russian translation, type the English unit. |
 | Typing | Always required. New cards: intro (full card, "Got it") first, typed question later in the same session. |
 | Back side | Diff of typed vs expected, then the full card: word + audio + IPA, translations, explanation, chunks, 1 example, word family (one form per line). Auto-selected grade, user can change; "My answer was right" override. |
 | Reminders | Background asyncio loop in the FastAPI lifespan, one message a day at the chosen hour, suppressed/backed-off per research. |
-| Anki | Sync unchanged in mechanics; `Example` field = chunks + example; pronunciation MP3 comes from the backend (Yandex SpeechKit or Google TTS, best-effort). Owner's `English::Inbox` deck is imported with approximate FSRS state. |
+| Anki | **Removed 2026-10-18** (sync, `Example` field mapping, pronunciation upload and the deck import are gone; see git history). |
 
 ## Data model (Alembic migration `0005`)
 
@@ -90,7 +91,7 @@ Look: flat, neutral, follows the Telegram theme (`Telegram.WebApp.themeParams` �
 
 Full card (intro and back side, one component): word + speaker + IPA → translations → explanation (full English definition) → "Usage" chunks → one example → word family, each form on its own line ("distinguishable (adjective) — различимый"), never joined with "·".
 
-Audio (revised 2026-10-17): Yandex SpeechKit (voice `john`) or Google Cloud Text-to-Speech (`en-US-Chirp3-HD-Aoede` by default), proxied by the backend and never stored on the server. Provider: `YANDEX_TTS_API_KEY` set -> Yandex, else `GOOGLE_TTS_API_KEY` set -> Google, both set -> Yandex (the owner cannot set up Google billing from Russia). Yandex costs about 1342 RUB per 1M characters including VAT (the whole 1.1k-word deck is about 20 RUB); `lang=en-US` with `john` is documented only on the voices page and not verified live yet. `GET /api/cards/{id}/audio` synthesizes `canonical_text` per request and returns `audio/mpeg` with `Cache-Control: private, max-age=31536000, immutable`; inert until a TTS key is set (503). The speaker shows when `GET /api/settings` reports `tts_enabled` or `speechSynthesis` exists. On tap only (no autoplay, no prefetch) the Mini App fetches the MP3 once per card per page load, keeps the object URL in memory and plays it; on any failure or without the key it falls back to `speechSynthesis` (lang en-US, an English voice when listed), else silent. Label "Play pronunciation". Google Chirp 3 HD is free up to 1M characters per month; with Google the owner sets a quota in the GCP console. Anki audio: `sync_anki` downloads the same MP3 from `GET /api/anki/cards/{id}/audio` (bearer token); best-effort, the note is added with an empty `PronunciationAudio` field when audio fails. (Earlier device-only decision: edge-tts got 403 from Microsoft.)
+Audio (revised 2026-10-17): Yandex SpeechKit (voice `john`) or Google Cloud Text-to-Speech (`en-US-Chirp3-HD-Aoede` by default), proxied by the backend and never stored on the server. Provider: `YANDEX_TTS_API_KEY` set -> Yandex, else `GOOGLE_TTS_API_KEY` set -> Google, both set -> Yandex (the owner cannot set up Google billing from Russia). Yandex costs about 1342 RUB per 1M characters including VAT (the whole 1.1k-word deck is about 20 RUB); `lang=en-US` with `john` is documented only on the voices page and not verified live yet. `GET /api/cards/{id}/audio` synthesizes `canonical_text` per request and returns `audio/mpeg` with `Cache-Control: private, max-age=31536000, immutable`; inert until a TTS key is set (503). The speaker shows when `GET /api/settings` reports `tts_enabled` or `speechSynthesis` exists. On tap only (no autoplay, no prefetch) the Mini App fetches the MP3 once per card per page load, keeps the object URL in memory and plays it; on any failure or without the key it falls back to `speechSynthesis` (lang en-US, an English voice when listed), else silent. Label "Play pronunciation". Google Chirp 3 HD is free up to 1M characters per month; with Google the owner sets a quota in the GCP console. Anki audio (`sync_anki`, `GET /api/anki/cards/{id}/audio`) was removed 2026-10-18. (Earlier device-only decision: edge-tts got 403 from Microsoft.)
 
 Views switched by `?view=` (no router): `home`, `review`, `cards`, `settings`; the reminder and `/review` open `?view=review`.
 
@@ -108,7 +109,7 @@ Views switched by `?view=` (no router): `home`, `review`, `cards`, `settings`; t
 
 Input UX: rounds of 10; Again re-queues via the next round (learning look-ahead), never grows the current denominator; on 409 from `grade` the client refetches the session.
 
-## Anki import (done 2026-10-17; script and `POST /api/anki/import` removed, see git history)
+## Anki import (done 2026-10-17; script and `POST /api/anki/import` removed, Anki sync itself removed 2026-10-18; see git history)
 
 Via AnkiConnect: `findNotes deck:"English::Inbox"`, `notesInfo`, `cardsInfo`, `getReviewsOfCards` (latest review time). For each note:
 - tag `avb-card-<id>` → existing backend card (marked synced with the note id, so `sync_anki` never re-adds it); else a card with the same normalized canonical text; otherwise create via the normal card pipeline from the `Word` field (LLM fills explanation, chunks, IPA; Anki translation kept as first translation variant if the LLM's differs).

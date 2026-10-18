@@ -73,9 +73,6 @@ describe("CardsPage", () => {
           frequency: 6,
           frequency_note: null,
           is_learning: true,
-          anki_sync_status: "pending",
-          anki_note_id: null,
-          anki_sync_error: null,
           llm_model: "test-model",
           created_at: "2026-01-01T00:00:00Z",
           updated_at: "2026-01-01T00:00:00Z",
@@ -98,7 +95,6 @@ describe("CardsPage", () => {
     expect(document.querySelectorAll(".primary-button")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Import" })).toHaveClass("primary-button");
     expect(screen.getByRole("button", { name: "Find" })).toHaveClass("secondary-button");
-    expect(screen.getByText("waiting for sync", { selector: ".status-pill" })).toBeInTheDocument();
     expect(screen.getByText("phrasal verb", { selector: "strong" })).toBeInTheDocument();
     expect(screen.getByText(/отказ/)).toBeInTheDocument();
   });
@@ -253,9 +249,6 @@ describe("CardsPage", () => {
           frequency: 6,
           frequency_note: null,
           is_learning: true,
-          anki_sync_status: "pending",
-          anki_note_id: null,
-          anki_sync_error: null,
           llm_model: "test-model",
           created_at: "2026-01-01T00:00:00Z",
           updated_at: "2026-01-01T00:00:00Z",
@@ -299,9 +292,6 @@ describe("CardsPage", () => {
       frequency: 6,
       frequency_note: null,
       is_learning: true,
-      anki_sync_status: "pending",
-      anki_note_id: null,
-      anki_sync_error: null,
       llm_model: "test-model",
       created_at: "2026-01-01T00:00:00Z",
       updated_at: "2026-01-01T00:00:00Z",
