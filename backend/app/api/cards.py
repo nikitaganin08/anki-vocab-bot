@@ -77,6 +77,34 @@ def list_cards(
     )
 
 
+def import_source_text(
+    session: Session, openrouter_client: OpenRouterClient, source_text: str
+) -> CardBatchImportItemResponse:
+    validation = validate_source_input(source_text)
+    if validation.normalized_text is None:
+        return CardBatchImportItemResponse(
+            source_text=source_text, status="invalid_input", message=validation.error_message
+        )
+    try:
+        result = apply_source_text(session, openrouter_client, validation.normalized_text)
+    except OpenRouterError as exc:
+        return CardBatchImportItemResponse(
+            source_text=source_text, status="upstream_error", message=exc.user_message
+        )
+    if result.status == "rejected":
+        return CardBatchImportItemResponse(
+            source_text=source_text,
+            status="rejected",
+            message=result.rejection.message_for_user,
+        )
+    return CardBatchImportItemResponse(
+        source_text=source_text,
+        status=result.status,
+        card_id=result.card.id,
+        canonical_text=result.card.canonical_text,
+    )
+
+
 @router.post("/batch", response_model=CardBatchImportResponse)
 def batch_import_cards(
     payload: CardBatchImportRequest,
@@ -94,51 +122,9 @@ def batch_import_cards(
     }
 
     for source_text in payload.source_texts:
-        validation = validate_source_input(source_text)
-        if validation.normalized_text is None:
-            summary_counts["invalid_input"] += 1
-            items.append(
-                CardBatchImportItemResponse(
-                    source_text=source_text,
-                    status="invalid_input",
-                    message=validation.error_message,
-                )
-            )
-            continue
-
-        try:
-            result = apply_source_text(session, openrouter_client, validation.normalized_text)
-        except OpenRouterError as exc:
-            summary_counts["upstream_error"] += 1
-            items.append(
-                CardBatchImportItemResponse(
-                    source_text=source_text,
-                    status="upstream_error",
-                    message=exc.user_message,
-                )
-            )
-            continue
-
-        if result.status == "rejected":
-            summary_counts["rejected"] += 1
-            items.append(
-                CardBatchImportItemResponse(
-                    source_text=source_text,
-                    status="rejected",
-                    message=result.rejection.message_for_user,
-                )
-            )
-            continue
-
-        summary_counts[result.status] += 1
-        items.append(
-            CardBatchImportItemResponse(
-                source_text=source_text,
-                status=result.status,
-                card_id=result.card.id,
-                canonical_text=result.card.canonical_text,
-            )
-        )
+        item = import_source_text(session, openrouter_client, source_text)
+        summary_counts[item.status] += 1
+        items.append(item)
 
     return CardBatchImportResponse(
         items=items,

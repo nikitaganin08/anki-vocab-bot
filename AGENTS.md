@@ -256,6 +256,7 @@ Validation rules:
 - `POST /api/review/{card_id}/grade` (409 on a stale `expected_due_at`)
 - `POST /api/review/undo`
 - `GET /api/cards/{card_id}/audio` (MP3 of `canonical_text`, see "Pronunciation")
+- `POST /api/clip` (browser extension, see "Browser extension"; bearer `CLIP_TOKEN` instead of Web App auth)
 - `GET /api/settings` (also read-only `tts_enabled`: `YANDEX_TTS_API_KEY` or `GOOGLE_TTS_API_KEY` is set)
 - `PUT /api/settings` (`tts_enabled` is not required and is ignored)
 
@@ -291,6 +292,12 @@ Production exposure (`deploy/nginx/anki.conf`):
 - Yandex setup: Yandex Cloud account, billing account, service account with role `ai.speechkit-tts.user`, an API key for it; put `YANDEX_TTS_API_KEY` in `/opt/anki-vocab-bot/.env`, then `docker compose up -d app`
 - Mini App: the first tap per card fetches the MP3 once per page load (object URL kept in memory, double taps share the request) and plays it with `new Audio`; on any failure, or without the key, it falls back to `speechSynthesis` (`en-US`, an English voice when listed), else stays silent
 - Cost: Yandex SpeechKit is about 1342 RUB per 1M characters including VAT (the whole 1.1k-word deck is about 20 RUB). Google Chirp 3 HD has a free tier of 1M characters per month (a word is ~10 characters); set a quota on the Text-to-Speech API in the GCP console so a bug cannot run up a bill
+
+## Browser extension
+
+- `extension/` is a Chrome (Manifest V3) extension: select text, right-click, "Add “…” to Wordloop". The service worker posts `{text}` to `POST {url}/api/clip` with `Authorization: Bearer <token>` and shows a notification (added, already in the dictionary, or the rejection message).
+- `POST /api/clip` (`app/api/clip.py`) runs the same import as `/api/cards/batch` for one text (`import_source_text`), so rare words are stored not-learning like everywhere else. Auth is `require_clip_token`: `CLIP_TOKEN` from `.env`, constant-time compare; unset token → 503, wrong → 401. Inert until the token is set.
+- Install: `chrome://extensions` → Developer mode → Load unpacked → `extension/`; the options page takes the API address (`https://<domain>/anki`) and the token, and asks Chrome for access to that origin only.
 
 ## Backups
 
