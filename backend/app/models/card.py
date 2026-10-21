@@ -24,6 +24,7 @@ class EntryType(str, Enum):
     PHRASAL_VERB = "phrasal_verb"
     COLLOCATION = "collocation"
     IDIOM = "idiom"
+    PROVERB = "proverb"
     EXPRESSION = "expression"
 
 

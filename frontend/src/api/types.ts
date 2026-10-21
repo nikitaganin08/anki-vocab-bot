@@ -5,6 +5,7 @@ export type EntryType =
   | "phrasal_verb"
   | "collocation"
   | "idiom"
+  | "proverb"
   | "expression";
 
 export interface WordFamilyItem {

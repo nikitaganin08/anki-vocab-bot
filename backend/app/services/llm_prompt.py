@@ -20,7 +20,7 @@ Accepted contract:
 {
   "accepted": true,
   "source_language": "ru" | "en",
-  "entry_type": "word" | "phrasal_verb" | "collocation" | "idiom" | "expression",
+  "entry_type": "word" | "phrasal_verb" | "collocation" | "idiom" | "proverb" | "expression",
   "canonical_text": "...",
   "transcription": "...",
   "translation_variants": ["...", "..."],
@@ -54,7 +54,14 @@ Rules:
 - Accept only a single word or a stable lexical unit.
 - Reject function words on their own (articles, pronouns, auxiliaries,
   prepositions, conjunctions).
-- Reject free-form phrases or full sentences.
+- Reject free-form phrases or full sentences. A well-known proverb or saying is the one
+  accepted exception.
+- entry_type: "word" is a single word; "phrasal_verb" is a verb plus particle whose meaning
+  changes (give up); "collocation" is words that usually go together, including verb plus
+  preposition (make a decision, depend on); "idiom" has a meaning that does not follow from
+  its words (kick the bucket); "proverb" is a proverb or saying (better late than never);
+  "expression" is any other stable phrase: linking phrases, fixed pairs, set phrases
+  (by the way, back and forth).
 - Use the same accepted contract for both source_language values ("ru" and "en").
 - source_language describes the language of input only and must not change the response shape.
 - canonical_text, explanation, examples, and chunk text must be English.
@@ -75,7 +82,7 @@ Rules:
 - Preserve translation_variants ordering: primary translation first, then synonyms/variants.
 - For entry_type "word", word_family may contain 0 to 3 established English derivational
   forms related to canonical_text.
-- For entry_type "phrasal_verb", "collocation", "idiom", or "expression", word_family
+- For entry_type "phrasal_verb", "collocation", "idiom", "proverb", or "expression", word_family
   must be an empty list; do not derive forms from individual words in a multi-word unit.
 - Each word_family item must include the English word, its part of speech, and
   a Russian translation.

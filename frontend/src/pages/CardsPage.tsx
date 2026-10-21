@@ -8,9 +8,11 @@ import { useEffect, useState } from "react";
 
 import { getCards } from "../api/client";
 import type { Card, CardListResponse } from "../api/types";
+import { ENTRY_TYPES } from "../entryTypes";
 import { EmptyState, ErrorState, LoadingState } from "../components/PageState";
 import { AddWordsSheet } from "./AddWordsSheet";
 import { CardSheet } from "./CardSheet";
+import { EntryTypesSheet } from "./EntryTypesSheet";
 
 const PAGE_SIZE = 50;
 const SEARCH_DEBOUNCE_MS = 300;
@@ -90,6 +92,9 @@ export function CardsPage(): JSX.Element {
   const search = params.get("q") ?? "";
   const filter = FILTERS.find((f) => f.value === params.get("filter")) ?? FILTERS[0];
 
+  const entryType = ENTRY_TYPES.find((t) => t.value === params.get("type"));
+  const [showTypes, setShowTypes] = useState(false);
+
   const [searchDraft, setSearchDraft] = useState(search);
   const [adding, setAdding] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -104,7 +109,7 @@ export function CardsPage(): JSX.Element {
   }, [searchDraft, search]);
 
   const cardsQuery = useInfiniteQuery({
-    queryKey: ["cards", { search, filter: filter.value }],
+    queryKey: ["cards", { search, filter: filter.value, type: entryType?.value }],
     initialPageParam: 0,
     queryFn: ({ pageParam }) =>
       getCards({
@@ -112,6 +117,7 @@ export function CardsPage(): JSX.Element {
         limit: PAGE_SIZE,
         search: search || undefined,
         is_learning: filter.isLearning,
+        entry_type: entryType?.value,
       }),
     getNextPageParam: (last, pages) => {
       const loaded = pages.reduce((count, page) => count + page.items.length, 0);
@@ -154,7 +160,7 @@ export function CardsPage(): JSX.Element {
     list = <ErrorState error={cardsQuery.error} onRetry={() => void cardsQuery.refetch()} />;
   } else if (items.length === 0) {
     list =
-      search || filter.value !== "all" ? (
+      search || filter.value !== "all" || entryType ? (
         <EmptyState title="Nothing found" message="Change the search or the filter." />
       ) : (
         <EmptyState title="No words yet" message="Tap + to add some." />
@@ -221,7 +227,26 @@ export function CardsPage(): JSX.Element {
         ))}
       </div>
 
+      <div className="filter-chips" role="group" aria-label="Type">
+        {[{ value: null, label: "All types" }, ...ENTRY_TYPES].map((t) => (
+          <button
+            key={t.value ?? "all"}
+            type="button"
+            className="filter-chip"
+            aria-pressed={(t.value ?? undefined) === entryType?.value}
+            onClick={() => updateParams({ type: t.value })}
+          >
+            {t.label}
+          </button>
+        ))}
+        <button type="button" className="link-button" onClick={() => setShowTypes(true)}>
+          What are these types?
+        </button>
+      </div>
+
       {list}
+
+      {showTypes ? <EntryTypesSheet onClose={() => setShowTypes(false)} /> : null}
 
       {adding ? <AddWordsSheet onClose={() => setAdding(false)} /> : null}
       {selected ? (
