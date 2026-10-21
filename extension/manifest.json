@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Wordloop",
+  "version": "1.0.0",
+  "description": "Add the selected word or expression to Wordloop.",
+  "permissions": ["contextMenus", "storage", "notifications"],
+  "optional_host_permissions": ["https://*/*"],
+  "background": { "service_worker": "background.js" },
+  "options_page": "options.html"
+}

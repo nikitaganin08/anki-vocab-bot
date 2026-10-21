@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
-from app.api import cards, review, settings, telegram_webhook
+from app.api import cards, clip, review, settings, telegram_webhook
 from app.bot.runtime import get_bot_runtime
 from app.core.config import get_settings
 from app.db.session import SessionLocal
@@ -37,6 +37,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(title="anki-vocab-bot", lifespan=lifespan)
 
 app.include_router(cards.router)
+app.include_router(clip.router)
 app.include_router(review.router)
 app.include_router(settings.router)
 app.include_router(telegram_webhook.router)

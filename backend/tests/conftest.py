@@ -33,6 +33,7 @@ class TelegramSettingsStub:
     google_tts_voice: str = "en-US-Chirp3-HD-Aoede"
     yandex_tts_api_key: str | None = None
     yandex_tts_voice: str = "john"
+    clip_token: str | None = "secret"
 
 
 @pytest.fixture

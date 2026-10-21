@@ -17,6 +17,7 @@ def default_database_url() -> str:
 class Settings(BaseSettings):
     telegram_bot_token: str | None = Field(default=None, alias="TELEGRAM_BOT_TOKEN")
     telegram_allowed_user_id: int | None = Field(default=None, alias="TELEGRAM_ALLOWED_USER_ID")
+    clip_token: str | None = Field(default=None, alias="CLIP_TOKEN")
     telegram_webhook_url: str | None = Field(default=None, alias="TELEGRAM_WEBHOOK_URL")
     telegram_webhook_secret: str | None = Field(default=None, alias="TELEGRAM_WEBHOOK_SECRET")
     telegram_webapp_url: str | None = Field(default=None, alias="TELEGRAM_WEBAPP_URL")

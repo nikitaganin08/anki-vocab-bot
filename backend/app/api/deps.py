@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 from typing import Annotated
 
 from fastapi import Header, HTTPException, status
@@ -66,3 +67,15 @@ def require_telegram_webapp_user(
         bot_token=settings.telegram_bot_token,
         allowed_user_id=settings.telegram_allowed_user_id,
     )
+
+
+def require_clip_token(authorization: Annotated[str | None, Header()] = None) -> None:
+    """Bearer token for the browser extension; the Mini App auth cannot be used there."""
+    token = get_settings().clip_token
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Clipping is not configured"
+        )
+    supplied = (authorization or "").removeprefix("Bearer ")
+    if not hmac.compare_digest(supplied.encode(), token.encode()):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
