@@ -200,6 +200,23 @@ describe("CardsPage", () => {
     expect(await screen.findByText("Nothing found")).toBeInTheDocument();
   });
 
+  it("filters by card type and explains the types", async () => {
+    window.history.replaceState(null, "", "/telegram/webapp/?view=cards");
+    renderCardsPage();
+    await waitFor(() => expect(mockedGetCards).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Idiom" }));
+
+    await waitFor(() => expect(mockedGetCards).toHaveBeenLastCalledWith(expect.objectContaining({ entry_type: "idiom" })));
+    expect(new URLSearchParams(window.location.search).get("type")).toBe("idiom");
+
+    fireEvent.click(screen.getByRole("button", { name: "All types" }));
+    await waitFor(() => expect(mockedGetCards).toHaveBeenLastCalledWith(expect.objectContaining({ entry_type: undefined })));
+
+    fireEvent.click(screen.getByRole("button", { name: "What are these types?" }));
+    expect(await screen.findByText("A proverb or saying")).toBeInTheDocument();
+  });
+
   it("maps the filter chips to is_learning and keeps the choice in the URL", async () => {
     window.history.replaceState(null, "", "/telegram/webapp/?view=cards#tgWebAppData=signed");
     renderCardsPage();

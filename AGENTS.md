@@ -16,6 +16,7 @@ The app receives words and stable expressions from Telegram, generates learning 
   - phrasal verbs
   - collocations
   - idioms
+  - proverbs
   - short stable expressions
 - Source input languages: Russian (`ru`) and English (`en`)
 - Input length limit: 1 to 8 tokens
@@ -163,7 +164,8 @@ Validation rules:
   - `phrasal_verb`
   - `collocation`
   - `idiom`
-  - `expression`
+  - `proverb`
+  - `expression` (shown as "Phrase": linking phrases, fixed pairs, any other stable phrase)
 - `canonical_text` must be English
 - `transcription` is General American (US) IPA wrapped in slashes, e.g. `/ˈhɔːnt/` (no square brackets, no syllable dots, stress marks included, US vowels and r-coloured vowels instead of the British ɒ, əʊ, ɪə, eə, ʊə); multi-word units are transcribed word by word inside one pair of slashes; `null` only when the model cannot produce one. The format is a prompt rule, not validated
 - `explanation` must be English and, by prompt rule, must not contain the word itself (older cards may; the hint masks it)
@@ -270,9 +272,9 @@ Views are switched by `?view=` (`history.replaceState`, other params and the has
 - Bottom tab bar (`src/components/TabBar.tsx`): Home (`home`), Review (`review`), Words (`cards`), Settings (`settings`). Hidden during a review; the Telegram BackButton leaves the review to Home.
 - Home (`src/home/`): today's goal, progress first: headline "{done} of {total} done today" (total = `done_today + due_today + new_today` distinct cards; "Done for today" when total is 0), a thin progress bar, one row with "{left} left" and "~{est_minutes} min" at the right edge, then "Start" and "Quick: 5 cards" (ends after 5 graded cards); retention tile (big number, "goal 90%", muted "Hard h% · Again a%" line) and learned tile, 14-week heatmap, streak line (only from 3 days), forecast, backlog. After 3+ study days away with cards due it shows "Welcome back" instead: "5 minutes" (card cap from today's pace), "Regular session", "All at once (N)" (`include_backlog=true`).
 - Review (`src/review/`): `useReviewSession` drives the flow in rounds of 10 (5 for "Quick") from `GET /api/review/session`. New cards show an intro ("New word" chip, full card, "Got it"), and the typed question for that card comes two items later in the same round. Question → `check` → back side with the diff, the full card and four grade buttons "Again / Hard / Good / Easy" (auto rating highlighted; after a wrong answer "My answer was right" forces Good) → `grade`. `grade` echoes `srs_due_at` verbatim as `expected_due_at`; a 409 refetches the round. After each round: "Round complete" with "Today X of Y" from the same distinct-card counts as Home (an Again does not count as done until the card passes); an empty session shows "Done for today".
-- Full card (`CardDetails` in `src/review/IntroCard.tsx`, intro and back side): word + speaker + IPA → translations → explanation (full English definition) → "Usage" chunks → one example → word family, one form per line ("distinguishable (adjective) — различимый").
+- Full card (`CardDetails` in `src/review/IntroCard.tsx`, intro and back side): word + speaker + IPA → type chip (`src/entryTypes.ts`) → translations → explanation (full English definition) → "Usage" chunks → one example → word family, one form per line ("distinguishable (adjective) — различимый").
 - Settings (`src/settings/`): daily limits, desired retention, reminder hour and anchor, learn threshold, timezone; saved with `PUT /api/settings`. On each Mini App load the shell saves the device timezone (`Intl.DateTimeFormat().resolvedOptions().timeZone`) when it differs from the stored one; a zone picked by hand in Settings is replaced on the next load if the device reports another.
-- Words (`src/pages/CardsPage.tsx`, sheets in `AddWordsSheet.tsx` and `CardSheet.tsx`, shared `src/components/Sheet.tsx`): a search box (debounced) with a "+" button, filter chips "All" / "Learning" / "Not learning" (`is_learning`), then a compact row per card: status dot (blue new, amber learning/relearning, green review, grey not learning), word, primary translation and a right-hand label ("new", "today", "N d", "off"; the day follows the browser's local time). 50 cards per page with "Load more" (offset paging). `q` and `filter` live in the query string. "+" opens the "Add words" sheet (batch import, 5 words per request). A row tap opens a bottom sheet with the full card (`CardDetails`), a "Learning" switch (`PATCH /api/cards/{card_id}`), "Delete" (with a confirm dialog) and "Close"; Escape or a backdrop tap closes it and focus returns to the row.
+- Words (`src/pages/CardsPage.tsx`, sheets in `AddWordsSheet.tsx` and `CardSheet.tsx`, shared `src/components/Sheet.tsx`): a search box (debounced) with a "+" button, filter chips "All" / "Learning" / "Not learning" (`is_learning`), a second chip row by card type ("All types", Word, Phrasal verb, Collocation, Idiom, Proverb, Phrase; `type` in the query string, `entry_type` in the API) with a "What are these types?" sheet (`EntryTypesSheet`), then a compact row per card: status dot (blue new, amber learning/relearning, green review, grey not learning), word, primary translation and a right-hand label ("new", "today", "N d", "off"; the day follows the browser's local time). 50 cards per page with "Load more" (offset paging). `q` and `filter` live in the query string. "+" opens the "Add words" sheet (batch import, 5 words per request). A row tap opens a bottom sheet with the full card (`CardDetails`), a "Learning" switch (`PATCH /api/cards/{card_id}`), "Delete" (with a confirm dialog) and "Close"; Escape or a backdrop tap closes it and focus returns to the row.
 
 The UI reads only from backend JSON endpoints.
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { getSettings } from "../api/client";
 import type { Card } from "../api/types";
 import { DeleteCardDialog } from "../components/DeleteCardDialog";
+import { entryTypeLabel } from "../entryTypes";
 import { canSpeak, playPronunciation } from "./speak";
 
 // Tabler "volume" outline icon (MIT), 24x24.
@@ -42,6 +43,7 @@ export function CardDetails({ card }: { card: Card }): JSX.Element {
         ) : null}
         {card.transcription ? <span className="section-label">{card.transcription}</span> : null}
       </div>
+      <span className="info-chip">{entryTypeLabel(card.entry_type)}</span>
       <p>{card.translation_variants.join(", ")}</p>
       {card.explanation ? <p>{card.explanation}</p> : null}
       {card.chunks.length > 0 ? (

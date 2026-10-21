@@ -46,7 +46,7 @@ def test_system_prompt_requires_word_family_items_and_examples() -> None:
         in SYSTEM_PROMPT
     )
     assert (
-        'For entry_type "phrasal_verb", "collocation", "idiom", or "expression", word_family'
+        'For entry_type "phrasal_verb", "collocation", "idiom", "proverb", or "expression",'
         in SYSTEM_PROMPT
     )
     assert "do not derive forms from individual words in a multi-word unit." in SYSTEM_PROMPT
@@ -79,3 +79,10 @@ def test_system_prompt_anchors_the_frequency_scale() -> None:
     assert "10 = top 1000" in SYSTEM_PROMPT
     assert "5 = top 20000" in SYSTEM_PROMPT
     assert "0 = practically never used" in SYSTEM_PROMPT
+
+
+def test_system_prompt_defines_every_entry_type() -> None:
+    from app.models.card import EntryType
+
+    for entry_type in EntryType:
+        assert f'"{entry_type.value}"' in SYSTEM_PROMPT
