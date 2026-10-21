@@ -177,7 +177,7 @@ Validation rules:
   - `[]` when the unit has no frequent chunks
 - for multi-token canonical text, the first example or at least one chunk must reference it
 - `word_family` has at most 3 items
-- `frequency` must be in range `0..10`
+- `frequency` must be in range `0..10`; the prompt anchors it to word rank in general English (10 = top 1000, 8 = top 5000, 5 = top 20000, 3 = specialist or literary, 0 = never used) and tells the model to use the whole scale. It is still the model's estimate, and cards stored before this keep their old, generous values (most 7-9)
 - the prompt tells the LLM to reject function words on their own (articles, pronouns, auxiliaries, prepositions, conjunctions)
 
 ## Data Model

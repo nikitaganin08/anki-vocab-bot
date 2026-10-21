@@ -73,3 +73,9 @@ def test_prompt_requires_general_american_ipa_in_slashes() -> None:
     assert "always wrapped in slashes" in SYSTEM_PROMPT
     assert "ɒ, əʊ, ɪə, eə, ʊə" in SYSTEM_PROMPT
     assert "Never provide transcription for the Russian source term" in SYSTEM_PROMPT
+
+
+def test_system_prompt_anchors_the_frequency_scale() -> None:
+    assert "10 = top 1000" in SYSTEM_PROMPT
+    assert "5 = top 20000" in SYSTEM_PROMPT
+    assert "0 = practically never used" in SYSTEM_PROMPT
