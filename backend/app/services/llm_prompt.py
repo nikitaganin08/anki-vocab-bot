@@ -93,7 +93,13 @@ Rules:
   must not add words beyond canonical_text (text "the sales ledger", target "ledger").
 - Each chunk translation must be the Russian translation of the whole chunk text.
 - Return "chunks": [] when canonical_text has no frequent chunks (rare or technical words).
-- frequency must be an integer from 0 to 10.
+- frequency must be an integer from 0 to 10: how common canonical_text is in general English
+  (speech, news, work), by its rank among English words and expressions:
+  10 = top 1000 ("get up"), 9 = top 3000, 8 = top 5000 ("reluctant"), 7 = top 8000,
+  6 = top 12000, 5 = top 20000 ("ledger"), 4 = top 35000, 3 = specialist or literary
+  ("hoodwink"), 2 = rare, 1 = archaic ("betwixt"), 0 = practically never used.
+  Use the whole scale, do not default to 7-9. frequency_note is one short sentence saying
+  where the unit is used.
 - If you cannot provide one primary Russian translation
   and at least one Russian synonym/variant, reject.
 - If unsure whether the input is a stable lexical unit, reject it.
