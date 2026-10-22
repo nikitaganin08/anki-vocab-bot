@@ -8,6 +8,7 @@ from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import Command
 
 from app.bot.handler import (
+    SynonymSwap,
     TelegramAdminWebAppHandler,
     TelegramDescriptionLookupHandler,
     TelegramLearnCallbackHandler,
@@ -47,6 +48,26 @@ def _set_learning(card_id: int, is_learning: bool) -> Card | None:
         return card
 
 
+def _build_swap_for_synonym(client: OpenRouterClient) -> Callable[[int], SynonymSwap | None]:
+    def swap(card_id: int) -> SynonymSwap | None:
+        with SessionLocal() as session:
+            card = session.get(Card, card_id)
+            if card is None or not card.common_synonym:
+                return None
+            old = card.canonical_text
+            result = apply_source_text(session, client, card.common_synonym)
+            if result.card is None:
+                return SynonymSwap(old=old, new=None, status="rejected")
+            # The user picked this word, so it is learned whatever its own frequency is.
+            result.card.is_learning = True
+            if result.card.id != card.id:
+                session.delete(card)
+            session.commit()
+            return SynonymSwap(old=old, new=result.card.canonical_text, status=result.status)
+
+    return swap
+
+
 def build_bot_router(
     text_handler: TelegramTextHandler,
     description_lookup_handler: TelegramDescriptionLookupHandler,
@@ -64,7 +85,7 @@ def build_bot_router(
     async def handle_review_command(message) -> None:
         await review_handler.handle_message(message)
 
-    @router.callback_query(F.data.regexp(r"^(learn|skip):\d+$"))
+    @router.callback_query(F.data.regexp(r"^(learn|skip|alt):\d+$"))
     async def handle_learn_callback(callback) -> None:
         await learn_callback_handler.handle_callback(callback)
 
@@ -117,6 +138,7 @@ def build_bot_runtime() -> BotRuntime:
     learn_callback_handler = TelegramLearnCallbackHandler(
         allowed_user_id=settings.telegram_allowed_user_id,
         set_learning=_set_learning,
+        swap_for_synonym=_build_swap_for_synonym(openrouter_client),
     )
     dispatcher.include_router(
         build_bot_router(

@@ -162,8 +162,19 @@ class AcceptedLlmResponse(BaseModel):
     chunks: list[CardChunk] = Field(default_factory=list, max_length=5)
     frequency: int = Field(ge=0, le=10)
     frequency_note: str | None = None
+    common_synonym: str | None = None
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("common_synonym")
+    @classmethod
+    def normalize_common_synonym(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = _normalize_whitespace(value)
+        if not normalized or CYRILLIC_PATTERN.search(normalized):
+            return None
+        return normalized
 
     @field_validator("chunks", mode="before")
     @classmethod
@@ -221,6 +232,8 @@ class AcceptedLlmResponse(BaseModel):
     @model_validator(mode="after")
     def validate_contract_semantics(self) -> "AcceptedLlmResponse":
         canonical_text_casefolded = self.canonical_text.casefold()
+        if self.common_synonym and self.common_synonym.casefold() == canonical_text_casefolded:
+            self.common_synonym = None
         self.word_family = [
             item for item in self.word_family if item.word.casefold() != canonical_text_casefolded
         ]

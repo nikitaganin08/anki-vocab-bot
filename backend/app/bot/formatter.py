@@ -55,7 +55,10 @@ def format_duplicate_message(card: Card) -> str:
 
 
 def format_rare_word_prompt(card: Card) -> str:
-    return f"Rare word ({card.frequency}/10). Learn it?"
+    text = f"Rare word ({card.frequency}/10). Learn it?"
+    if card.common_synonym:
+        text += f"\nA more common word with the same meaning: {card.common_synonym}."
+    return text
 
 
 def format_card_service_result(result: CardServiceResult) -> tuple[str, str | None]:

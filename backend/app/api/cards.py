@@ -21,7 +21,7 @@ from app.bot.input_validation import validate_source_input
 from app.clients.openrouter import OpenRouterClient, OpenRouterError
 from app.db.session import get_session
 from app.models.card import Card, EntryType, SourceLanguage
-from app.services.card_service import apply_source_text
+from app.services.card_service import CardServiceResult, apply_source_text
 from app.services.pronunciation import PronunciationAudioError, TtsClient
 
 logger = logging.getLogger(__name__)
@@ -79,30 +79,35 @@ def list_cards(
 
 def import_source_text(
     session: Session, openrouter_client: OpenRouterClient, source_text: str
-) -> CardBatchImportItemResponse:
+) -> tuple[CardBatchImportItemResponse, CardServiceResult | None]:
+    """The item for the API reply and, when the LLM ran, the service result (for Telegram)."""
     validation = validate_source_input(source_text)
     if validation.normalized_text is None:
-        return CardBatchImportItemResponse(
+        item = CardBatchImportItemResponse(
             source_text=source_text, status="invalid_input", message=validation.error_message
         )
+        return item, None
     try:
         result = apply_source_text(session, openrouter_client, validation.normalized_text)
     except OpenRouterError as exc:
-        return CardBatchImportItemResponse(
+        item = CardBatchImportItemResponse(
             source_text=source_text, status="upstream_error", message=exc.user_message
         )
+        return item, None
     if result.status == "rejected":
-        return CardBatchImportItemResponse(
+        item = CardBatchImportItemResponse(
             source_text=source_text,
             status="rejected",
             message=result.rejection.message_for_user,
         )
-    return CardBatchImportItemResponse(
+        return item, result
+    item = CardBatchImportItemResponse(
         source_text=source_text,
         status=result.status,
         card_id=result.card.id,
         canonical_text=result.card.canonical_text,
     )
+    return item, result
 
 
 @router.post("/batch", response_model=CardBatchImportResponse)
@@ -122,7 +127,7 @@ def batch_import_cards(
     }
 
     for source_text in payload.source_texts:
-        item = import_source_text(session, openrouter_client, source_text)
+        item, _ = import_source_text(session, openrouter_client, source_text)
         summary_counts[item.status] += 1
         items.append(item)
 
