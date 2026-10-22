@@ -376,7 +376,7 @@ Focus areas:
 ## Defaults and Constraints
 
 - Single-user only in the first version
-- Telegram runs in webhook mode
+- Telegram runs in webhook mode; the deploy sets `allowed_updates` to `message` and `callback_query` (without `callback_query` the inline buttons never reach the bot and spin forever)
 - Rate limit: no more than 5 requests per minute from the allowed user
 - Review defaults: 5 new / 50 reviews per day, desired retention 0.9, learn threshold 3, reminder at 10:00, day starts at local midnight, timezone follows the device
 - Default LLM model: `google/gemini-2.5-flash-lite`

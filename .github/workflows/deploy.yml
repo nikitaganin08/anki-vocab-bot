@@ -104,7 +104,8 @@ jobs:
           set -euo pipefail
           response=$(curl -sS --fail "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/setWebhook" \
             -d "url=${{ secrets.TELEGRAM_WEBHOOK_URL }}" \
-            -d "secret_token=${{ secrets.TELEGRAM_WEBHOOK_SECRET }}")
+            -d "secret_token=${{ secrets.TELEGRAM_WEBHOOK_SECRET }}" \
+            --data-urlencode 'allowed_updates=["message","callback_query"]')
           echo "$response"
           echo "$response" | grep -q '"ok":true'
 
@@ -122,3 +123,4 @@ jobs:
           info=$(curl -sS --fail "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/getWebhookInfo")
           echo "$info"
           echo "$info" | grep -q "\"url\":\"${{ secrets.TELEGRAM_WEBHOOK_URL }}\""
+          echo "$info" | grep -q 'callback_query'
