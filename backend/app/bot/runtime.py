@@ -57,13 +57,13 @@ def _build_swap_for_synonym(client: OpenRouterClient) -> Callable[[int], Synonym
             old = card.canonical_text
             result = apply_source_text(session, client, card.common_synonym)
             if result.card is None:
-                return SynonymSwap(old=old, new=None, status="rejected")
-            # The user picked this word, so it is learned whatever its own frequency is.
+                return SynonymSwap(old=old, result=None)
+            # The user picked this word, so it is learned whatever its own frequency is;
+            # the rare word stays in the dictionary as it was (not learning).
             result.card.is_learning = True
-            if result.card.id != card.id:
-                session.delete(card)
             session.commit()
-            return SynonymSwap(old=old, new=result.card.canonical_text, status=result.status)
+            session.refresh(result.card)
+            return SynonymSwap(old=old, result=result)
 
     return swap
 

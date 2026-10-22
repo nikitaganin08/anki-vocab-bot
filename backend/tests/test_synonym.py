@@ -39,9 +39,13 @@ def test_rare_prompt_offers_the_synonym() -> None:
 @dataclass
 class StubMessage:
     edits: list[str] = field(default_factory=list)
+    answers: list[tuple[str, str | None]] = field(default_factory=list)
 
     async def edit_text(self, text: str) -> None:
         self.edits.append(text)
+
+    async def answer(self, text: str, parse_mode: str | None = None) -> None:
+        self.answers.append((text, parse_mode))
 
 
 @dataclass
@@ -54,37 +58,40 @@ class StubCallback:
     data: str
     message: StubMessage = field(default_factory=StubMessage)
     from_user: StubFrom = field(default_factory=StubFrom)
-    alerts: list[str] = field(default_factory=list)
 
     async def answer(self, text: str | None = None, show_alert: bool = False) -> None:
-        if text:
-            self.alerts.append(text)
+        return None
 
 
-@pytest.mark.parametrize(
-    ("swap", "expected"),
-    [
-        (SynonymSwap("cuddle", "hug", "created"), "Learning “hug” instead of “cuddle”"),
-        (
-            SynonymSwap("cuddle", "hug", "duplicate_canonical"),
-            "“hug” is already in your dictionary. Removed “cuddle”.",
-        ),
-        (
-            SynonymSwap("cuddle", None, "rejected"),
-            "Could not add the synonym. Kept “cuddle” as not learning.",
-        ),
-        (None, "Card not found"),
-    ],
-)
-def test_alt_callback_swaps_the_word(swap: SynonymSwap | None, expected: str) -> None:
+def _run_alt(swap: SynonymSwap | None) -> StubCallback:
     handler = TelegramLearnCallbackHandler(
         allowed_user_id=42, set_learning=lambda *_: None, swap_for_synonym=lambda _id: swap
     )
     callback = StubCallback(data="alt:7")
-
     asyncio.run(handler.handle_callback(callback))
+    return callback
 
-    assert callback.message.edits == [expected]
+
+@pytest.mark.parametrize("status", ["created", "duplicate_canonical"])
+def test_alt_callback_keeps_the_rare_word_and_sends_the_new_card(status: str) -> None:
+    pamper = make_card(id=9, canonical_text="pamper", frequency=5)
+    callback = _run_alt(SynonymSwap("coddle", CardServiceResult(status=status, card=pamper)))
+
+    assert callback.message.edits == [
+        "Learning “pamper”. “coddle” stays in your dictionary as not learning."
+    ]
+    text, parse_mode = callback.message.answers[0]
+    assert parse_mode == "HTML"
+    assert "pamper" in text
+    assert text.startswith("✅ Added" if status == "created" else "ℹ️ Already")
+
+
+def test_alt_callback_when_the_synonym_is_rejected_or_the_card_is_gone() -> None:
+    rejected = _run_alt(SynonymSwap("coddle", None))
+    assert rejected.message.edits == ["Could not add the synonym. Kept “coddle” as not learning."]
+    assert rejected.message.answers == []
+
+    assert _run_alt(None).message.edits == ["Card not found"]
 
 
 def test_notify_sends_the_card_and_the_rare_prompt(monkeypatch: pytest.MonkeyPatch) -> None:

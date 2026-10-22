@@ -105,7 +105,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 11. If a canonical duplicate is found, the backend returns the existing card and marks it as already in the dictionary.
 12. Otherwise, the backend stores the card in SQLite.
 13. The backend renders and sends the Telegram response from stored structured fields.
-14. Cards with `frequency >= learn_threshold` (`app_settings`, default 3) are stored with `is_learning = true`; rarer cards are stored with `is_learning = false` and the bot asks "Rare word (N/10). Learn it?" with "Learn" / "Skip" inline buttons (`learn:<id>` / `skip:<id>`) (also on a duplicate of a not-learning card). When the card has a `common_synonym`, the prompt names it and adds a "Use “<synonym>”" button (`alt:<id>`): the synonym is added (or found) as a learning card and the rare card is deleted.
+14. Cards with `frequency >= learn_threshold` (`app_settings`, default 3) are stored with `is_learning = true`; rarer cards are stored with `is_learning = false` and the bot asks "Rare word (N/10). Learn it?" with "Learn" / "Skip" inline buttons (`learn:<id>` / `skip:<id>`) (also on a duplicate of a not-learning card). When the card has a `common_synonym`, the prompt names it and adds a "Use “<synonym>”" button (`alt:<id>`): the synonym is added (or found) as a learning card, the bot sends its card message to the chat, and the rare card stays in the dictionary as not learning.
 15. Learning cards enter the FSRS review queue in the Mini App.
 
 ## Review (SRS)
