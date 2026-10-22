@@ -68,7 +68,7 @@ def test_drop_anki_columns_roundtrip(tmp_path: Path, monkeypatch: pytest.MonkeyP
         assert ANKI_INDEX in indexes()
         before, other_indexes, unique = other_data(), indexes() - {ANKI_INDEX}, uniques()
 
-        command.upgrade(config, "head")
+        command.upgrade(config, "20261018_0006")
         assert not ANKI_COLUMNS & columns()
         assert indexes() == other_indexes
         assert other_data() == before
@@ -85,11 +85,32 @@ def test_drop_anki_columns_roundtrip(tmp_path: Path, monkeypatch: pytest.MonkeyP
             ).all()
         assert restored == [("pending", None, None)] * 2
 
-        command.upgrade(config, "head")
+        command.upgrade(config, "20261018_0006")
         assert not ANKI_COLUMNS & columns()
         assert indexes() == other_indexes
         assert other_data() == before
         assert uniques() == unique
+    finally:
+        engine.dispose()
+        get_settings.cache_clear()
+
+
+def test_common_synonym_migration_adds_a_nullable_column(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_url = f"sqlite:///{(tmp_path / 'syn.db').as_posix()}"
+    monkeypatch.setenv("DATABASE_URL", db_url)
+    get_settings.cache_clear()
+    config = Config()
+    config.set_main_option("script_location", str(ALEMBIC_DIR))
+    engine = sa.create_engine(db_url)
+    try:
+        command.upgrade(config, "head")
+        cols = {c["name"]: c for c in sa.inspect(engine).get_columns("cards")}
+        assert cols["common_synonym"]["nullable"] is True
+
+        command.downgrade(config, "20261018_0006")
+        assert "common_synonym" not in {c["name"] for c in sa.inspect(engine).get_columns("cards")}
     finally:
         engine.dispose()
         get_settings.cache_clear()

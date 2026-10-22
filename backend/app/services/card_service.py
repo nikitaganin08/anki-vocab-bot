@@ -70,6 +70,7 @@ def apply_source_text(
         chunks_json=[chunk.model_dump() for chunk in llm_result.chunks],
         frequency=llm_result.frequency,
         frequency_note=llm_result.frequency_note,
+        common_synonym=llm_result.common_synonym,
         is_learning=llm_result.frequency >= get_app_settings(session).learn_threshold,
         llm_model=openrouter_client.model,
     )

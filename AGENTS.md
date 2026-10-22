@@ -105,7 +105,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 11. If a canonical duplicate is found, the backend returns the existing card and marks it as already in the dictionary.
 12. Otherwise, the backend stores the card in SQLite.
 13. The backend renders and sends the Telegram response from stored structured fields.
-14. Cards with `frequency >= learn_threshold` (`app_settings`, default 3) are stored with `is_learning = true`; rarer cards are stored with `is_learning = false` and the bot asks "Rare word (N/10). Learn it?" with "Learn" / "Skip" inline buttons (`learn:<id>` / `skip:<id>`) (also on a duplicate of a not-learning card).
+14. Cards with `frequency >= learn_threshold` (`app_settings`, default 3) are stored with `is_learning = true`; rarer cards are stored with `is_learning = false` and the bot asks "Rare word (N/10). Learn it?" with "Learn" / "Skip" inline buttons (`learn:<id>` / `skip:<id>`) (also on a duplicate of a not-learning card). When the card has a `common_synonym`, the prompt names it and adds a "Use “<synonym>”" button (`alt:<id>`): the synonym is added (or found) as a learning card and the rare card is deleted.
 15. Learning cards enter the FSRS review queue in the Mini App.
 
 ## Review (SRS)
@@ -150,6 +150,7 @@ Accepted result:
 - `word_family`
 - `frequency`
 - `frequency_note`
+- `common_synonym` (optional)
 
 Rejected result:
 - `accepted = false`
@@ -180,6 +181,7 @@ Validation rules:
 - for multi-token canonical text, the first example or at least one chunk must reference it
 - `word_family` has at most 3 items
 - `frequency` must be in range `0..10`; the prompt anchors it to word rank in general English (10 = top 1000, 8 = top 5000, 5 = top 20000, 3 = specialist or literary, 0 = never used) and tells the model to use the whole scale. It is still the model's estimate, and cards stored before this keep their old, generous values (most 7-9)
+- `common_synonym` is a clearly more common English word or short expression with the same main meaning, or `null` (also when it equals `canonical_text` or contains Cyrillic); stored on the card and used only by the rare-word prompt
 - the prompt tells the LLM to reject function words on their own (articles, pronouns, auxiliaries, prepositions, conjunctions)
 
 ## Data Model
@@ -198,6 +200,7 @@ Validation rules:
 - `examples_json`
 - `frequency`
 - `frequency_note`
+- `common_synonym` (nullable)
 - `is_learning` (drives the review queue)
 - `word_family_json`
 - `chunks_json` (list of `{text, target, translation}`, default `[]`)
@@ -297,7 +300,7 @@ Production exposure (`deploy/nginx/anki.conf`):
 
 ## Browser extension
 
-- `extension/` is a Chrome (Manifest V3) extension: select text, right-click, "Add “…” to Wordloop". The service worker posts `{text}` to `POST {url}/api/clip` with `Authorization: Bearer <token>` and shows a notification (added, already in the dictionary, or the rejection message).
+- `extension/` is a Chrome (Manifest V3) extension: select text, right-click, "Add “…” to Wordloop". The service worker posts `{text}` to `POST {url}/api/clip` with `Authorization: Bearer <token>` and shows a notification (added, already in the dictionary, or the rejection message). The backend also sends the usual bot messages to the allowed user (`app/bot/notify.py`, Bot API `sendMessage`): the card message and, for a rare word, the "Learn / Skip / Use synonym" prompt; a Telegram failure is only logged.
 - `POST /api/clip` (`app/api/clip.py`) runs the same import as `/api/cards/batch` for one text (`import_source_text`), so rare words are stored not-learning like everywhere else. Auth is `require_clip_token`: `CLIP_TOKEN` from `.env`, constant-time compare; unset token → 503, wrong → 401. Inert until the token is set.
 - Install: `chrome://extensions` → Developer mode → Load unpacked → `extension/`; the options page takes the API address (`https://<domain>/anki`) and the token, and asks Chrome for access to that origin only.
 

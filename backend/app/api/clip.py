@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.cards import import_source_text
 from app.api.deps import get_openrouter_client, require_clip_token
 from app.api.schemas import CardBatchImportItemResponse
+from app.bot.notify import send_card_result
 from app.clients.openrouter import OpenRouterClient
 from app.db.session import get_session
 
@@ -26,4 +27,7 @@ def clip(
     openrouter_client: Annotated[OpenRouterClient, Depends(get_openrouter_client)],
 ) -> CardBatchImportItemResponse:
     """Adds the text selected in the browser, like sending it to the bot."""
-    return import_source_text(session, openrouter_client, body.text)
+    item, result = import_source_text(session, openrouter_client, body.text)
+    if result is not None:
+        send_card_result(result)
+    return item

@@ -4,13 +4,23 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+import app.api.clip as clip_mod
 import app.api.deps as deps_mod
 from app.api.deps import get_openrouter_client
 from app.main import app
 from app.models.card import Card
+from app.services.card_service import CardServiceResult
 
 from .conftest import TelegramSettingsStub
 from .test_api import FakeBatchGenerator, _make_accepted_llm_response
+
+
+@pytest.fixture(autouse=True)
+def sent(monkeypatch: pytest.MonkeyPatch) -> list[CardServiceResult]:
+    """Telegram messages the endpoint would send; nothing goes to the network."""
+    results: list[CardServiceResult] = []
+    monkeypatch.setattr(clip_mod, "send_card_result", results.append)
+    return results
 
 
 def _post(client: TestClient, text: str, token: str | None = "secret"):  # noqa: ANN202
@@ -18,7 +28,9 @@ def _post(client: TestClient, text: str, token: str | None = "secret"):  # noqa:
     return client.post("/api/clip", json={"text": text}, headers=headers)
 
 
-def test_clip_creates_a_card(client: TestClient, session: Session) -> None:
+def test_clip_creates_a_card(
+    client: TestClient, session: Session, sent: list[CardServiceResult]
+) -> None:
     app.dependency_overrides[get_openrouter_client] = lambda: FakeBatchGenerator(
         {"look up": _make_accepted_llm_response("look up")}
     )
@@ -29,9 +41,12 @@ def test_clip_creates_a_card(client: TestClient, session: Session) -> None:
     assert resp.json()["status"] == "created"
     assert resp.json()["canonical_text"] == "look up"
     assert session.query(Card).count() == 1
+    assert [r.status for r in sent] == ["created"]
 
 
-def test_clip_rejects_a_sentence_without_calling_the_llm(client: TestClient) -> None:
+def test_clip_rejects_a_sentence_without_calling_the_llm(
+    client: TestClient, sent: list[CardServiceResult]
+) -> None:
     generator = FakeBatchGenerator({})
     app.dependency_overrides[get_openrouter_client] = lambda: generator
 
@@ -39,6 +54,7 @@ def test_clip_rejects_a_sentence_without_calling_the_llm(client: TestClient) -> 
 
     assert resp.json()["status"] == "invalid_input"
     assert generator.calls == []
+    assert sent == []
 
 
 def test_clip_needs_the_right_token(client: TestClient) -> None:

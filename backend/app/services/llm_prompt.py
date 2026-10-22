@@ -41,7 +41,8 @@ Accepted contract:
     }
   ],
   "frequency": 0..10,
-  "frequency_note": "..."
+  "frequency_note": "...",
+  "common_synonym": "..." | null
 }
 
 Rejected contract:
@@ -105,8 +106,11 @@ Rules:
   10 = top 1000 ("get up"), 9 = top 3000, 8 = top 5000 ("reluctant"), 7 = top 8000,
   6 = top 12000, 5 = top 20000 ("ledger"), 4 = top 35000, 3 = specialist or literary
   ("hoodwink"), 2 = rare, 1 = archaic ("betwixt"), 0 = practically never used.
-  Use the whole scale, do not default to 7-9. frequency_note is one short sentence saying
-  where the unit is used.
+  Use the whole scale, do not default to 7-9.
+- common_synonym: one clearly more common English word or short expression with the same
+  main meaning, usable as a replacement in everyday English (cuddle -> hug). null when
+  canonical_text is itself common (frequency 7 or more) or has no real equivalent.
+- frequency_note is one short sentence saying where the unit is used.
 - If you cannot provide one primary Russian translation
   and at least one Russian synonym/variant, reject.
 - If unsure whether the input is a stable lexical unit, reject it.

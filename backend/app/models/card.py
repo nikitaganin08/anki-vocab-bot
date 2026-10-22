@@ -55,6 +55,7 @@ class Card(Base):
     chunks_json: Mapped[list[dict[str, str]]] = mapped_column(JSON, nullable=False, default=list)
     frequency: Mapped[int] = mapped_column(Integer, nullable=False)
     frequency_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    common_synonym: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_learning: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     srs_card_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     srs_due_at: Mapped[datetime | None] = mapped_column(

@@ -21,15 +21,16 @@ from app.schemas.description_lookup import DescriptionLookupResponse, FoundDescr
 from app.services.card_service import CardServiceResult
 
 
-def build_learn_keyboard(card_id: int) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text="Learn", callback_data=f"learn:{card_id}"),
-                InlineKeyboardButton(text="Skip", callback_data=f"skip:{card_id}"),
-            ]
+def build_learn_keyboard(card_id: int, synonym: str | None = None) -> InlineKeyboardMarkup:
+    rows = [
+        [
+            InlineKeyboardButton(text="Learn", callback_data=f"learn:{card_id}"),
+            InlineKeyboardButton(text="Skip", callback_data=f"skip:{card_id}"),
         ]
-    )
+    ]
+    if synonym:
+        rows.append([InlineKeyboardButton(text=f"Use “{synonym}”", callback_data=f"alt:{card_id}")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def _web_app_keyboard(text: str, url: str) -> InlineKeyboardMarkup:
@@ -72,7 +73,7 @@ class TelegramTextHandler:
         if result.card is not None and not result.card.is_learning:
             await message.answer(
                 format_rare_word_prompt(result.card),
-                reply_markup=build_learn_keyboard(result.card.id),
+                reply_markup=build_learn_keyboard(result.card.id, result.card.common_synonym),
             )
 
     @staticmethod
@@ -170,20 +171,52 @@ class TelegramReviewWebAppHandler:
 
 
 @dataclass(slots=True)
+class SynonymSwap:
+    old: str
+    new: str | None
+    status: str
+
+
+@dataclass(slots=True)
 class TelegramLearnCallbackHandler:
     allowed_user_id: int
     set_learning: Callable[[int, bool], Card | None]
+    swap_for_synonym: Callable[[int], SynonymSwap | None] | None = None
 
     async def handle_callback(self, callback: Any) -> None:
         if TelegramTextHandler._extract_user_id(callback) != self.allowed_user_id:
             return
 
         action, _, raw_card_id = callback.data.partition(":")
+        if action == "alt":
+            await self._swap(callback, int(raw_card_id))
+            return
         is_learning = action == "learn"
         card = await asyncio.to_thread(self.set_learning, int(raw_card_id), is_learning)
         if card is None:
             text = "Card not found"
         else:
             text = f"{'Learning' if is_learning else 'Not learning'}: {card.canonical_text}"
+        await callback.message.edit_text(text)
+        await callback.answer()
+
+    async def _swap(self, callback: Any, card_id: int) -> None:
+        try:
+            swap = (
+                await asyncio.to_thread(self.swap_for_synonym, card_id)
+                if self.swap_for_synonym
+                else None
+            )
+        except OpenRouterError as exc:
+            await callback.answer(exc.user_message, show_alert=True)
+            return
+        if swap is None:
+            text = "Card not found"
+        elif swap.status == "rejected":
+            text = f"Could not add the synonym. Kept “{swap.old}” as not learning."
+        elif swap.status == "created":
+            text = f"Learning “{swap.new}” instead of “{swap.old}”"
+        else:
+            text = f"“{swap.new}” is already in your dictionary. Removed “{swap.old}”."
         await callback.message.edit_text(text)
         await callback.answer()
