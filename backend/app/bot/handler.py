@@ -173,8 +173,7 @@ class TelegramReviewWebAppHandler:
 @dataclass(slots=True)
 class SynonymSwap:
     old: str
-    new: str | None
-    status: str
+    result: CardServiceResult | None
 
 
 @dataclass(slots=True)
@@ -212,11 +211,12 @@ class TelegramLearnCallbackHandler:
             return
         if swap is None:
             text = "Card not found"
-        elif swap.status == "rejected":
+        elif swap.result is None or swap.result.card is None:
             text = f"Could not add the synonym. Kept “{swap.old}” as not learning."
-        elif swap.status == "created":
-            text = f"Learning “{swap.new}” instead of “{swap.old}”"
         else:
-            text = f"“{swap.new}” is already in your dictionary. Removed “{swap.old}”."
+            word = swap.result.card.canonical_text
+            text = f"Learning “{word}”. “{swap.old}” stays in your dictionary as not learning."
+            card_text, parse_mode = format_card_service_result(swap.result)
+            await callback.message.answer(card_text, parse_mode=parse_mode)
         await callback.message.edit_text(text)
         await callback.answer()
