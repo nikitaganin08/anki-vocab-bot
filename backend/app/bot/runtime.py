@@ -10,6 +10,7 @@ from aiogram.types import MenuButtonWebApp, WebAppInfo
 
 from app.bot.handler import (
     SynonymSwap,
+    TelegramAddCallbackHandler,
     TelegramAdminWebAppHandler,
     TelegramDescriptionLookupHandler,
     TelegramLearnCallbackHandler,
@@ -98,6 +99,7 @@ def build_bot_router(
     admin_handler: TelegramAdminWebAppHandler,
     review_handler: TelegramReviewWebAppHandler,
     learn_callback_handler: TelegramLearnCallbackHandler,
+    add_callback_handler: TelegramAddCallbackHandler,
 ) -> Router:
     router = Router()
 
@@ -112,6 +114,10 @@ def build_bot_router(
     @router.callback_query(F.data.regexp(r"^(learn|skip|alt):\d+$"))
     async def handle_learn_callback(callback) -> None:
         await learn_callback_handler.handle_callback(callback)
+
+    @router.callback_query(F.data.startswith("add:"))
+    async def handle_add_callback(callback) -> None:
+        await add_callback_handler.handle_callback(callback)
 
     @router.message(Command("find"))
     async def handle_find_command(message) -> None:
@@ -164,6 +170,11 @@ def build_bot_runtime() -> BotRuntime:
         set_learning=_set_learning,
         swap_for_synonym=_build_swap_for_synonym(openrouter_client),
     )
+    add_callback_handler = TelegramAddCallbackHandler(
+        allowed_user_id=settings.telegram_allowed_user_id,
+        apply_source_text=_build_apply_source_text(openrouter_client),
+        rate_limiter=rate_limiter,
+    )
     dispatcher.include_router(
         build_bot_router(
             text_handler,
@@ -171,6 +182,7 @@ def build_bot_runtime() -> BotRuntime:
             admin_handler,
             review_handler,
             learn_callback_handler,
+            add_callback_handler,
         )
     )
 

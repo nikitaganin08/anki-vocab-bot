@@ -33,6 +33,20 @@ def build_learn_keyboard(card_id: int, synonym: str | None = None) -> InlineKeyb
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
+ADD_PREFIX = "add:"
+CALLBACK_DATA_LIMIT = 64  # bytes, a Telegram limit
+
+
+def build_candidates_keyboard(candidates: list[str]) -> InlineKeyboardMarkup | None:
+    """One "Add" button per /find candidate; the word itself travels in the callback data."""
+    rows = [
+        [InlineKeyboardButton(text=f"Add “{word}”", callback_data=f"{ADD_PREFIX}{word}")]
+        for word in candidates
+        if len(f"{ADD_PREFIX}{word}".encode()) <= CALLBACK_DATA_LIMIT
+    ]
+    return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
+
+
 def _web_app_keyboard(text: str, url: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(text=text, web_app=WebAppInfo(url=url))]]
@@ -124,7 +138,10 @@ class TelegramDescriptionLookupHandler:
             await message.answer(lookup_result.message_for_user)
             return
 
-        await message.answer(format_description_lookup_candidates(lookup_result.candidates))
+        await message.answer(
+            format_description_lookup_candidates(lookup_result.candidates),
+            reply_markup=build_candidates_keyboard(lookup_result.candidates),
+        )
 
     @staticmethod
     def _extract_description_argument(text: str | None) -> str:
@@ -220,3 +237,41 @@ class TelegramLearnCallbackHandler:
             await callback.message.answer(card_text, parse_mode=parse_mode)
         await callback.message.edit_text(text)
         await callback.answer()
+
+
+@dataclass(slots=True)
+class TelegramAddCallbackHandler:
+    """The "Add" buttons under /find: adds the candidate like a message with that word would."""
+
+    allowed_user_id: int
+    apply_source_text: Callable[[str], CardServiceResult]
+    rate_limiter: InMemoryRateLimiter
+
+    async def handle_callback(self, callback: Any) -> None:
+        if TelegramTextHandler._extract_user_id(callback) != self.allowed_user_id:
+            return
+
+        if not self.rate_limiter.allow_request():
+            await callback.answer(format_rate_limit_message(), show_alert=True)
+            return
+
+        validation = validate_source_input(callback.data.removeprefix(ADD_PREFIX))
+        if validation.normalized_text is None:
+            await callback.answer(validation.error_message, show_alert=True)
+            return
+
+        # Acknowledge first: the card takes a few seconds and the button would spin meanwhile.
+        await callback.answer("Adding…")
+        try:
+            result = await asyncio.to_thread(self.apply_source_text, validation.normalized_text)
+        except OpenRouterError as exc:
+            await callback.message.answer(exc.user_message)
+            return
+
+        text, parse_mode = format_card_service_result(result)
+        await callback.message.answer(text, parse_mode=parse_mode)
+        if result.card is not None and not result.card.is_learning:
+            await callback.message.answer(
+                format_rare_word_prompt(result.card),
+                reply_markup=build_learn_keyboard(result.card.id, result.card.common_synonym),
+            )
