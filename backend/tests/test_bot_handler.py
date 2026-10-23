@@ -327,9 +327,17 @@ def test_description_lookup_handler_returns_candidate_list() -> None:
         "1. shovel away\n"
         "2. clear away\n"
         "3. remove\n\n"
-        "Send one of these back if you want to add a card."
+        "Tap a word to add it to your dictionary."
     ]
     assert message.parse_modes == [None]
+    markup = message.reply_markups[0]
+    assert markup is not None
+    assert [row[0].callback_data for row in markup.inline_keyboard] == [
+        "add:shovel away",
+        "add:clear away",
+        "add:remove",
+    ]
+    assert markup.inline_keyboard[0][0].text == "Add “shovel away”"
 
 
 def test_description_lookup_handler_returns_lookup_rejection() -> None:

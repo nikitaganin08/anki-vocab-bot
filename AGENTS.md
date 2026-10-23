@@ -107,6 +107,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 13. The backend renders and sends the Telegram response from stored structured fields.
 14. Cards with `frequency >= learn_threshold` (`app_settings`, default 3) are stored with `is_learning = true`; rarer cards are stored with `is_learning = false` and the bot asks "Rare word (N/10). Learn it?" with "Learn" / "Skip" inline buttons (`learn:<id>` / `skip:<id>`) (also on a duplicate of a not-learning card). When the card has a `common_synonym`, the prompt names it and adds a "Use “<synonym>”" button (`alt:<id>`): the synonym is added (or found) as a learning card, the bot sends its card message to the chat, and the rare card stays in the dictionary as not learning.
 15. Learning cards enter the FSRS review queue in the Mini App.
+16. `/find <description>` lists up to a few candidate words with one "Add “word”" button each (`add:<word>`, only words that fit Telegram's 64-byte callback data); a press runs the same flow as sending that word (card message, rare-word prompt), rate-limited like messages.
 
 ## Review (SRS)
 

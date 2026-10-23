@@ -81,11 +81,7 @@ def format_description_lookup_candidates(candidates: list[str]) -> str:
     numbered_candidates = "\n".join(
         f"{idx}. {candidate}" for idx, candidate in enumerate(candidates, start=1)
     )
-    return (
-        "Possible matches:\n"
-        f"{numbered_candidates}\n\n"
-        "Send one of these back if you want to add a card."
-    )
+    return f"Possible matches:\n{numbered_candidates}\n\nTap a word to add it to your dictionary."
 
 
 def format_rate_limit_message() -> str:
