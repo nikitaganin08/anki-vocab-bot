@@ -5,6 +5,10 @@ import type { CheckResponse, ReviewSessionItem, ReviewSummary } from "../api/typ
 import type { ReviewMode } from "../home/HomeView";
 
 export const ROUND_SIZE = 10;
+// A card that is due again within minutes (Again, Hard on a learning step) comes back in this
+// round after REPEAT_GAP other cards, instead of heading the next round.
+const REPEAT_WITHIN_MS = 30 * 60 * 1000;
+const REPEAT_GAP = 3;
 
 export interface CheckedAnswer {
   typed: string;
@@ -125,8 +129,9 @@ export function useReviewSession(mode: ReviewMode) {
       return;
     }
     setState((s) => ({ ...s, busy: true }));
+    let dueAt: string;
     try {
-      await gradeCard(item.card.id, {
+      ({ srs_due_at: dueAt } = await gradeCard(item.card.id, {
         rating,
         auto_rating: answer.result.auto_rating,
         overridden,
@@ -138,7 +143,7 @@ export function useReviewSession(mode: ReviewMode) {
         response_ms: answer.responseMs,
         // Echo the server string as-is: a Date round-trip would drop microseconds.
         expected_due_at: item.srs_due_at,
-      });
+      }));
     } catch (error) {
       // 409: double tap or a stale round; the server already moved on, so take a fresh round.
       if (error instanceof ApiError && error.status === 409) {
@@ -148,7 +153,31 @@ export function useReviewSession(mode: ReviewMode) {
     }
 
     gradedTotal.current += 1;
-    if (gradedTotal.current === mode.capCards || state.round.pos + 1 >= state.round.queue.length) {
+    const capReached = gradedTotal.current === mode.capCards;
+    const { queue, pos } = state.round;
+    // Needs another card to come in between; the last card of a round waits for the next one.
+    const repeat =
+      !capReached &&
+      pos + 1 < queue.length &&
+      new Date(dueAt).getTime() - Date.now() < REPEAT_WITHIN_MS;
+    if (repeat) {
+      const next = [...queue];
+      next.splice(Math.min(pos + 1 + REPEAT_GAP, next.length), 0, {
+        ...item,
+        intro: false,
+        // The server moved the card on: echo its new due time or the next grade is a 409.
+        srs_due_at: dueAt,
+      });
+      setState((s) => ({
+        ...s,
+        phase: "item",
+        answer: null,
+        busy: false,
+        round: { ...s.round, queue: next, pos: pos + 1, total: s.round.total + 1, graded: s.round.graded + 1 },
+      }));
+      return;
+    }
+    if (capReached || pos + 1 >= queue.length) {
       return fetchRound((items) => ({ phase: "roundEnd", next: items }));
     }
     setState((s) => ({
