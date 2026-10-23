@@ -58,31 +58,5 @@ def test_stale_private_chat_menu_is_deleted_before_setting_commands() -> None:
     assert methods == ["deleteMyCommands", "setMyCommands"]
 
 
-def test_menu_button_is_written_only_when_it_differs() -> None:
-    desired = {**profile.DESIRED, "webapp_url": "https://example.test/anki/telegram/webapp"}
-    button = {
-        "type": "web_app",
-        "text": "Wordloop",
-        "web_app": {"url": "https://example.test/anki/telegram/webapp"},
-    }
-
-    def with_menu(menu: dict[str, Any]):
-        base = fake_call()
-
-        def call(method: str, payload: dict[str, Any] | None) -> Any:
-            return menu if method == "getChatMenuButton" else base(method, payload)
-
-        return call
-
-    assert profile.plan(with_menu(button), desired) == []
-    writes = profile.plan(with_menu({"type": "commands"}), desired)
-    assert [method for method, _ in writes] == ["setChatMenuButton"]
-    assert writes[0][1] == {"menu_button": button}
-
-
-def test_webapp_url_comes_from_the_webhook_url(monkeypatch: Any) -> None:
-    monkeypatch.delenv("TELEGRAM_WEBAPP_URL", raising=False)
-    monkeypatch.setenv("TELEGRAM_WEBHOOK_URL", "https://example.test/anki/telegram/webhook")
-
-    assert profile.webapp_url_from_env() == "https://example.test/anki/telegram/webapp"
+def test_admin_command_is_not_listed() -> None:
     assert "admin" not in [c["command"] for c in profile.DESIRED["commands"]]

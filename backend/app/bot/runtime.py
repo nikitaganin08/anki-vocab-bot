@@ -6,6 +6,7 @@ from functools import lru_cache
 
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.filters import Command
+from aiogram.types import MenuButtonWebApp, WebAppInfo
 
 from app.bot.handler import (
     SynonymSwap,
@@ -66,6 +67,29 @@ def _build_swap_for_synonym(client: OpenRouterClient) -> Callable[[int], Synonym
             return SynonymSwap(old=old, result=result)
 
     return swap
+
+
+async def ensure_menu_button(bot: Bot) -> None:
+    """The menu button next to the message field opens the Mini App in one tap.
+
+    Set for the owner's private chat: the bot-wide default does not read back reliably.
+    """
+    settings = get_settings()
+    url = settings.resolved_telegram_webapp_url
+    chat_id = settings.telegram_allowed_user_id
+    if not url or chat_id is None:
+        return
+    current = await bot.get_chat_menu_button(chat_id=chat_id)
+    if (
+        isinstance(current, MenuButtonWebApp)
+        and current.text == "Wordloop"
+        and current.web_app.url == url
+    ):
+        return
+    await bot.set_chat_menu_button(
+        chat_id=chat_id,
+        menu_button=MenuButtonWebApp(text="Wordloop", web_app=WebAppInfo(url=url)),
+    )
 
 
 def build_bot_router(

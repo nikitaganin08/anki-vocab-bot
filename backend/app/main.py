@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
 from app.api import cards, clip, review, settings, telegram_webhook
-from app.bot.runtime import get_bot_runtime
+from app.bot.runtime import ensure_menu_button, get_bot_runtime
 from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.services.reminders import run_reminder_loop
@@ -26,6 +26,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         except ValueError as exc:  # partial bot config, e.g. local dev without a webhook
             logger.warning("Reminders disabled: %s", exc)
         else:
+            try:
+                await ensure_menu_button(bot)
+            except Exception:
+                logger.exception("Could not set the menu button")
             task = asyncio.create_task(run_reminder_loop(SessionLocal, bot))
     yield
     if task is not None:
