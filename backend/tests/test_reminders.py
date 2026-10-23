@@ -70,6 +70,7 @@ def _should_send(session: Session, *, day: date = TUESDAY, hour: int = 11, **kwa
         kwargs.get("reviewed_today", False),
         kwargs.get("due_total", 12),
         day,
+        kwargs.get("last_sent_local"),
     )
 
 
@@ -82,6 +83,32 @@ def test_not_twice_same_day(session: Session) -> None:
     get_app_settings(session).last_reminder_on = TUESDAY
     assert not _should_send(session)
     assert _should_send(session, day=TUESDAY + timedelta(days=2))
+
+
+def _reminded_at(day: date, hour: int) -> datetime:
+    return datetime(day.year, day.month, day.day, hour, tzinfo=MOSCOW)
+
+
+def test_follow_up_after_three_hours_while_cards_are_left(session: Session) -> None:
+    get_app_settings(session).last_reminder_on = TUESDAY
+    sent = _reminded_at(TUESDAY, 10)
+
+    assert not _should_send(session, hour=12, last_sent_local=sent)
+    assert _should_send(session, hour=13, last_sent_local=sent)
+    # Someone who already did part of the session still gets the follow-up for the rest.
+    assert _should_send(session, hour=14, reviewed_today=True, last_sent_local=sent)
+
+
+def test_no_follow_up_when_nothing_is_left_or_late_or_after_ignored(session: Session) -> None:
+    settings = get_app_settings(session)
+    settings.last_reminder_on = TUESDAY
+    sent = _reminded_at(TUESDAY, 10)
+
+    assert not _should_send(session, hour=14, due_total=0, last_sent_local=sent)
+    assert not _should_send(session, hour=21, last_sent_local=sent)
+    assert _should_send(session, hour=20, last_sent_local=sent)
+    settings.ignored_reminders = 3
+    assert not _should_send(session, hour=14, last_sent_local=sent)
 
 
 def test_not_when_reviewed_today(session: Session) -> None:
@@ -280,3 +307,17 @@ def test_lifespan_starts_reminder_loop_unless_disabled(monkeypatch: pytest.Monke
     with TestClient(main_mod.app) as client:
         client.get("/api/health")
     assert started == ["bot"]
+
+
+def test_follow_up_is_sent_three_hours_after_the_last_reminder(
+    session: Session, session_factory: sessionmaker[Session]
+) -> None:
+    session.add(make_card())
+    session.commit()
+    bot = FakeBot()
+
+    assert _send(session_factory, bot, _moscow(20, 10))
+    assert not _send(session_factory, bot, _moscow(20, 12))
+    assert _send(session_factory, bot, _moscow(20, 13))
+    assert not _send(session_factory, bot, _moscow(20, 15))
+    assert len(bot.sent) == 2

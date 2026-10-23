@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
-from sqlalchemy import Date, Float, Integer, String
+from sqlalchemy import Date, DateTime, Float, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -22,4 +22,7 @@ class AppSettings(Base):
     desired_retention: Mapped[float] = mapped_column(Float, nullable=False, default=0.9)
     learn_threshold: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
     last_reminder_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    last_reminder_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     ignored_reminders: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

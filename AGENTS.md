@@ -80,7 +80,7 @@ The app receives words and stable expressions from Telegram, generates learning 
   this repo owns only its `/anki/` routes in `deploy/nginx/anki.conf`, which the deploy workflow
   copies to `/opt/nginx/snippets/anki.conf` and applies with `nginx -t` + reload (restoring the
   previous file if the test fails)
-- The deploy workflow also sets the bot's name, short description, description and command list (English) through the Bot API
+- The deploy workflow also sets the bot's name, short description, description, command list (English; `/review` and `/find`) and the menu button through the Bot API (`deploy/telegram/profile.py`). The menu button "Wordloop" next to the message field opens the Mini App in one tap; a bot command can only reply with a button first, and `/admin` was dropped as a duplicate (its handler still answers if typed)
 - In production, admin access is expected through Telegram Web App auth tied to the allowed Telegram user
 - Docker uses a multi-stage build:
   - frontend build stage
@@ -127,8 +127,8 @@ The app receives words and stable expressions from Telegram, generates learning 
 ## Reminders
 
 - `app/services/reminders.py` runs a loop every 5 minutes in the FastAPI lifespan (only when `TELEGRAM_BOT_TOKEN` is set and `DISABLE_REMINDERS` is not `1`; single uvicorn worker assumed).
-- One message a day at `reminder_hour` local time when nothing was reviewed today and cards are due; never mentions streaks, no evening reminder.
-- Backoff: after 3 ignored reminders only every other day, after 7 paused until the next review; any review resets the counter.
+- The first reminder of a day comes at `reminder_hour` local time when nothing was reviewed yet and cards are due. While cards are still left today (`due_today + new_today > 0`, also after a partly done session), a follow-up comes every 3 hours (`FOLLOW_UP_HOURS`, from `app_settings.last_reminder_at`), none from 21:00 on (`LAST_REMINDER_HOUR`) and none once everything is done; never mentions streaks.
+- Backoff: after 3 ignored days only one reminder every other day and no follow-ups, after 7 paused until the next review; any review resets the counter. A day counts as ignored when reminders were sent and nothing was reviewed that day.
 - Short rotating English templates with card count ("1 card", "12 cards") and minutes, optional `reminder_anchor` prefix, no warm-up chunk; Mondays add a "Weekly summary" block (days reviewed, learned, 30-day retention). Inline button "Review" opens the Mini App at `?view=review`.
 
 ## LLM Contract
@@ -241,6 +241,7 @@ Validation rules:
 - `desired_retention` (default `0.9`)
 - `learn_threshold` (default `3`)
 - `last_reminder_on`
+- `last_reminder_at` (UTC time of the latest reminder, for follow-ups)
 - `ignored_reminders`
 
 ## Backend API

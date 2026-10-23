@@ -25,12 +25,11 @@ DESIRED: dict[str, Any] = {
         'translation, transcription and natural usages like "give up smoking". Then it reminds '
         "you to review when the word starts to fade.\n\n"
         "/review — review words\n"
-        "/admin — dictionary, stats and settings\n"
-        "/find — find a word by description"
+        "/find — find a word by description\n\n"
+        "The Wordloop button next to the message field opens the app."
     ),
     "commands": [
         {"command": "review", "description": "Review words"},
-        {"command": "admin", "description": "Dictionary, stats and settings"},
         {"command": "find", "description": "Find a word by description"},
     ],
 }
@@ -56,7 +55,26 @@ def plan(call: Call, desired: dict[str, Any] = DESIRED) -> list[tuple[str, dict[
         updates.append(("deleteMyCommands", PRIVATE_SCOPE))
     if call("getMyCommands", None) != desired["commands"]:
         updates.append(("setMyCommands", {"commands": desired["commands"]}))
+    # The menu button opens the Mini App in one tap; a command can only offer a button first.
+    webapp_url = desired.get("webapp_url")
+    if webapp_url:
+        button = {"type": "web_app", "text": "Wordloop", "web_app": {"url": webapp_url}}
+        current = call("getChatMenuButton", None)
+        if (current.get("type"), current.get("text"), current.get("web_app")) != (
+            "web_app",
+            button["text"],
+            button["web_app"],
+        ):
+            updates.append(("setChatMenuButton", {"menu_button": button}))
     return updates
+
+
+def webapp_url_from_env() -> str | None:
+    explicit = os.environ.get("TELEGRAM_WEBAPP_URL")
+    if explicit:
+        return explicit
+    webhook = os.environ.get("TELEGRAM_WEBHOOK_URL", "").rstrip("/")
+    return f"{webhook[: -len('/webhook')]}/webapp" if webhook.endswith("/webhook") else None
 
 
 def telegram_call(token: str) -> Call:
@@ -84,7 +102,7 @@ def telegram_call(token: str) -> Call:
 
 def main() -> None:
     call = telegram_call(os.environ["TELEGRAM_BOT_TOKEN"])
-    updates = plan(call)
+    updates = plan(call, {**DESIRED, "webapp_url": webapp_url_from_env()})
     for method, payload in updates:
         call(method, payload)
         print(f"{method}: done")

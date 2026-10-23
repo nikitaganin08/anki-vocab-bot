@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 
 BACKOFF_AFTER_IGNORED = 3
 PAUSE_AFTER_IGNORED = 7
+# Follow-ups while cards are still left today: every 3 hours, none from 21:00 on.
+FOLLOW_UP_HOURS = 3
+LAST_REMINDER_HOUR = 21
 
 # Draft copy: no streaks, no guilt; "{cards}" is "12 cards", "{minutes}" a number.
 REMINDER_TEMPLATES: tuple[str, ...] = (
@@ -46,14 +49,23 @@ def should_send(
     reviewed_today: bool,
     due_total: int,
     today_local: date,
+    last_sent_local: datetime | None = None,
 ) -> bool:
-    if now_local.hour < settings.reminder_hour or settings.last_reminder_on == today_local:
+    if due_total <= 0 or settings.ignored_reminders >= PAUSE_AFTER_IGNORED:
         return False
-    if reviewed_today or due_total <= 0:
+    if not settings.reminder_hour <= now_local.hour < LAST_REMINDER_HOUR:
         return False
-    if settings.ignored_reminders >= PAUSE_AFTER_IGNORED:
+    if settings.last_reminder_on != today_local:
+        # The first reminder of the day only comes before any review.
+        if reviewed_today:
+            return False
+        return (
+            settings.ignored_reminders < BACKOFF_AFTER_IGNORED or today_local.toordinal() % 2 == 0
+        )
+    # Follow-ups only for someone who keeps answering reminders.
+    if settings.ignored_reminders >= BACKOFF_AFTER_IGNORED or last_sent_local is None:
         return False
-    return settings.ignored_reminders < BACKOFF_AFTER_IGNORED or today_local.toordinal() % 2 == 0
+    return now_local - last_sent_local >= timedelta(hours=FOLLOW_UP_HOURS)
 
 
 def _cards(count: int) -> str:
@@ -119,13 +131,19 @@ async def send_reminder_if_due(
             settings.ignored_reminders += 1
 
         due_total = summary.due_today + summary.new_today
-        if not should_send(settings, now_local, reviewed_today, due_total, today):
+        last_sent_local = (
+            as_utc(settings.last_reminder_at).astimezone(tz) if settings.last_reminder_at else None
+        )
+        if not should_send(settings, now_local, reviewed_today, due_total, today, last_sent_local):
             if answered:
                 session.commit()
             return False
 
-        weekly = _weekly_block(summary) if today.weekday() == 0 else None
-        text = build_reminder_text(summary, settings.reminder_anchor, today.toordinal(), weekly)
+        first_today = settings.last_reminder_on != today
+        weekly = _weekly_block(summary) if today.weekday() == 0 and first_today else None
+        text = build_reminder_text(
+            summary, settings.reminder_anchor, today.toordinal() + now_local.hour, weekly
+        )
         config = get_settings()
         await bot.send_message(
             config.telegram_allowed_user_id,
@@ -135,6 +153,7 @@ async def send_reminder_if_due(
             ),
         )
         settings.last_reminder_on = today
+        settings.last_reminder_at = now
         session.commit()
         return True
 
