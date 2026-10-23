@@ -114,3 +114,25 @@ def test_common_synonym_migration_adds_a_nullable_column(
     finally:
         engine.dispose()
         get_settings.cache_clear()
+
+
+def test_last_reminder_at_migration_adds_a_nullable_column(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_url = f"sqlite:///{(tmp_path / 'rem.db').as_posix()}"
+    monkeypatch.setenv("DATABASE_URL", db_url)
+    get_settings.cache_clear()
+    config = Config()
+    config.set_main_option("script_location", str(ALEMBIC_DIR))
+    engine = sa.create_engine(db_url)
+    try:
+        command.upgrade(config, "head")
+        cols = {c["name"]: c for c in sa.inspect(engine).get_columns("app_settings")}
+        assert cols["last_reminder_at"]["nullable"] is True
+
+        command.downgrade(config, "20261022_0007")
+        names = {c["name"] for c in sa.inspect(engine).get_columns("app_settings")}
+        assert "last_reminder_at" not in names
+    finally:
+        engine.dispose()
+        get_settings.cache_clear()
