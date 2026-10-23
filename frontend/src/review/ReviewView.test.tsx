@@ -135,15 +135,16 @@ async function grade(label: RegExp): Promise<void> {
   await press(await screen.findByRole("button", { name: label }));
 }
 
+function dueIn(minutes: number): string {
+  return new Date(Date.now() + minutes * 60_000).toISOString();
+}
+
 describe("ReviewView", () => {
   beforeEach(() => {
     mockedSession.mockReset();
     mockedSummary.mockReset().mockResolvedValue(summary());
     mockedCheck.mockReset().mockResolvedValue(checked());
-    mockedGrade.mockReset().mockResolvedValue({
-      srs_due_at: "2026-10-18T08:00:00Z",
-      srs_state: "review",
-    });
+    mockedGrade.mockReset().mockResolvedValue({ srs_due_at: dueIn(24 * 60), srs_state: "review" });
   });
 
   afterEach(() => {
@@ -461,6 +462,46 @@ describe("ReviewView", () => {
     await press(await screen.findByRole("button", { name: "What's this word?" }));
 
     expect(screen.getByText("Something that is ___ is real. ___ true.")).toBeInTheDocument();
+  });
+
+  it("a card due again within minutes comes back after three other cards", async () => {
+    const words = ["a1", "b2", "c3", "d4", "e5"];
+    mockedSession.mockResolvedValue(words.map((word, i) => item(i + 1, word, `${word} ___`)));
+    mockedCheck.mockResolvedValue(checked({ verdict: "wrong", auto_rating: 1, expected: "x" }));
+    renderReview();
+
+    await answer("nope");
+    mockedGrade.mockResolvedValueOnce({ srs_due_at: dueIn(1), srs_state: "learning" });
+    await grade(/^Again/);
+    // b2, c3, d4 first, then a1 again.
+    for (const word of ["b2", "c3", "d4"]) {
+      expect(await screen.findByText(`${word} ___`)).toBeInTheDocument();
+      await answer("nope");
+      await grade(/^Good/);
+    }
+    expect(await screen.findByText("a1 ___")).toBeInTheDocument();
+    expect(screen.getByText("Round 1 · 5 of 6")).toBeInTheDocument();
+
+    // The repeat echoes the new due time, not the one from the session.
+    const dueAfterAgain = mockedGrade.mock.results[0] && (await mockedGrade.mock.results[0].value).srs_due_at;
+    await answer("nope");
+    await grade(/^Good/);
+    expect(mockedGrade).toHaveBeenLastCalledWith(
+      1,
+      expect.objectContaining({ expected_due_at: dueAfterAgain }),
+    );
+  });
+
+  it("the last card of a round is not repeated inside it", async () => {
+    mockedSession.mockResolvedValue([item(1, "give", "___ up")]);
+    mockedCheck.mockResolvedValue(checked({ verdict: "wrong", auto_rating: 1 }));
+    mockedGrade.mockResolvedValue({ srs_due_at: dueIn(1), srs_state: "learning" });
+    renderReview();
+
+    await answer("giv");
+    await grade(/^Again/);
+
+    expect(await screen.findByRole("heading", { name: "✓ Round complete" })).toBeInTheDocument();
   });
 
   it("keys 1-4 grade like the buttons", async () => {
