@@ -43,17 +43,8 @@ export function SpeakerButton({ card, phrase }: { card: Card; phrase?: string })
 }
 
 // The full card, shared by the intro and the back side.
-// `lead` is the block above the word, e.g. the result of an answer. `compact` (the back side of a
-// review, which has to fit one screen) leaves out the example sentence and the word family.
-export function CardDetails({
-  card,
-  lead,
-  compact = false,
-}: {
-  card: Card;
-  lead?: ReactNode;
-  compact?: boolean;
-}): JSX.Element {
+// `lead` is the block above the word, e.g. the result of an answer.
+export function CardDetails({ card, lead }: { card: Card; lead?: ReactNode }): JSX.Element {
   return (
     <div className="surface-panel review-card">
       {lead}
@@ -77,8 +68,8 @@ export function CardDetails({
           </ul>
         </section>
       ) : null}
-      {!compact && card.examples[0] ? <p className="review-example">{card.examples[0]}</p> : null}
-      {!compact && card.word_family.length > 0 ? (
+      {card.examples[0] ? <p className="review-example">{card.examples[0]}</p> : null}
+      {card.word_family.length > 0 ? (
         <ul className="review-family section-label">
           {card.word_family.map((item) => (
             <li key={item.word}>
