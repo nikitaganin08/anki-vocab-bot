@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import { getSettings } from "../api/client";
 import type { Card } from "../api/types";
@@ -43,9 +43,11 @@ export function SpeakerButton({ card, phrase }: { card: Card; phrase?: string })
 }
 
 // The full card, shared by the intro and the back side.
-export function CardDetails({ card }: { card: Card }): JSX.Element {
+// `lead` is the block above the word, e.g. the result of an answer.
+export function CardDetails({ card, lead }: { card: Card; lead?: ReactNode }): JSX.Element {
   return (
     <div className="surface-panel review-card">
+      {lead}
       <div className="review-word">
         <h2>{card.canonical_text}</h2>
         <SpeakerButton card={card} />
