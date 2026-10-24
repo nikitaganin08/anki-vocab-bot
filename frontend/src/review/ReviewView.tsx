@@ -40,7 +40,6 @@ export function ReviewView({ mode, onExit }: ReviewViewProps): JSX.Element | nul
           answer={session.answer}
           busy={session.busy}
           onGrade={(rating, overridden) => void session.grade(rating, overridden)}
-          onDeleted={() => void session.removeCard()}
         />
       ) : null;
     case "roundEnd":

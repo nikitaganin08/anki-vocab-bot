@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
 import type { Card, ReviewPrompt } from "../api/types";
-import { CardDetails, DeleteWord, SpeakerButton } from "./IntroCard";
+import { CardDetails, SpeakerButton } from "./IntroCard";
 import type { CheckedAnswer } from "./useReviewSession";
 
 const VERDICT_LABELS: Record<string, string> = {
@@ -64,10 +64,9 @@ interface AnswerCardProps {
   answer: CheckedAnswer;
   busy: boolean;
   onGrade: (rating: number, overridden?: boolean) => void;
-  onDeleted: () => void;
 }
 
-export function AnswerCard({ card, prompt, answer, busy, onGrade, onDeleted }: AnswerCardProps): JSX.Element {
+export function AnswerCard({ card, prompt, answer, busy, onGrade }: AnswerCardProps): JSX.Element {
   const { typed, result } = answer;
   // The sentence that was asked, with the gap filled in: one of the card's usage chunks.
   const phrase = prompt.kind === "chunk" ? prompt.masked.replace("___", result.expected) : null;
@@ -94,6 +93,17 @@ export function AnswerCard({ card, prompt, answer, busy, onGrade, onDeleted }: A
     <div className="review-lead">
       <div className="review-lead-head">
         <span className={`verdict-chip verdict-${tone}`}>{label}</span>
+        {result.verdict === "correct" || empty ? null : (
+          <span className="review-typed">
+            {result.verdict === "wrong" ? (
+              <s className="verdict-typed">{typed}</s>
+            ) : result.verdict === "typo" ? (
+              <Diff text={typed} other={result.expected} />
+            ) : (
+              typed
+            )}
+          </span>
+        )}
         {phrase ? <SpeakerButton card={card} phrase={phrase} /> : null}
       </div>
       <p className="review-sentence">
@@ -101,26 +111,12 @@ export function AnswerCard({ card, prompt, answer, busy, onGrade, onDeleted }: A
         <mark className={`verdict-hl verdict-hl-${tone}`}>{result.expected}</mark>
         {after}
       </p>
-      {result.verdict === "correct" ? null : (
-        <p className="review-typed">
-          You typed:{" "}
-          {empty ? (
-            "—"
-          ) : result.verdict === "wrong" ? (
-            <s className="verdict-typed">{typed}</s>
-          ) : result.verdict === "typo" ? (
-            <Diff text={typed} other={result.expected} />
-          ) : (
-            typed
-          )}
-        </p>
-      )}
     </div>
   );
 
   return (
     <section className="review-screen">
-      <CardDetails card={card} lead={lead} />
+      <CardDetails card={card} lead={lead} compact />
 
       {result.verdict === "wrong" ? (
         <button type="button" className="link-button" disabled={busy} onClick={() => onGrade(3, true)}>
@@ -142,8 +138,6 @@ export function AnswerCard({ card, prompt, answer, busy, onGrade, onDeleted }: A
           </button>
         ))}
       </div>
-      <p className="section-label">Rating picked automatically — you can change it</p>
-      <DeleteWord key={card.id} card={card} onDeleted={onDeleted} />
     </section>
   );
 }

@@ -378,9 +378,12 @@ progress::-moz-progress-bar {
 .review-lead-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  min-height: 36px;
+  min-height: 32px;
+}
+
+.review-lead-head > .icon-button {
+  margin-left: auto;
 }
 
 .verdict-chip {
@@ -424,8 +427,13 @@ progress::-moz-progress-bar {
 }
 
 .review-typed {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
   color: var(--hint);
-  font-size: 14px;
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .review-typed mark {
@@ -555,10 +563,6 @@ progress::-moz-progress-bar {
 
 .type-legend dd {
   margin: 0;
-}
-
-.review-card > .info-chip {
-  justify-self: start;
 }
 
 .word-list {

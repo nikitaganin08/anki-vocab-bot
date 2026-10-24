@@ -197,7 +197,6 @@ describe("ReviewView", () => {
     await answer("gve");
 
     expect(await screen.findByText("Wrong")).toHaveClass("verdict-bad");
-    expect((await screen.findByText(/^You typed:/)).closest("p")).toHaveTextContent("You typed: gve");
     expect(screen.getByText("gve")).toHaveClass("verdict-typed");
     expect(screen.getByText("gve").tagName).toBe("S");
     // The sentence that was asked, gap filled in, the right word marked.
@@ -215,9 +214,7 @@ describe("ReviewView", () => {
     expect(screen.getByRole("button", { name: /^Hard/ })).toHaveClass("secondary-button");
     expect(screen.getByRole("button", { name: /^Good/ })).toHaveTextContent("10m");
     expect(screen.getByRole("button", { name: /^Easy/ })).toHaveTextContent("4d");
-    expect(screen.getByText("Rating picked automatically — you can change it")).toBeInTheDocument();
     expect(screen.getByText("Usage")).toBeInTheDocument();
-    expect(screen.getByText("giver (noun) — даритель")).toBeInTheDocument();
     expect(screen.getByText("To hand something to someone.")).toBeInTheDocument();
   });
 
@@ -227,7 +224,7 @@ describe("ReviewView", () => {
 
     await answer("give");
     expect(await screen.findByText("Correct")).toHaveClass("verdict-ok");
-    expect(screen.queryByText(/^You typed:/)).not.toBeInTheDocument();
+    expect(document.querySelector(".review-typed")).toBeNull();
     expect(screen.queryByRole("button", { name: "My answer was right" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Good/ })).toHaveClass("primary-button");
     await grade(/^Good/);
@@ -399,33 +396,17 @@ describe("ReviewView", () => {
     );
   });
 
-  it("deleting from the back side skips the card without grading", async () => {
-    mockedSession.mockResolvedValue([item(1, "cosmetics", "___ up"), item(2, "give", "___ up")]);
-    mockedDelete.mockResolvedValue(undefined);
-    renderReview();
-
-    await answer("cosmetics");
-    await press(await screen.findByRole("button", { name: "Delete word" }));
-    await press(await screen.findByRole("button", { name: "Delete card" }));
-
-    expect(mockedDelete).toHaveBeenCalledWith(1);
-    expect(mockedGrade).not.toHaveBeenCalled();
-    expect(await screen.findByRole("textbox", { name: "Answer" })).toBeInTheDocument();
-    expect(screen.getByText("Round 1 · 1 of 1")).toBeInTheDocument();
-  });
-
-  it("keys 1-4 do nothing while the delete dialog is open", async () => {
+  it("the back side is compact: no delete, example or word family", async () => {
     mockedSession.mockResolvedValue([item(1, "give", "___ up")]);
     renderReview();
 
     await answer("give");
-    await press(await screen.findByRole("button", { name: "Delete word" }));
-    const cancel = await screen.findByRole("button", { name: "Cancel" });
-    await act(async () => {
-      fireEvent.keyDown(cancel, { key: "3" });
-    });
 
-    expect(mockedGrade).not.toHaveBeenCalled();
+    expect(await screen.findByText("Correct")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete word" })).not.toBeInTheDocument();
+    expect(screen.queryByText("She gave me a book.")).not.toBeInTheDocument();
+    expect(screen.queryByText(/giver/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Rating picked automatically/)).not.toBeInTheDocument();
   });
 
   it("deleting a new word at the intro drops its typed question", async () => {
@@ -528,7 +509,7 @@ describe("ReviewView", () => {
 
     expect(await screen.findByText("Wrong form")).toHaveClass("verdict-warn");
     expect(screen.getByText("being had", { selector: "mark" })).toHaveClass("verdict-hl-warn");
-    expect((await screen.findByText(/^You typed:/)).closest("p")).toHaveTextContent("You typed: be had");
+    expect(document.querySelector(".review-typed")).toHaveTextContent("be had");
   });
 
   it("an empty answer is labelled as no answer", async () => {
@@ -539,7 +520,7 @@ describe("ReviewView", () => {
     await answer("");
 
     expect(await screen.findByText("No answer")).toHaveClass("verdict-bad");
-    expect((await screen.findByText(/^You typed:/)).closest("p")).toHaveTextContent("You typed: —");
+    expect(document.querySelector(".review-typed")).toBeNull();
   });
 
   it("a typo is marked amber and shows where the slip is", async () => {
@@ -615,12 +596,12 @@ describe("ReviewView", () => {
       { word: "distinguishable", part_of_speech: "adjective", translation: "различимый" },
       { word: "distinction", part_of_speech: "noun", translation: "различие" },
     ];
-    const reviewItem = item(1, "distinguish", "___ up");
+    // The intro shows the full card; the back side of a review leaves out the example and family.
+    const reviewItem = item(1, "distinguish", "___ up", { intro: true });
     reviewItem.card.word_family = family;
     mockedSession.mockResolvedValue([reviewItem]);
     renderReview();
 
-    await answer("distinguish");
     const panel = (await screen.findByRole("heading", { name: "distinguish" })).closest("div.review-card");
     const text = panel!.textContent!;
     const order = ["давать, дарить", "To hand something to someone.", "Usage", "She gave me a book.", "distinguishable"];
