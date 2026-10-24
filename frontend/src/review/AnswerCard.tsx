@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
-import type { Card } from "../api/types";
-import { CardDetails, DeleteWord } from "./IntroCard";
+import type { Card, ReviewPrompt } from "../api/types";
+import { CardDetails, DeleteWord, SpeakerButton } from "./IntroCard";
 import type { CheckedAnswer } from "./useReviewSession";
 
 const GRADES = [
@@ -53,14 +53,17 @@ function Diff({ text, other }: { text: string; other: string }): JSX.Element {
 
 interface AnswerCardProps {
   card: Card;
+  prompt: ReviewPrompt;
   answer: CheckedAnswer;
   busy: boolean;
   onGrade: (rating: number, overridden?: boolean) => void;
   onDeleted: () => void;
 }
 
-export function AnswerCard({ card, answer, busy, onGrade, onDeleted }: AnswerCardProps): JSX.Element {
+export function AnswerCard({ card, prompt, answer, busy, onGrade, onDeleted }: AnswerCardProps): JSX.Element {
   const { typed, result } = answer;
+  // The sentence that was asked, with the gap filled in: one of the card's usage chunks.
+  const phrase = prompt.kind === "chunk" ? prompt.masked.replace("___", result.expected) : null;
 
   // Keys 1-4 grade like the buttons; the picked rating is also focused, so Enter takes it.
   useEffect(() => {
@@ -96,6 +99,13 @@ export function AnswerCard({ card, answer, busy, onGrade, onDeleted }: AnswerCar
           <span className="info-chip">typo</span>
         </p>
       )}
+
+      {phrase ? (
+        <p className="review-phrase">
+          <span>{phrase}</span>
+          <SpeakerButton card={card} phrase={phrase} />
+        </p>
+      ) : null}
 
       <CardDetails card={card} />
 

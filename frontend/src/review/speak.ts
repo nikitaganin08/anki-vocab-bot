@@ -28,10 +28,10 @@ export function speak(text: string): void {
 const loading = new Map<string, Promise<string>>();
 const ready = new Map<string, string>();
 
-function loadAudio(key: string, cardId: number, word: string): Promise<string> {
+function loadAudio(key: string, cardId: number, text: string, phrase: boolean): Promise<string> {
   let url = loading.get(key);
   if (!url) {
-    url = getCardAudio(cardId, word).then((blob) => {
+    url = getCardAudio(cardId, text, phrase ? text : undefined).then((blob) => {
       const objectUrl = URL.createObjectURL(blob);
       ready.set(key, objectUrl);
       return objectUrl;
@@ -43,26 +43,29 @@ function loadAudio(key: string, cardId: number, word: string): Promise<string> {
   return url;
 }
 
+// The card's word, or `phrase` (one of its usage chunks or examples) when given.
 export function playPronunciation(
   card: { id: number; canonical_text: string },
   ttsEnabled: boolean,
+  phrase?: string,
 ): void {
+  const text = phrase ?? card.canonical_text;
   if (!ttsEnabled) {
-    speak(card.canonical_text);
+    speak(text);
     return;
   }
-  const key = `${card.id}:${card.canonical_text}`;
+  const key = `${card.id}:${text}`;
   const url = ready.get(key);
   // A loaded clip plays synchronously, inside the tap: iOS may refuse play() after an await.
   if (url) {
-    new Audio(url).play().catch(() => speak(card.canonical_text));
+    new Audio(url).play().catch(() => speak(text));
     return;
   }
   // Taps while the first load is pending would play the clip twice at once.
   if (loading.has(key)) {
     return;
   }
-  loadAudio(key, card.id, card.canonical_text)
+  loadAudio(key, card.id, text, phrase !== undefined)
     .then((u) => new Audio(u).play())
-    .catch(() => speak(card.canonical_text));
+    .catch(() => speak(text));
 }

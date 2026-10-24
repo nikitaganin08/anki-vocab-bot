@@ -684,6 +684,24 @@ describe("pronunciation", () => {
     return sources;
   }
 
+  it("the back side shows the asked phrase with a speaker that reads it aloud", async () => {
+    vi.stubGlobal("Telegram", { WebApp: { initData: "signed-init-data" } });
+    const fetchMock = vi.fn(async () => new Response(new Blob(["mp3"]), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    stubAudio(vi.fn(() => Promise.resolve()));
+    mockedSession.mockResolvedValue([item(41, "being had", "___ by a scam")]);
+    mockedCheck.mockResolvedValue(checked({ expected: "being had" }));
+    renderReview({}, true);
+
+    await answer("being had");
+    expect(await screen.findByText("being had by a scam")).toBeInTheDocument();
+    await press(screen.getByRole("button", { name: "Play phrase" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    const [requested] = fetchMock.mock.calls[0] as unknown as [string];
+    expect(new URL(requested, "https://x.test").searchParams.get("text")).toBe("being had by a scam");
+  });
+
   it("plays server audio on tap with one authorized request per card", async () => {
     vi.stubGlobal("Telegram", { WebApp: { initData: "signed-init-data" } });
     const fetchMock = vi.fn(async () => new Response(new Blob(["mp3"]), { status: 200 }));
