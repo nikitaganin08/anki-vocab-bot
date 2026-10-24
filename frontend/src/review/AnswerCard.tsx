@@ -116,7 +116,7 @@ export function AnswerCard({ card, prompt, answer, busy, onGrade }: AnswerCardPr
 
   return (
     <section className="review-screen">
-      <CardDetails card={card} lead={lead} compact />
+      <CardDetails card={card} lead={lead} />
 
       {result.verdict === "wrong" ? (
         <button type="button" className="link-button" disabled={busy} onClick={() => onGrade(3, true)}>

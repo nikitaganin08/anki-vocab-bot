@@ -396,7 +396,7 @@ describe("ReviewView", () => {
     );
   });
 
-  it("the back side is compact: no delete, example or word family", async () => {
+  it("the back side keeps the example and the word family, but no delete", async () => {
     mockedSession.mockResolvedValue([item(1, "give", "___ up")]);
     renderReview();
 
@@ -404,9 +404,8 @@ describe("ReviewView", () => {
 
     expect(await screen.findByText("Correct")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete word" })).not.toBeInTheDocument();
-    expect(screen.queryByText("She gave me a book.")).not.toBeInTheDocument();
-    expect(screen.queryByText(/giver/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Rating picked automatically/)).not.toBeInTheDocument();
+    expect(screen.getByText("She gave me a book.")).toBeInTheDocument();
+    expect(screen.getByText("giver (noun) — даритель")).toBeInTheDocument();
   });
 
   it("deleting a new word at the intro drops its typed question", async () => {
