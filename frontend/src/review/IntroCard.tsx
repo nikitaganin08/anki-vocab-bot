@@ -14,8 +14,8 @@ const SPEAKER_PATHS = [
   "M6 15H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h2l3.5-4.5A.8.8 0 0 1 11 5v14a.8.8 0 0 1-1.5.5L6 15",
 ];
 
-// The full card, shared by the intro and the back side. Pronunciation plays only on tap.
-export function CardDetails({ card }: { card: Card }): JSX.Element {
+// The speaker: plays the card's word, or `phrase` when given. Plays only on tap.
+export function SpeakerButton({ card, phrase }: { card: Card; phrase?: string }): JSX.Element | null {
   // Shares the ["settings"] cache; until it loads (or if it fails) device speech is used.
   const { data: settings } = useQuery({
     queryKey: ["settings"],
@@ -23,24 +23,32 @@ export function CardDetails({ card }: { card: Card }): JSX.Element {
     staleTime: Infinity,
   });
   const ttsEnabled = settings?.tts_enabled === true;
+  if (!ttsEnabled && !canSpeak()) {
+    return null;
+  }
+  return (
+    <button
+      type="button"
+      className="icon-button"
+      aria-label={phrase === undefined ? "Play pronunciation" : "Play phrase"}
+      onClick={() => playPronunciation(card, ttsEnabled, phrase)}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        {SPEAKER_PATHS.map((d) => (
+          <path key={d} d={d} />
+        ))}
+      </svg>
+    </button>
+  );
+}
+
+// The full card, shared by the intro and the back side.
+export function CardDetails({ card }: { card: Card }): JSX.Element {
   return (
     <div className="surface-panel review-card">
       <div className="review-word">
         <h2>{card.canonical_text}</h2>
-        {ttsEnabled || canSpeak() ? (
-          <button
-            type="button"
-            className="icon-button"
-            aria-label="Play pronunciation"
-            onClick={() => playPronunciation(card, ttsEnabled)}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              {SPEAKER_PATHS.map((d) => (
-                <path key={d} d={d} />
-              ))}
-            </svg>
-          </button>
-        ) : null}
+        <SpeakerButton card={card} />
         {card.transcription ? <span className="section-label">{card.transcription}</span> : null}
       </div>
       <span className="info-chip">{entryTypeLabel(card.entry_type)}</span>

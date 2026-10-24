@@ -138,13 +138,30 @@ def batch_import_cards(
 
 
 @router.get("/{card_id}/audio", response_class=Response)
-def get_card_audio(card_id: int, session: SessionDep, tts_client: TtsClientDep) -> Response:
-    """MP3 of the card's word, synthesized per request; the server keeps no copy."""
+def get_card_audio(
+    card_id: int,
+    session: SessionDep,
+    tts_client: TtsClientDep,
+    text: Annotated[str | None, Query(max_length=300)] = None,
+) -> Response:
+    """MP3 of the card's word, or of one of its usage chunks / examples when `text` is given.
+
+    Synthesized per request, the server keeps no copy. `text` must be part of the card, so the
+    endpoint cannot be used to read arbitrary text aloud.
+    """
     card = session.get(Card, card_id)
     if card is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Card not found")
+    spoken = card.canonical_text
+    if text is not None:
+        phrases = [c["text"] for c in card.chunks_json or []] + list(card.examples_json or [])
+        if text not in phrases:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Text is not part of the card"
+            )
+        spoken = text
     try:
-        audio = tts_client.synthesize(card.canonical_text)
+        audio = tts_client.synthesize(spoken)
     except PronunciationAudioError as exc:
         logger.warning("Pronunciation failed for card %s: %s", card_id, exc)
         raise HTTPException(

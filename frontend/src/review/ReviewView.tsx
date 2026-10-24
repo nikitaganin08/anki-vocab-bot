@@ -36,6 +36,7 @@ export function ReviewView({ mode, onExit }: ReviewViewProps): JSX.Element | nul
       return session.answer ? (
         <AnswerCard
           card={item.card}
+          prompt={item.prompt}
           answer={session.answer}
           busy={session.busy}
           onGrade={(rating, overridden) => void session.grade(rating, overridden)}

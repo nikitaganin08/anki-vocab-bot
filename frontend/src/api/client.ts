@@ -112,8 +112,13 @@ export async function setCardLearning(cardId: number, isLearning: boolean): Prom
 
 // `version` (the word) only busts the HTTP cache: card ids can be reused after a delete and
 // the audio is cached for a year; the backend ignores it.
-export async function getCardAudio(cardId: number, version: string): Promise<Blob> {
-  const url = `${resolveApiPath(`/api/cards/${cardId}/audio`)}?v=${encodeURIComponent(version)}`;
+// `phrase` asks for a usage chunk or example of the card instead of the word.
+export async function getCardAudio(cardId: number, version: string, phrase?: string): Promise<Blob> {
+  const query = new URLSearchParams({ v: version });
+  if (phrase !== undefined) {
+    query.set("text", phrase);
+  }
+  const url = `${resolveApiPath(`/api/cards/${cardId}/audio`)}?${query}`;
   const response = await fetch(url, {
     headers: buildHeaders({}),
   });

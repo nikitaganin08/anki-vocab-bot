@@ -509,6 +509,15 @@ progress::-moz-progress-bar {
   margin: 0;
 }
 
+.review-phrase {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  font-size: 17px;
+}
+
 .review-card > .info-chip {
   justify-self: start;
 }

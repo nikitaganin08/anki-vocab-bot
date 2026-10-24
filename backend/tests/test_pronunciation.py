@@ -183,6 +183,32 @@ def test_audio_endpoint_returns_mp3(client: TestClient, session: Session) -> Non
     assert fake.texts == ["Take Off"]
 
 
+def test_audio_endpoint_speaks_a_chunk_or_example_of_the_card(
+    client: TestClient, session: Session
+) -> None:
+    card = make_card(
+        canonical_text="be had",
+        chunks_json=[{"text": "being had by a scam", "target": "being had", "translation": "x"}],
+        examples_json=["He felt foolish for being had."],
+    )
+    session.add(card)
+    session.commit()
+    fake = FakeTts()
+    app.dependency_overrides[get_tts_client] = lambda: fake
+    url = AUDIO_URL.format(id=card.id)
+
+    chunk = client.get(url, params={"text": "being had by a scam"}, headers=telegram_headers())
+    example = client.get(
+        url, params={"text": "He felt foolish for being had."}, headers=telegram_headers()
+    )
+    other = client.get(url, params={"text": "read this aloud"}, headers=telegram_headers())
+
+    assert chunk.status_code == example.status_code == 200
+    assert fake.texts == ["being had by a scam", "He felt foolish for being had."]
+    assert other.status_code == 400
+    assert other.json() == {"detail": "Text is not part of the card"}
+
+
 def test_audio_endpoint_is_503_without_key(client: TestClient, session: Session) -> None:
     card = make_card()
     session.add(card)
