@@ -4,6 +4,13 @@ import type { Card, ReviewPrompt } from "../api/types";
 import { CardDetails, DeleteWord, SpeakerButton } from "./IntroCard";
 import type { CheckedAnswer } from "./useReviewSession";
 
+const VERDICT_LABELS: Record<string, string> = {
+  correct: "Correct",
+  typo: "Typo",
+  form: "Wrong form",
+  wrong: "Wrong",
+};
+
 const GRADES = [
   { rating: 1, label: "Again" },
   { rating: 2, label: "Hard" },
@@ -78,36 +85,42 @@ export function AnswerCard({ card, prompt, answer, busy, onGrade, onDeleted }: A
     return () => window.removeEventListener("keydown", onKey);
   }, [busy, onGrade]);
 
-  return (
-    <section className="review-screen">
-      {result.verdict === "correct" ? (
-        <p className="review-verdict">✓ correct</p>
-      ) : result.verdict === "wrong" ? (
-        <p className="review-verdict">
-          You: <s className="verdict-typed">{typed}</s> → correct:{" "}
-          <span className="verdict-expected">{result.expected}</span>
-        </p>
-      ) : result.verdict === "form" ? (
-        <p className="review-verdict">
-          You: {typed} → here: <span className="verdict-expected">{result.expected}</span>
-          <span className="info-chip">form</span>
-        </p>
-      ) : (
-        <p className="review-verdict">
-          You: <Diff text={typed} other={result.expected} /> → correct:{" "}
-          <Diff text={result.expected} other={typed} />
-          <span className="info-chip">typo</span>
+  const empty = typed.trim() === "";
+  const tone = result.verdict === "correct" ? "ok" : result.verdict === "typo" || result.verdict === "form" ? "warn" : "bad";
+  const label = empty ? "No answer" : VERDICT_LABELS[result.verdict];
+  const [before, after] = prompt.kind === "chunk" ? prompt.masked.split("___") : ["", ""];
+
+  const lead = (
+    <div className="review-lead">
+      <div className="review-lead-head">
+        <span className={`verdict-chip verdict-${tone}`}>{label}</span>
+        {phrase ? <SpeakerButton card={card} phrase={phrase} /> : null}
+      </div>
+      <p className="review-sentence">
+        {before}
+        <mark className={`verdict-hl verdict-hl-${tone}`}>{result.expected}</mark>
+        {after}
+      </p>
+      {result.verdict === "correct" ? null : (
+        <p className="review-typed">
+          You typed:{" "}
+          {empty ? (
+            "—"
+          ) : result.verdict === "wrong" ? (
+            <s className="verdict-typed">{typed}</s>
+          ) : result.verdict === "typo" ? (
+            <Diff text={typed} other={result.expected} />
+          ) : (
+            typed
+          )}
         </p>
       )}
+    </div>
+  );
 
-      {phrase ? (
-        <p className="review-phrase">
-          <span>{phrase}</span>
-          <SpeakerButton card={card} phrase={phrase} />
-        </p>
-      ) : null}
-
-      <CardDetails card={card} />
+  return (
+    <section className="review-screen">
+      <CardDetails card={card} lead={lead} />
 
       {result.verdict === "wrong" ? (
         <button type="button" className="link-button" disabled={busy} onClick={() => onGrade(3, true)}>

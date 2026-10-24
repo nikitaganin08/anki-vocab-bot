@@ -196,11 +196,12 @@ describe("ReviewView", () => {
     expect(screen.getByText("~5 min")).toBeInTheDocument();
     await answer("gve");
 
-    const diff = (await screen.findByText(/^You:/)).closest("p");
-    expect(diff).toHaveTextContent("You: gve → correct: give");
+    expect(await screen.findByText("Wrong")).toHaveClass("verdict-bad");
+    expect((await screen.findByText(/^You typed:/)).closest("p")).toHaveTextContent("You typed: gve");
     expect(screen.getByText("gve")).toHaveClass("verdict-typed");
     expect(screen.getByText("gve").tagName).toBe("S");
-    expect(screen.getByText("give", { selector: "span" })).toHaveClass("verdict-expected");
+    // The sentence that was asked, gap filled in, the right word marked.
+    expect(screen.getByText("give", { selector: "mark" })).toHaveClass("verdict-hl-bad");
     expect(mockedCheck).toHaveBeenCalledWith(1, {
       typed: "gve",
       prompt_kind: "chunk",
@@ -225,7 +226,8 @@ describe("ReviewView", () => {
     renderReview();
 
     await answer("give");
-    expect(await screen.findByText("✓ correct")).toBeInTheDocument();
+    expect(await screen.findByText("Correct")).toHaveClass("verdict-ok");
+    expect(screen.queryByText(/^You typed:/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "My answer was right" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Good/ })).toHaveClass("primary-button");
     await grade(/^Good/);
@@ -524,8 +526,31 @@ describe("ReviewView", () => {
 
     await answer("be had");
 
-    expect(await screen.findByText("form")).toBeInTheDocument();
-    expect(screen.getByText("being had")).toHaveClass("verdict-expected");
+    expect(await screen.findByText("Wrong form")).toHaveClass("verdict-warn");
+    expect(screen.getByText("being had", { selector: "mark" })).toHaveClass("verdict-hl-warn");
+    expect((await screen.findByText(/^You typed:/)).closest("p")).toHaveTextContent("You typed: be had");
+  });
+
+  it("an empty answer is labelled as no answer", async () => {
+    mockedSession.mockResolvedValue([item(1, "give", "___ up")]);
+    mockedCheck.mockResolvedValue(checked({ verdict: "wrong", auto_rating: 1 }));
+    renderReview();
+
+    await answer("");
+
+    expect(await screen.findByText("No answer")).toHaveClass("verdict-bad");
+    expect((await screen.findByText(/^You typed:/)).closest("p")).toHaveTextContent("You typed: —");
+  });
+
+  it("a typo is marked amber and shows where the slip is", async () => {
+    mockedSession.mockResolvedValue([item(1, "reluctant", "___ to go")]);
+    mockedCheck.mockResolvedValue(checked({ verdict: "typo", auto_rating: 3, expected: "reluctant" }));
+    renderReview();
+
+    await answer("reluctnat");
+
+    expect(await screen.findByText("Typo")).toHaveClass("verdict-warn");
+    expect(screen.getByText("reluctant", { selector: "mark" })).toHaveClass("verdict-hl-warn");
   });
 
   it("chunk question also shows the word's own translation", async () => {
@@ -694,7 +719,9 @@ describe("pronunciation", () => {
     renderReview({}, true);
 
     await answer("being had");
-    expect(await screen.findByText("being had by a scam")).toBeInTheDocument();
+    expect((await screen.findByText("being had", { selector: "mark" })).closest("p")).toHaveTextContent(
+      "being had by a scam",
+    );
     await press(screen.getByRole("button", { name: "Play phrase" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));

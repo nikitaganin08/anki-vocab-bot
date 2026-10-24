@@ -368,27 +368,75 @@ progress::-moz-progress-bar {
   color: var(--hint);
 }
 
-.review-verdict {
+.review-lead {
+  display: grid;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 0.5px solid var(--border);
+}
+
+.review-lead-head {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 4px 8px;
-  font-size: 17px;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 36px;
 }
 
-.verdict-typed {
-  color: var(--danger);
+.verdict-chip {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--muted-fill);
+  font-size: 13px;
 }
 
-.verdict-expected {
+.verdict-ok {
   color: var(--ok);
 }
 
-.review-verdict mark {
+.verdict-warn {
+  color: var(--warn);
+}
+
+.verdict-bad {
+  color: var(--danger);
+}
+
+.review-sentence {
+  font-size: 20px;
+  line-height: 1.35;
+}
+
+.verdict-hl {
+  border-radius: 4px;
+  padding: 0 3px;
+  background: var(--muted-fill);
+  color: inherit;
+  font-weight: 600;
+}
+
+.verdict-hl-ok {
+  background: color-mix(in srgb, var(--ok) 22%, transparent);
+}
+
+.verdict-hl-warn {
+  background: color-mix(in srgb, var(--warn) 25%, transparent);
+}
+
+.review-typed {
+  color: var(--hint);
+  font-size: 14px;
+}
+
+.review-typed mark {
   border-radius: 3px;
   background: var(--muted-fill);
   color: inherit;
   text-decoration: underline;
+}
+
+.verdict-typed {
+  color: var(--danger);
 }
 
 .icon-button {
@@ -507,15 +555,6 @@ progress::-moz-progress-bar {
 
 .type-legend dd {
   margin: 0;
-}
-
-.review-phrase {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin: 0;
-  font-size: 17px;
 }
 
 .review-card > .info-chip {
