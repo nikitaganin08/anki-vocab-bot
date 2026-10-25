@@ -104,13 +104,15 @@ export function AnswerCard({ card, prompt, answer, busy, onGrade }: AnswerCardPr
             )}
           </span>
         )}
+      </div>
+      <div className="review-sentence-row">
+        <p className="review-sentence">
+          {before}
+          <mark className={`verdict-hl verdict-hl-${tone}`}>{result.expected}</mark>
+          {after}
+        </p>
         {phrase ? <SpeakerButton card={card} phrase={phrase} /> : null}
       </div>
-      <p className="review-sentence">
-        {before}
-        <mark className={`verdict-hl verdict-hl-${tone}`}>{result.expected}</mark>
-        {after}
-      </p>
     </div>
   );
 

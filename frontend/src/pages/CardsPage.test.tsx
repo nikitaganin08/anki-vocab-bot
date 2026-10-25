@@ -349,7 +349,9 @@ describe("CardsPage", () => {
       expect(inside.getByText("Refuse or reduce volume.")).toBeInTheDocument();
       expect(inside.getByText("turn down an offer")).toBeInTheDocument();
       expect(inside.getByText("She turned down the offer.")).toBeInTheDocument();
-      expect(inside.getByText(/turn-down \(noun\) — отказ/)).toBeInTheDocument();
+      expect(inside.getByText("turn-down", { selector: "strong" }).closest("li")).toHaveTextContent(
+        "turn-down (noun) — отказ",
+      );
       expect(inside.getByRole("switch", { name: "Learning" })).toBeChecked();
 
       fireEvent.click(inside.getByRole("button", { name: "Close" }));

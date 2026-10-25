@@ -336,7 +336,12 @@ progress::-moz-progress-bar {
   gap: 8px;
 }
 
-.review-word h2,
+.review-word h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.2;
+}
+
 .review-word-translation {
   margin-top: 8px;
   font-size: 16px;
@@ -357,11 +362,22 @@ progress::-moz-progress-bar {
   font-style: italic;
 }
 
+.review-forms {
+  display: grid;
+  gap: 4px;
+}
+
 .review-family {
   display: grid;
   gap: 4px;
   padding: 0;
   list-style: none;
+  color: var(--hint);
+}
+
+.review-family strong {
+  color: var(--text);
+  font-weight: 600;
 }
 
 .review-explanation {
@@ -382,8 +398,10 @@ progress::-moz-progress-bar {
   min-height: 32px;
 }
 
-.review-lead-head > .icon-button {
-  margin-left: auto;
+.review-sentence-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .verdict-chip {

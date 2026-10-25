@@ -70,13 +70,16 @@ export function CardDetails({ card, lead }: { card: Card; lead?: ReactNode }): J
       ) : null}
       {card.examples[0] ? <p className="review-example">{card.examples[0]}</p> : null}
       {card.word_family.length > 0 ? (
-        <ul className="review-family section-label">
-          {card.word_family.map((item) => (
-            <li key={item.word}>
-              {item.word} ({item.part_of_speech}) — {item.translation}
-            </li>
-          ))}
-        </ul>
+        <section className="review-forms">
+          <h3 className="section-label">Forms</h3>
+          <ul className="review-family">
+            {card.word_family.map((item) => (
+              <li key={item.word}>
+                <strong>{item.word}</strong> ({item.part_of_speech}) — {item.translation}
+              </li>
+            ))}
+          </ul>
+        </section>
       ) : null}
     </div>
   );

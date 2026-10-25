@@ -165,7 +165,10 @@ describe("ReviewView", () => {
     expect(screen.getByText("To hand something to someone.")).toBeInTheDocument();
     expect(screen.getByText("give up")).toBeInTheDocument();
     expect(screen.getByText("She gave me a book.")).toBeInTheDocument();
-    expect(screen.getByText("giver (noun) — даритель")).toBeInTheDocument();
+    expect(screen.getByText("giver", { selector: "strong" }).closest("li")).toHaveTextContent(
+      "giver (noun) — даритель",
+    );
+    expect(screen.getByText("Forms")).toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     const remembered = screen.getByRole("button", { name: "Got it" });
     expect(remembered).toHaveClass("primary-button");
@@ -405,7 +408,10 @@ describe("ReviewView", () => {
     expect(await screen.findByText("Correct")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Delete word" })).not.toBeInTheDocument();
     expect(screen.getByText("She gave me a book.")).toBeInTheDocument();
-    expect(screen.getByText("giver (noun) — даритель")).toBeInTheDocument();
+    expect(screen.getByText("giver", { selector: "strong" }).closest("li")).toHaveTextContent(
+      "giver (noun) — даритель",
+    );
+    expect(screen.getByText("Forms")).toBeInTheDocument();
   });
 
   it("deleting a new word at the intro drops its typed question", async () => {
