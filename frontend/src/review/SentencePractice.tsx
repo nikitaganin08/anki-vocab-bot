@@ -14,11 +14,11 @@ export function SentencePractice({ cardId, word }: { cardId: number; word: strin
   const feedback = mutation.data;
   return (
     <>
-      <button type="button" className="secondary-button" onClick={() => setOpen(true)}>
-        Write a sentence
+      <button type="button" className="secondary-button practice-button" onClick={() => setOpen(true)}>
+        Test yourself: use it in a sentence
       </button>
       {open ? (
-        <Sheet label="Write a sentence" onClose={() => setOpen(false)}>
+        <Sheet label="Use it in a sentence" onClose={() => setOpen(false)}>
           <h2 className="sheet-title">{word}</h2>
           <form
             className="sentence-practice"
