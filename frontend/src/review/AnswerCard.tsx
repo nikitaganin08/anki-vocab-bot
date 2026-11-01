@@ -2,7 +2,6 @@ import { useEffect } from "react";
 
 import type { Card, ReviewPrompt } from "../api/types";
 import { CardDetails, SpeakerButton } from "./IntroCard";
-import { SentencePractice } from "./SentencePractice";
 import type { CheckedAnswer } from "./useReviewSession";
 
 const VERDICT_LABELS: Record<string, string> = {
@@ -143,7 +142,6 @@ export function AnswerCard({ card, prompt, answer, busy, onGrade }: AnswerCardPr
           </button>
         ))}
       </div>
-      <SentencePractice key={card.id} cardId={card.id} />
     </section>
   );
 }

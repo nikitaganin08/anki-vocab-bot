@@ -3,20 +3,11 @@ import { useState } from "react";
 
 import { checkSentence } from "../api/client";
 
-// Optional extra after an answer: write a sentence with the word and get feedback. It never
+// Optional extra after a grade: write a sentence with the word and get feedback. It never
 // changes the grade or the schedule.
 export function SentencePractice({ cardId }: { cardId: number }): JSX.Element {
-  const [open, setOpen] = useState(false);
   const [sentence, setSentence] = useState("");
   const mutation = useMutation({ mutationFn: () => checkSentence(cardId, sentence.trim()) });
-
-  if (!open) {
-    return (
-      <button type="button" className="link-button" onClick={() => setOpen(true)}>
-        Use it in a sentence
-      </button>
-    );
-  }
 
   const feedback = mutation.data;
   return (
