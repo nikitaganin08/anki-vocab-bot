@@ -2,6 +2,7 @@ import { useEffect } from "react";
 
 import type { Card, ReviewPrompt } from "../api/types";
 import { CardDetails, SpeakerButton } from "./IntroCard";
+import { SentencePractice } from "./SentencePractice";
 import type { CheckedAnswer } from "./useReviewSession";
 
 const VERDICT_LABELS: Record<string, string> = {
@@ -127,6 +128,7 @@ export function AnswerCard({ card, prompt, answer, busy, onGrade }: AnswerCardPr
           My answer was right
         </button>
       ) : null}
+      <SentencePractice key={card.id} cardId={card.id} word={card.canonical_text} />
       <div className="grade-grid">
         {GRADES.map(({ rating, label }) => (
           <button

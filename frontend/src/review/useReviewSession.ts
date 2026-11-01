@@ -27,7 +27,7 @@ export interface Round {
   graded: number;
 }
 
-type StoredPhase = "loading" | "error" | "item" | "answer" | "practice" | "roundEnd" | "done";
+type StoredPhase = "loading" | "error" | "item" | "answer" | "roundEnd" | "done";
 export type ReviewPhase = Exclude<StoredPhase, "item"> | "intro" | "question";
 
 interface State {
@@ -56,8 +56,6 @@ export function useReviewSession(mode: ReviewMode) {
   });
   const gradedTotal = useRef(0);
   const shownAt = useRef(0);
-  // What happens after the sentence practice screen that follows every grade.
-  const afterPractice = useRef<() => void>(() => {});
   const item = state.round.queue[state.round.pos];
 
   // Every round boundary refreshes the summary too, so minutes and goal progress stay current.
@@ -157,42 +155,38 @@ export function useReviewSession(mode: ReviewMode) {
     gradedTotal.current += 1;
     const capReached = gradedTotal.current === mode.capCards;
     const { queue, pos } = state.round;
-    // The next step is applied when the learner leaves the practice screen.
-    afterPractice.current = () => {
-      // Needs another card to come in between; the last card of a round waits for the next one.
-      const repeat =
-        !capReached &&
-        pos + 1 < queue.length &&
-        new Date(dueAt).getTime() - Date.now() < REPEAT_WITHIN_MS;
-      if (repeat) {
-        const next = [...queue];
-        next.splice(Math.min(pos + 1 + REPEAT_GAP, next.length), 0, {
-          ...item,
-          intro: false,
-          // The server moved the card on: echo its new due time or the next grade is a 409.
-          srs_due_at: dueAt,
-        });
-        setState((s) => ({
-          ...s,
-          phase: "item",
-          answer: null,
-          busy: false,
-          round: { ...s.round, queue: next, pos: pos + 1, total: s.round.total + 1, graded: s.round.graded + 1 },
-        }));
-        return;
-      }
-      if (capReached || pos + 1 >= queue.length) {
-        return fetchRound((items) => ({ phase: "roundEnd", next: items }));
-      }
+    // Needs another card to come in between; the last card of a round waits for the next one.
+    const repeat =
+      !capReached &&
+      pos + 1 < queue.length &&
+      new Date(dueAt).getTime() - Date.now() < REPEAT_WITHIN_MS;
+    if (repeat) {
+      const next = [...queue];
+      next.splice(Math.min(pos + 1 + REPEAT_GAP, next.length), 0, {
+        ...item,
+        intro: false,
+        // The server moved the card on: echo its new due time or the next grade is a 409.
+        srs_due_at: dueAt,
+      });
       setState((s) => ({
         ...s,
         phase: "item",
         answer: null,
         busy: false,
-        round: { ...s.round, pos: s.round.pos + 1, graded: s.round.graded + 1 },
+        round: { ...s.round, queue: next, pos: pos + 1, total: s.round.total + 1, graded: s.round.graded + 1 },
       }));
-    };
-    setState((s) => ({ ...s, phase: "practice", busy: false }));
+      return;
+    }
+    if (capReached || pos + 1 >= queue.length) {
+      return fetchRound((items) => ({ phase: "roundEnd", next: items }));
+    }
+    setState((s) => ({
+      ...s,
+      phase: "item",
+      answer: null,
+      busy: false,
+      round: { ...s.round, pos: s.round.pos + 1, graded: s.round.graded + 1 },
+    }));
   }
 
   // The card is already deleted on the server: drop its remaining queue entries and move on.
@@ -206,8 +200,6 @@ export function useReviewSession(mode: ReviewMode) {
     }
     setState((s) => ({ ...s, phase: "item", answer: null, busy: false, round }));
   }
-
-  const finishPractice = (): void => afterPractice.current();
 
   function nextRound(): void {
     setState((s) => ({ ...s, phase: "item", round: newRound(s.round.number + 1, s.next), next: [] }));
@@ -228,7 +220,6 @@ export function useReviewSession(mode: ReviewMode) {
     check,
     grade,
     removeCard,
-    finishPractice,
     nextRound,
     retry: () => void loadRound(state.round.number),
   };
