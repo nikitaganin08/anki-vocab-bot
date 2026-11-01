@@ -6,6 +6,7 @@ import type {
   CardsQuery,
   CheckRequest,
   CheckResponse,
+  SentenceFeedback,
   GradeRequest,
   GradeResponse,
   ReviewSessionItem,
@@ -146,6 +147,10 @@ export async function getReviewSession(opts: {
 
 export async function checkAnswer(cardId: number, body: CheckRequest): Promise<CheckResponse> {
   return request(`/api/review/${cardId}/check`, "POST", body);
+}
+
+export async function checkSentence(cardId: number, sentence: string): Promise<SentenceFeedback> {
+  return request(`/api/review/${cardId}/sentence`, "POST", { sentence });
 }
 
 export async function gradeCard(cardId: number, body: GradeRequest): Promise<GradeResponse> {

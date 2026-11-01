@@ -128,6 +128,16 @@ class ReviewSessionResponse(BaseModel):
     items: list[ReviewSessionItemResponse]
 
 
+class SentenceRequest(BaseModel):
+    sentence: str = Field(min_length=1, max_length=300)
+
+
+class SentenceFeedbackResponse(BaseModel):
+    ok: bool
+    corrected: str | None
+    comment: str
+
+
 class ReviewCheckRequest(BaseModel):
     typed: str = Field(max_length=200)
     prompt_kind: PromptKind

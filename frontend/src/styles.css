@@ -398,6 +398,22 @@ progress::-moz-progress-bar {
   min-height: 32px;
 }
 
+.sentence-practice {
+  display: grid;
+  gap: 8px;
+}
+
+.sentence-feedback {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+
+.sentence-comment {
+  white-space: normal;
+  overflow: visible;
+}
+
 .review-sentence-row {
   display: flex;
   align-items: center;

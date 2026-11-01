@@ -163,6 +163,12 @@ export interface GradeRequest {
   expected_due_at: string | null;
 }
 
+export interface SentenceFeedback {
+  ok: boolean;
+  corrected: string | null;
+  comment: string;
+}
+
 export interface GradeResponse {
   srs_due_at: string;
   srs_state: string;

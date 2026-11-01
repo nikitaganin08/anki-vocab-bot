@@ -130,3 +130,22 @@ def build_llm_messages(source_text: str) -> list[dict[str, str]]:
             ),
         },
     ]
+
+
+SENTENCE_CHECK_PROMPT = """You check one sentence written by an English learner whose first
+language is Russian. The sentence should use the target word or expression, in any inflected form.
+Respond with a single JSON object only: {"ok": true | false, "corrected": "..." | null,
+"comment": "..."}.
+- ok is true when the sentence is grammatical, natural, and uses the target correctly.
+- When ok is false, corrected is the smallest fix that keeps the learner's idea (if the target
+  is missing or misused, rewrite the sentence so that it uses the target naturally);
+  when ok is true, corrected is null.
+- comment is one short English sentence: what is good, or what was wrong and why.
+- Do not praise more than needed and do not add other fields."""
+
+
+def build_sentence_check_messages(target: str, sentence: str) -> list[dict[str, str]]:
+    return [
+        {"role": "system", "content": SENTENCE_CHECK_PROMPT},
+        {"role": "user", "content": f"target: {target}\nsentence: {sentence}"},
+    ]

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 
 import type { Card, ReviewPrompt } from "../api/types";
 import { CardDetails, SpeakerButton } from "./IntroCard";
+import { SentencePractice } from "./SentencePractice";
 import type { CheckedAnswer } from "./useReviewSession";
 
 const VERDICT_LABELS: Record<string, string> = {
@@ -75,8 +76,10 @@ export function AnswerCard({ card, prompt, answer, busy, onGrade }: AnswerCardPr
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       const rating = Number(event.key);
-      const inDialog = event.target instanceof Element && event.target.closest("[role=dialog]");
-      if (!busy && !inDialog && rating >= 1 && rating <= 4 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      const target = event.target instanceof Element ? event.target : null;
+      // Digits typed into the sentence box or a dialog are not grades.
+      const typing = target?.closest("[role=dialog], textarea, input") != null;
+      if (!busy && !typing && rating >= 1 && rating <= 4 && !event.metaKey && !event.ctrlKey && !event.altKey) {
         onGrade(rating);
       }
     };
@@ -140,6 +143,7 @@ export function AnswerCard({ card, prompt, answer, busy, onGrade }: AnswerCardPr
           </button>
         ))}
       </div>
+      <SentencePractice key={card.id} cardId={card.id} />
     </section>
   );
 }
