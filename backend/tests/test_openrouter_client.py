@@ -148,3 +148,27 @@ def test_openrouter_client_retries_once_after_invalid_contract() -> None:
     result = client.generate_card("hello there friend")
 
     assert result.accepted is False
+
+
+def test_openrouter_client_sets_reasoning_per_request_kind() -> None:
+    sent: list[dict] = []
+    feedback = json.dumps({"ok": True, "corrected": None, "comment": "Natural."})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.read())
+        sent.append(body)
+        content = (
+            feedback if "sentence:" in body["messages"][-1]["content"] else VALID_COMPLETION_CONTENT
+        )
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
+
+    client = OpenRouterClient(
+        api_key="secret",
+        model="test-model",
+        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    client.generate_card("take off")
+    client.check_sentence("take off", "The plane took off.")
+
+    assert sent[0]["reasoning"] == {"enabled": False}
+    assert sent[1]["reasoning"] == {"effort": "low"}

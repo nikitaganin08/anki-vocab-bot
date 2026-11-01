@@ -36,6 +36,8 @@ class OpenRouterClient:
     def generate_card(self, source_text: str) -> LlmResponse:
         return self._request_json_completion(
             messages=build_llm_messages(source_text),
+            # Same cards without reasoning, in half the time and cost (benchmarked on Haiku 5.5).
+            reasoning={"enabled": False},
             response_parser=parse_llm_response,
             invalid_contract_user_message=(
                 "The language model returned an invalid card response. Please try again."
@@ -45,6 +47,8 @@ class OpenRouterClient:
     def check_sentence(self, target: str, sentence: str) -> SentenceFeedback:
         return self._request_json_completion(
             messages=build_sentence_check_messages(target, sentence),
+            # Subtle slips (articles, collocations) are worth some reasoning; it is rare and cheap.
+            reasoning={"effort": "low"},
             response_parser=parse_sentence_feedback,
             invalid_contract_user_message=(
                 "The language model returned an invalid response. Please try again."
@@ -69,12 +73,15 @@ class OpenRouterClient:
         messages: list[dict[str, str]],
         response_parser: Any,
         invalid_contract_user_message: str,
+        reasoning: dict[str, Any] | None = None,
     ) -> Any:
-        payload = {
+        payload: dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "response_format": {"type": "json_object"},
         }
+        if reasoning is not None:
+            payload["reasoning"] = reasoning
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",

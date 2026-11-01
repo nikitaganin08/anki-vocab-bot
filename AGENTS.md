@@ -326,6 +326,7 @@ Required environment variables:
 - `OPENROUTER_API_KEY`
 - `DATABASE_URL` (default: `sqlite:///backend/data/app.db`)
 - `LLM_MODEL` (default: `google/gemini-2.5-flash-lite`)
+  - The client sends `reasoning` per request kind: card creation `{enabled: false}` (same cards, half the time and cost on Haiku 5.5), sentence check `{effort: low}`, `/find` lookup nothing (model default); models without reasoning ignore it
 
 Optional:
 - `YANDEX_TTS_API_KEY` (Yandex SpeechKit; takes precedence over Google when both are set)
