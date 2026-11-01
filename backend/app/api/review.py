@@ -6,7 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_telegram_webapp_user
+from app.api.deps import get_openrouter_client, require_telegram_webapp_user
 from app.api.schemas import (
     CardResponse,
     ReviewCheckRequest,
@@ -17,7 +17,10 @@ from app.api.schemas import (
     ReviewSessionItemResponse,
     ReviewSessionResponse,
     ReviewUndoResponse,
+    SentenceFeedbackResponse,
+    SentenceRequest,
 )
+from app.clients.openrouter import OpenRouterClient, OpenRouterError
 from app.db.session import get_session
 from app.models.card import Card
 from app.services.answer_check import auto_rating, build_prompt, check_answer
@@ -107,6 +110,26 @@ def check(card_id: int, body: ReviewCheckRequest, session: SessionDep) -> Review
         expected=result.expected,
         auto_rating=auto_rating(result.verdict, body.hint_used),
         intervals=intervals,
+    )
+
+
+@router.post("/{card_id}/sentence", response_model=SentenceFeedbackResponse)
+def check_sentence(
+    card_id: int,
+    body: SentenceRequest,
+    session: SessionDep,
+    openrouter_client: Annotated[OpenRouterClient, Depends(get_openrouter_client)],
+) -> SentenceFeedbackResponse:
+    """Feedback on the learner's own sentence with the card's word; logs nothing, no grading."""
+    card = _get_card(session, card_id)
+    try:
+        feedback = openrouter_client.check_sentence(card.canonical_text, body.sentence.strip())
+    except OpenRouterError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=exc.user_message
+        ) from exc
+    return SentenceFeedbackResponse(
+        ok=feedback.ok, corrected=feedback.corrected, comment=feedback.comment
     )
 
 

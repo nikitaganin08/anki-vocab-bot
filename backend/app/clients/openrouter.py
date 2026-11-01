@@ -12,8 +12,9 @@ from app.schemas.description_lookup import (
     parse_description_lookup_response,
 )
 from app.schemas.llm import LlmResponse, parse_llm_response
+from app.schemas.sentence_check import SentenceFeedback, parse_sentence_feedback
 from app.services.description_lookup_prompt import build_description_lookup_messages
-from app.services.llm_prompt import build_llm_messages
+from app.services.llm_prompt import build_llm_messages, build_sentence_check_messages
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
@@ -38,6 +39,15 @@ class OpenRouterClient:
             response_parser=parse_llm_response,
             invalid_contract_user_message=(
                 "The language model returned an invalid card response. Please try again."
+            ),
+        )
+
+    def check_sentence(self, target: str, sentence: str) -> SentenceFeedback:
+        return self._request_json_completion(
+            messages=build_sentence_check_messages(target, sentence),
+            response_parser=parse_sentence_feedback,
+            invalid_contract_user_message=(
+                "The language model returned an invalid response. Please try again."
             ),
         )
 

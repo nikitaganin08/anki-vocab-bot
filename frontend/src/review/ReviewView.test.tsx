@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, checkAnswer, deleteCard, getReviewSession, getReviewSummary, gradeCard } from "../api/client";
+import { ApiError, checkAnswer, checkSentence, deleteCard, getReviewSession, getReviewSummary, gradeCard } from "../api/client";
 import type { Card, CheckResponse, ReviewSessionItem, ReviewSummary } from "../api/types";
 import type { ReviewMode } from "../home/HomeView";
 import { formatInterval } from "./AnswerCard";
@@ -17,6 +17,7 @@ vi.mock("../api/client", async (importOriginal) => {
     checkAnswer: vi.fn(),
     gradeCard: vi.fn(),
     deleteCard: vi.fn(),
+    checkSentence: vi.fn(),
   };
 });
 
@@ -25,6 +26,7 @@ const mockedSummary = vi.mocked(getReviewSummary);
 const mockedCheck = vi.mocked(checkAnswer);
 const mockedGrade = vi.mocked(gradeCard);
 const mockedDelete = vi.mocked(deleteCard);
+const mockedSentence = vi.mocked(checkSentence);
 
 function card(id: number, word: string): Card {
   return {
@@ -490,6 +492,43 @@ describe("ReviewView", () => {
     await grade(/^Again/);
 
     expect(await screen.findByRole("heading", { name: "✓ Round complete" })).toBeInTheDocument();
+  });
+
+  it("writing a sentence gets feedback and digits typed in the box are not grades", async () => {
+    mockedSession.mockResolvedValue([item(7, "give", "___ up")]);
+    mockedSentence.mockResolvedValue({ ok: false, corrected: "He gave up in 2020.", comment: "Use the past tense." });
+    renderReview();
+
+    await answer("give");
+    await press(await screen.findByRole("button", { name: "Use it in a sentence" }));
+    const box = screen.getByRole("textbox", { name: "Your sentence" });
+    fireEvent.change(box, { target: { value: "He give up in 2020." } });
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "3" });
+    });
+    expect(mockedGrade).not.toHaveBeenCalled();
+
+    await press(screen.getByRole("button", { name: "Check sentence" }));
+
+    expect(mockedSentence).toHaveBeenCalledWith(7, "He give up in 2020.");
+    expect(await screen.findByText("Needs a fix")).toHaveClass("verdict-warn");
+    expect(screen.getByText("He gave up in 2020.")).toBeInTheDocument();
+    expect(screen.getByText("Use the past tense.")).toBeInTheDocument();
+    expect(mockedGrade).not.toHaveBeenCalled();
+  });
+
+  it("a sentence check failure is shown and the review goes on", async () => {
+    mockedSession.mockResolvedValue([item(7, "give", "___ up")]);
+    mockedSentence.mockRejectedValue(new ApiError("The language model timed out.", 502));
+    renderReview();
+
+    await answer("give");
+    await press(await screen.findByRole("button", { name: "Use it in a sentence" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Your sentence" }), { target: { value: "x" } });
+    await press(screen.getByRole("button", { name: "Check sentence" }));
+
+    expect(await screen.findByText("The language model timed out.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^Good/ })).toBeEnabled();
   });
 
   it("keys 1-4 grade like the buttons", async () => {
