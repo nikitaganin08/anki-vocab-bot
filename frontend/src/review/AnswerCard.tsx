@@ -128,6 +128,7 @@ export function AnswerCard({ card, prompt, answer, busy, onGrade }: AnswerCardPr
           My answer was right
         </button>
       ) : null}
+      <SentencePractice key={card.id} cardId={card.id} word={card.canonical_text} />
       <div className="grade-grid">
         {GRADES.map(({ rating, label }) => (
           <button
@@ -143,7 +144,6 @@ export function AnswerCard({ card, prompt, answer, busy, onGrade }: AnswerCardPr
           </button>
         ))}
       </div>
-      <SentencePractice key={card.id} cardId={card.id} />
     </section>
   );
 }

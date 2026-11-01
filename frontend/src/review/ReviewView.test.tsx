@@ -500,7 +500,7 @@ describe("ReviewView", () => {
     renderReview();
 
     await answer("give");
-    await press(await screen.findByRole("button", { name: "Use it in a sentence" }));
+    await press(await screen.findByRole("button", { name: "Write a sentence" }));
     const box = screen.getByRole("textbox", { name: "Your sentence" });
     fireEvent.change(box, { target: { value: "He give up in 2020." } });
     await act(async () => {
@@ -523,7 +523,7 @@ describe("ReviewView", () => {
     renderReview();
 
     await answer("give");
-    await press(await screen.findByRole("button", { name: "Use it in a sentence" }));
+    await press(await screen.findByRole("button", { name: "Write a sentence" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Your sentence" }), { target: { value: "x" } });
     await press(screen.getByRole("button", { name: "Check sentence" }));
 
