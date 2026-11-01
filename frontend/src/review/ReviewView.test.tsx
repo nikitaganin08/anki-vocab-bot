@@ -135,7 +135,6 @@ async function answer(typed: string): Promise<void> {
 
 async function grade(label: RegExp): Promise<void> {
   await press(await screen.findByRole("button", { name: label }));
-  await press(await screen.findByRole("button", { name: "Next" }));
 }
 
 function dueIn(minutes: number): string {
@@ -274,7 +273,7 @@ describe("ReviewView", () => {
     renderReview({ includeBacklog: true });
 
     await answer("give");
-    await press(await screen.findByRole("button", { name: /^Good/ }));
+    await grade(/^Good/);
 
     expect(await screen.findByText("___ off")).toBeInTheDocument();
     expect(screen.getByText("Round 1 · 1 of 1")).toBeInTheDocument();
@@ -495,42 +494,41 @@ describe("ReviewView", () => {
     expect(await screen.findByRole("heading", { name: "✓ Round complete" })).toBeInTheDocument();
   });
 
-  it("after a grade the practice screen takes a sentence and Next goes on", async () => {
-    mockedSession.mockResolvedValue([item(7, "give", "___ up"), item(8, "take", "___ off")]);
+  it("writing a sentence gets feedback and digits typed in the box are not grades", async () => {
+    mockedSession.mockResolvedValue([item(7, "give", "___ up")]);
     mockedSentence.mockResolvedValue({ ok: false, corrected: "He gave up in 2020.", comment: "Use the past tense." });
     renderReview();
 
     await answer("give");
-    expect(screen.queryByRole("textbox", { name: "Your sentence" })).not.toBeInTheDocument();
-    await press(await screen.findByRole("button", { name: /^Good/ }));
-    expect(mockedGrade).toHaveBeenCalledTimes(1);
-
-    const box = await screen.findByRole("textbox", { name: "Your sentence" });
+    await press(await screen.findByRole("button", { name: "Use it in a sentence" }));
+    const box = screen.getByRole("textbox", { name: "Your sentence" });
     fireEvent.change(box, { target: { value: "He give up in 2020." } });
+    await act(async () => {
+      fireEvent.keyDown(box, { key: "3" });
+    });
+    expect(mockedGrade).not.toHaveBeenCalled();
+
     await press(screen.getByRole("button", { name: "Check sentence" }));
 
     expect(mockedSentence).toHaveBeenCalledWith(7, "He give up in 2020.");
     expect(await screen.findByText("Needs a fix")).toHaveClass("verdict-warn");
     expect(screen.getByText("He gave up in 2020.")).toBeInTheDocument();
     expect(screen.getByText("Use the past tense.")).toBeInTheDocument();
-    expect(mockedGrade).toHaveBeenCalledTimes(1);
-
-    await press(screen.getByRole("button", { name: "Next" }));
-    expect(await screen.findByRole("textbox", { name: /answer/i })).toBeInTheDocument();
+    expect(mockedGrade).not.toHaveBeenCalled();
   });
 
-  it("a sentence check failure is shown and Next still works", async () => {
+  it("a sentence check failure is shown and the review goes on", async () => {
     mockedSession.mockResolvedValue([item(7, "give", "___ up")]);
     mockedSentence.mockRejectedValue(new ApiError("The language model timed out.", 502));
     renderReview();
 
     await answer("give");
-    await press(await screen.findByRole("button", { name: /^Good/ }));
-    fireEvent.change(await screen.findByRole("textbox", { name: "Your sentence" }), { target: { value: "x" } });
+    await press(await screen.findByRole("button", { name: "Use it in a sentence" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Your sentence" }), { target: { value: "x" } });
     await press(screen.getByRole("button", { name: "Check sentence" }));
 
     expect(await screen.findByText("The language model timed out.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /^Good/ })).toBeEnabled();
   });
 
   it("keys 1-4 grade like the buttons", async () => {

@@ -2,7 +2,6 @@ import { ErrorState, LoadingState } from "../components/PageState";
 import type { ReviewMode } from "../home/HomeView";
 import { AnswerCard } from "./AnswerCard";
 import { IntroCard } from "./IntroCard";
-import { PracticeCard } from "./PracticeCard";
 import { QuestionCard } from "./QuestionCard";
 import { RoundEnd } from "./RoundEnd";
 import { useReviewSession } from "./useReviewSession";
@@ -43,8 +42,6 @@ export function ReviewView({ mode, onExit }: ReviewViewProps): JSX.Element | nul
           onGrade={(rating, overridden) => void session.grade(rating, overridden)}
         />
       ) : null;
-    case "practice":
-      return <PracticeCard key={item.card.id} card={item.card} onNext={session.finishPractice} />;
     case "roundEnd":
     case "done":
       return summary ? (
