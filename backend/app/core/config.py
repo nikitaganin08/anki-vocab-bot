@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     telegram_webapp_url: str | None = Field(default=None, alias="TELEGRAM_WEBAPP_URL")
     openrouter_api_key: str | None = Field(default=None, alias="OPENROUTER_API_KEY")
     database_url: str = Field(default_factory=default_database_url, alias="DATABASE_URL")
-    llm_model: str = Field(default="google/gemini-2.5-flash-lite", alias="LLM_MODEL")
+    llm_model: str = Field(default="anthropic/claude-haiku-5.5", alias="LLM_MODEL")
     google_tts_api_key: str | None = Field(default=None, alias="GOOGLE_TTS_API_KEY")
     google_tts_voice: str = Field(default="en-US-Chirp3-HD-Aoede", alias="GOOGLE_TTS_VOICE")
     yandex_tts_api_key: str | None = Field(default=None, alias="YANDEX_TTS_API_KEY")
