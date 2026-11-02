@@ -416,9 +416,23 @@ progress::-moz-progress-bar {
   justify-items: start;
 }
 
-.sentence-comment {
-  white-space: normal;
-  overflow: visible;
+.sentence-comment,
+.sentence-was {
+  color: var(--hint);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.sentence-was s {
+  color: var(--danger);
+}
+
+.sentence-fix {
+  border-radius: 4px;
+  padding: 0 3px;
+  background: var(--muted-fill);
+  color: var(--warn);
+  font-weight: 600;
 }
 
 .review-sentence-row {
