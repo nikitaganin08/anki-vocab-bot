@@ -135,13 +135,18 @@ def build_llm_messages(source_text: str) -> list[dict[str, str]]:
 SENTENCE_CHECK_PROMPT = """You check one sentence written by an English learner whose first
 language is Russian. The sentence should use the target word or expression, in any inflected form.
 Respond with a single JSON object only: {"ok": true | false, "corrected": "..." | null,
-"comment": "..."}.
-- ok is true when the sentence is grammatical, natural, and uses the target correctly.
+"issues": [{"wrong": "..." | null, "right": "..." | null, "why": "..."}]}.
+- ok is true when the sentence is grammatical, natural, and uses the target correctly;
+  then corrected is null and issues is [].
 - When ok is false, corrected is the smallest fix that keeps the learner's idea (if the target
-  is missing or misused, rewrite the sentence so that it uses the target naturally);
-  when ok is true, corrected is null.
-- comment is one short English sentence: what is good, or what was wrong and why.
-- Do not praise more than needed and do not add other fields."""
+  is missing or misused, rewrite the sentence so that it uses the target naturally).
+- issues lists only what was wrong, one item per fix, at most 4, most important first. Never
+  praise and never mention what was correct.
+  - wrong is the exact fragment of the learner's sentence (one to a few words), right is what
+    replaces it in corrected, why is a few words in English (up to 8), e.g. "one home, so singular".
+  - If the sentence is grammatical but native speakers would not say it this way, add a general
+    item with wrong and right both null and why naming the problem, e.g. "Not how people say it."
+- Do not add other fields."""
 
 
 def build_sentence_check_messages(target: str, sentence: str) -> list[dict[str, str]]:

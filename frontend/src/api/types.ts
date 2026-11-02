@@ -163,10 +163,16 @@ export interface GradeRequest {
   expected_due_at: string | null;
 }
 
+export interface SentenceIssue {
+  wrong: string | null;
+  right: string | null;
+  why: string;
+}
+
 export interface SentenceFeedback {
   ok: boolean;
   corrected: string | null;
-  comment: string;
+  issues: SentenceIssue[];
 }
 
 export interface GradeResponse {

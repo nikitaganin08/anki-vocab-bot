@@ -128,9 +128,7 @@ def check_sentence(
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY, detail=exc.user_message
         ) from exc
-    return SentenceFeedbackResponse(
-        ok=feedback.ok, corrected=feedback.corrected, comment=feedback.comment
-    )
+    return SentenceFeedbackResponse.model_validate(feedback.model_dump())
 
 
 @router.post("/{card_id}/grade", response_model=ReviewGradeResponse)

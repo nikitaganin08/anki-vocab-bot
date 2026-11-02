@@ -496,7 +496,7 @@ describe("ReviewView", () => {
 
   it("writing a sentence gets feedback and digits typed in the box are not grades", async () => {
     mockedSession.mockResolvedValue([item(7, "give", "___ up")]);
-    mockedSentence.mockResolvedValue({ ok: false, corrected: "He gave up in 2020.", comment: "Use the past tense." });
+    mockedSentence.mockResolvedValue({ ok: false, corrected: "He gave up in 2020.", issues: [{ wrong: "give", right: "gave", why: "Use the past tense." }] });
     renderReview();
 
     await answer("give");
@@ -512,8 +512,9 @@ describe("ReviewView", () => {
 
     expect(mockedSentence).toHaveBeenCalledWith(7, "He give up in 2020.");
     expect(await screen.findByText("Needs a fix")).toHaveClass("verdict-warn");
-    expect(screen.getByText("gave")).toHaveClass("sentence-fix");
+    expect(screen.getByText("gave", { selector: "mark" })).toHaveClass("sentence-fix");
     expect(screen.getByText("give", { selector: "s" })).toBeInTheDocument();
+    expect(screen.getByText("gave", { selector: "strong" })).toBeInTheDocument();
     expect(screen.getByText("Use the past tense.")).toBeInTheDocument();
     expect(mockedGrade).not.toHaveBeenCalled();
   });

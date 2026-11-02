@@ -9,24 +9,47 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_openrouter_client
 from app.clients.openrouter import OpenRouterError
 from app.main import app
-from app.schemas.sentence_check import SentenceFeedback, parse_sentence_feedback
+from app.schemas.sentence_check import SentenceFeedback, SentenceIssue, parse_sentence_feedback
 from app.services.llm_prompt import build_sentence_check_messages
 
 from .conftest import make_card, telegram_headers
 
 
-def test_parse_normalizes_and_requires_a_comment() -> None:
+def test_parse_normalizes_and_validates_issues() -> None:
     feedback = parse_sentence_feedback(
-        '{"ok": false, "corrected": "  She pleaded   guilty. ", "comment": "Use the past form."}'
+        {
+            "ok": False,
+            "corrected": "  She pleaded   guilty. ",
+            "issues": [
+                {"wrong": " plead ", "right": "pleaded", "why": "Use  the past form."},
+                {"why": "Not how people say it."},
+            ],
+        }
     )
 
     assert feedback == SentenceFeedback(
-        ok=False, corrected="She pleaded guilty.", comment="Use the past form."
+        ok=False,
+        corrected="She pleaded guilty.",
+        issues=[
+            SentenceIssue(wrong="plead", right="pleaded", why="Use the past form."),
+            SentenceIssue(why="Not how people say it."),
+        ],
     )
+    assert parse_sentence_feedback({"ok": True, "corrected": None, "issues": []}).issues == []
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"ok": False, "corrected": "x", "issues": []},
+        {"ok": False, "corrected": "x", "issues": [{"wrong": "a", "why": "b"}]},
+        {"ok": False, "corrected": "x", "issues": [{"wrong": "a", "right": "b", "why": " "}]},
+        {"ok": True, "issues": [], "extra": 1},
+    ],
+)
+def test_parse_rejects_bad_feedback(payload: dict) -> None:
     with pytest.raises(ValueError):
-        parse_sentence_feedback({"ok": True, "corrected": None, "comment": "  "})
-    with pytest.raises(ValueError):
-        parse_sentence_feedback({"ok": True, "comment": "Nice.", "extra": 1})
+        parse_sentence_feedback(payload)
 
 
 def test_prompt_names_the_target_and_the_sentence() -> None:
@@ -57,7 +80,7 @@ def _card(session: Session):  # noqa: ANN202
 
 def test_sentence_endpoint_returns_feedback(client: TestClient, session: Session) -> None:
     card = _card(session)
-    fake = FakeClient(SentenceFeedback(ok=True, corrected=None, comment="Natural and correct."))
+    fake = FakeClient(SentenceFeedback(ok=True, corrected=None))
     app.dependency_overrides[get_openrouter_client] = lambda: fake
 
     resp = client.post(
@@ -67,7 +90,7 @@ def test_sentence_endpoint_returns_feedback(client: TestClient, session: Session
     )
 
     assert resp.status_code == 200
-    assert resp.json() == {"ok": True, "corrected": None, "comment": "Natural and correct."}
+    assert resp.json() == {"ok": True, "corrected": None, "issues": []}
     assert fake.calls == [("plead", "He pleaded for help.")]
 
 
