@@ -4,9 +4,38 @@ import json
 import re
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 WHITESPACE_PATTERN = re.compile(r"\s+")
+
+
+def _clean(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return WHITESPACE_PATTERN.sub(" ", value.strip()) or None
+
+
+class SentenceIssue(BaseModel):
+    """One fix: `wrong` -> `right` with a short reason; both null for a general note."""
+
+    wrong: str | None = None
+    right: str | None = None
+    why: str
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("wrong", "right", "why")
+    @classmethod
+    def normalize(cls, value: str | None) -> str | None:
+        return _clean(value)
+
+    @model_validator(mode="after")
+    def check(self) -> SentenceIssue:
+        if not self.why:
+            raise ValueError("why must not be empty")
+        if (self.wrong is None) != (self.right is None):
+            raise ValueError("wrong and right go together")
+        return self
 
 
 class SentenceFeedback(BaseModel):
@@ -14,23 +43,20 @@ class SentenceFeedback(BaseModel):
 
     ok: bool
     corrected: str | None = None
-    comment: str
+    issues: list[SentenceIssue] = Field(default_factory=list, max_length=4)
 
     model_config = ConfigDict(extra="forbid")
 
-    @field_validator("corrected", "comment")
+    @field_validator("corrected")
     @classmethod
     def normalize(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        return WHITESPACE_PATTERN.sub(" ", value.strip()) or None
+        return _clean(value)
 
-    @field_validator("comment")
-    @classmethod
-    def comment_required(cls, value: str | None) -> str | None:
-        if not value:
-            raise ValueError("comment must not be empty")
-        return value
+    @model_validator(mode="after")
+    def fix_needs_issues(self) -> SentenceFeedback:
+        if not self.ok and not self.issues:
+            raise ValueError("a sentence that needs a fix must list its issues")
+        return self
 
 
 def parse_sentence_feedback(payload: str | dict[str, Any]) -> SentenceFeedback:

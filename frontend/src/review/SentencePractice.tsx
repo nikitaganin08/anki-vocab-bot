@@ -13,7 +13,7 @@ export function SentencePractice({ cardId, word }: { cardId: number; word: strin
   const mutation = useMutation({ mutationFn: () => checkSentence(cardId, sentence.trim()) });
 
   const feedback = mutation.data;
-  const diff = feedback?.corrected ? diffSentence(sentence, feedback.corrected) : null;
+  const words = feedback?.corrected ? diffSentence(sentence, feedback.corrected) : null;
   return (
     <>
       <button type="button" className="secondary-button practice-button" onClick={() => setOpen(true)}>
@@ -54,9 +54,9 @@ export function SentencePractice({ cardId, word }: { cardId: number; word: strin
                 <span className={`verdict-chip ${feedback.ok ? "verdict-ok" : "verdict-warn"}`}>
                   {feedback.ok ? "Looks good" : "Needs a fix"}
                 </span>
-                {diff ? (
+                {words ? (
                   <p className="review-sentence">
-                    {diff.corrected.map((word, index) => (
+                    {words.map((word, index) => (
                       <span key={index}>
                         {index ? " " : ""}
                         {word.changed ? <mark className="sentence-fix">{word.text}</mark> : word.text}
@@ -64,21 +64,24 @@ export function SentencePractice({ cardId, word }: { cardId: number; word: strin
                     ))}
                   </p>
                 ) : null}
-                {diff?.removed.length ? (
-                  <p className="sentence-was">
-                    Instead of: {diff.removed.map((part, index) => (
-                      <span key={index}>
-                        {index ? " … " : ""}
-                        <s>{part}</s>
-                      </span>
+                {feedback.issues.length ? (
+                  <ul className="sentence-issues">
+                    {feedback.issues.map((issue, index) => (
+                      <li key={index}>
+                        {issue.wrong && issue.right ? (
+                          <span className="sentence-change">
+                            <s>{issue.wrong}</s> → <strong>{issue.right}</strong>
+                          </span>
+                        ) : null}
+                        <span className="sentence-why">{issue.why}</span>
+                      </li>
                     ))}
-                  </p>
+                  </ul>
                 ) : null}
-                <p className="sentence-comment">{feedback.comment}</p>
               </div>
             ) : null}
           </form>
-          <div className="sheet-actions">
+          <div className="sheet-actions sheet-actions-single">
             <button type="button" className="secondary-button" onClick={() => setOpen(false)}>
               Close
             </button>

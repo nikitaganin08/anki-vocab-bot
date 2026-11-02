@@ -152,7 +152,7 @@ def test_openrouter_client_retries_once_after_invalid_contract() -> None:
 
 def test_openrouter_client_sets_reasoning_per_request_kind() -> None:
     sent: list[dict] = []
-    feedback = json.dumps({"ok": True, "corrected": None, "comment": "Natural."})
+    feedback = json.dumps({"ok": True, "corrected": None, "issues": []})
 
     def handler(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.read())
