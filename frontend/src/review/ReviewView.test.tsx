@@ -512,7 +512,8 @@ describe("ReviewView", () => {
 
     expect(mockedSentence).toHaveBeenCalledWith(7, "He give up in 2020.");
     expect(await screen.findByText("Needs a fix")).toHaveClass("verdict-warn");
-    expect(screen.getByText("He gave up in 2020.")).toBeInTheDocument();
+    expect(screen.getByText("gave")).toHaveClass("sentence-fix");
+    expect(screen.getByText("give", { selector: "s" })).toBeInTheDocument();
     expect(screen.getByText("Use the past tense.")).toBeInTheDocument();
     expect(mockedGrade).not.toHaveBeenCalled();
   });

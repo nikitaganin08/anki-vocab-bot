@@ -3,6 +3,7 @@ import { useState } from "react";
 
 import { checkSentence } from "../api/client";
 import { Sheet } from "../components/Sheet";
+import { diffSentence } from "./sentenceDiff";
 
 // Optional extra on the back side: a button opens a sheet to write a sentence with the word and
 // get feedback. The card stays behind it; it never changes the grade or the schedule.
@@ -12,6 +13,7 @@ export function SentencePractice({ cardId, word }: { cardId: number; word: strin
   const mutation = useMutation({ mutationFn: () => checkSentence(cardId, sentence.trim()) });
 
   const feedback = mutation.data;
+  const diff = feedback?.corrected ? diffSentence(sentence, feedback.corrected) : null;
   return (
     <>
       <button type="button" className="secondary-button practice-button" onClick={() => setOpen(true)}>
@@ -52,8 +54,27 @@ export function SentencePractice({ cardId, word }: { cardId: number; word: strin
                 <span className={`verdict-chip ${feedback.ok ? "verdict-ok" : "verdict-warn"}`}>
                   {feedback.ok ? "Looks good" : "Needs a fix"}
                 </span>
-                {feedback.corrected ? <p className="review-sentence">{feedback.corrected}</p> : null}
-                <p className="review-typed sentence-comment">{feedback.comment}</p>
+                {diff ? (
+                  <p className="review-sentence">
+                    {diff.corrected.map((word, index) => (
+                      <span key={index}>
+                        {index ? " " : ""}
+                        {word.changed ? <mark className="sentence-fix">{word.text}</mark> : word.text}
+                      </span>
+                    ))}
+                  </p>
+                ) : null}
+                {diff?.removed.length ? (
+                  <p className="sentence-was">
+                    Instead of: {diff.removed.map((part, index) => (
+                      <span key={index}>
+                        {index ? " … " : ""}
+                        <s>{part}</s>
+                      </span>
+                    ))}
+                  </p>
+                ) : null}
+                <p className="sentence-comment">{feedback.comment}</p>
               </div>
             ) : null}
           </form>
