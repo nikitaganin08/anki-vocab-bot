@@ -325,7 +325,7 @@ Required environment variables:
 - `TELEGRAM_WEBAPP_URL`
 - `OPENROUTER_API_KEY`
 - `DATABASE_URL` (default: `sqlite:///backend/data/app.db`)
-- `LLM_MODEL` (default: `google/gemini-2.5-flash-lite`)
+- `LLM_MODEL` (default: `anthropic/claude-haiku-5.5`)
   - The client sends `reasoning` per request kind: card creation `{enabled: false}` (same cards, half the time and cost on Haiku 5.5), sentence check `{effort: low}`, `/find` lookup nothing (model default); models without reasoning ignore it
 
 Optional:
@@ -383,7 +383,7 @@ Focus areas:
 - Telegram runs in webhook mode; the deploy sets `allowed_updates` to `message` and `callback_query` (without `callback_query` the inline buttons never reach the bot and spin forever)
 - Rate limit: no more than 5 requests per minute from the allowed user
 - Review defaults: 5 new / 50 reviews per day, desired retention 0.9, learn threshold 3, reminder at 10:00, day starts at local midnight, timezone follows the device
-- Default LLM model: `google/gemini-2.5-flash-lite`
+- Default LLM model: `anthropic/claude-haiku-5.5`
 - Cards are rejected when the model is not confident the input is a stable lexical unit
 - Backend is the source of truth for all stored cards and review state
 
