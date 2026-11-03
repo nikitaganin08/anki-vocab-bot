@@ -389,6 +389,8 @@ progress::-moz-progress-bar {
 
 .review-explanation {
   color: var(--hint);
+  font-size: 15px;
+  font-style: italic;
 }
 
 .review-lead {

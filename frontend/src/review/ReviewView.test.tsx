@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError, checkAnswer, checkSentence, deleteCard, getReviewSession, getReviewSummary, gradeCard } from "../api/client";
 import type { Card, CheckResponse, ReviewSessionItem, ReviewSummary } from "../api/types";
 import type { ReviewMode } from "../home/HomeView";
-import { formatInterval } from "./AnswerCard";
+import { formatInterval } from "./GradeGrid";
 import { ReviewView } from "./ReviewView";
 
 vi.mock("../api/client", async (importOriginal) => {
@@ -443,15 +443,13 @@ describe("ReviewView", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("the hint hides the word inside its own explanation", async () => {
+  it("the explanation is always shown, with the word hidden inside it", async () => {
     const genuine = item(1, "genuine", "___ article");
     genuine.card.explanation = "Something that is genuine is real. Genuinely true.";
     mockedSession.mockResolvedValue([genuine]);
     renderReview();
 
-    await press(await screen.findByRole("button", { name: "What's this word?" }));
-
-    expect(screen.getByText("Something that is ___ is real. ___ true.")).toBeInTheDocument();
+    expect(await screen.findByText("Something that is ___ is real. ___ true.")).toBeInTheDocument();
   });
 
   it("a card due again within minutes comes back after three other cards", async () => {
@@ -530,7 +528,7 @@ describe("ReviewView", () => {
     await press(screen.getByRole("button", { name: "Check sentence" }));
 
     expect(await screen.findByText("The language model timed out.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Good/ })).toBeEnabled();
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: /^Good/ })).toBeEnabled();
   });
 
   it("keys 1-4 grade like the buttons", async () => {
@@ -589,32 +587,29 @@ describe("ReviewView", () => {
     expect(screen.getByText("давать, дарить")).toHaveClass("review-word-translation");
   });
 
-  it("explanation on demand marks hint_used", async () => {
+  it("the explanation is shown up front and no hint is recorded", async () => {
     mockedSession.mockResolvedValue([item(1, "give", "___ up")]);
-    mockedCheck.mockResolvedValue(checked({ auto_rating: 2 }));
+    mockedCheck.mockResolvedValue(checked({ auto_rating: 3 }));
     renderReview();
 
     const input = await screen.findByRole("textbox", { name: "Answer" });
     expect(input).toHaveAttribute("maxlength", "200");
     expect(input).toHaveAttribute("placeholder", "Type the missing part");
-    expect(screen.queryByText(/first letter/i)).not.toBeInTheDocument();
-    expect(screen.queryByText("g___")).not.toBeInTheDocument();
-    expect(screen.queryByText("To hand something to someone.")).not.toBeInTheDocument();
-    const reveal = screen.getByRole("button", { name: "What's this word?" });
-    reveal.focus();
-    fireEvent.click(reveal);
-    expect(screen.getByText("To hand something to someone.")).toBeInTheDocument();
-    expect(input).toHaveFocus();
+    expect(screen.getByText("To hand something to someone.")).toHaveClass("review-explanation");
+    expect(screen.queryByRole("button", { name: "What's this word?" })).not.toBeInTheDocument();
     await answer("give");
-    expect(mockedCheck).toHaveBeenCalledWith(1, expect.objectContaining({ hint_used: true }));
+    expect(mockedCheck).toHaveBeenCalledWith(1, expect.objectContaining({ hint_used: false }));
+  });
 
-    const hard = await screen.findByRole("button", { name: /^Hard/ });
-    expect(hard).toHaveClass("primary-button");
-    await press(hard);
-    expect(mockedGrade).toHaveBeenCalledWith(
-      1,
-      expect.objectContaining({ rating: 2, auto_rating: 2, hint_used: true }),
-    );
+  it("grades from the sentence sheet", async () => {
+    mockedSession.mockResolvedValue([item(1, "give", "___ up")]);
+    renderReview();
+
+    await answer("give");
+    await press(await screen.findByRole("button", { name: "Test yourself: use it in a sentence" }));
+    await press(within(screen.getByRole("dialog")).getByRole("button", { name: /^Hard/ }));
+
+    expect(mockedGrade).toHaveBeenCalledWith(1, expect.objectContaining({ rating: 2 }));
   });
 
   it("sends cyrillic answer unchanged", async () => {

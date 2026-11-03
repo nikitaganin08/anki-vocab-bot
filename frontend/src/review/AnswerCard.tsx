@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 import type { Card, ReviewPrompt } from "../api/types";
+import { GradeGrid } from "./GradeGrid";
 import { CardDetails, SpeakerButton } from "./IntroCard";
 import { SentencePractice } from "./SentencePractice";
 import type { CheckedAnswer } from "./useReviewSession";
@@ -11,29 +12,6 @@ const VERDICT_LABELS: Record<string, string> = {
   form: "Wrong form",
   wrong: "Wrong",
 };
-
-const GRADES = [
-  { rating: 1, label: "Again" },
-  { rating: 2, label: "Hard" },
-  { rating: 3, label: "Good" },
-  { rating: 4, label: "Easy" },
-];
-
-// Round first, then pick the unit: 3570 s is "1h", not "60m".
-export function formatInterval(seconds: number): string {
-  if (seconds < 60) {
-    return "<1m";
-  }
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) {
-    return `${minutes}m`;
-  }
-  const hours = Math.round(seconds / 3600);
-  if (hours < 24) {
-    return `${hours}h`;
-  }
-  return `${Math.round(seconds / 86400)}d`;
-}
 
 // Marks the part between the common prefix and suffix: enough to show where the slip is.
 function Diff({ text, other }: { text: string; other: string }): JSX.Element {
@@ -128,22 +106,15 @@ export function AnswerCard({ card, prompt, answer, busy, onGrade }: AnswerCardPr
           My answer was right
         </button>
       ) : null}
-      <SentencePractice key={card.id} cardId={card.id} word={card.canonical_text} />
-      <div className="grade-grid">
-        {GRADES.map(({ rating, label }) => (
-          <button
-            key={rating}
-            type="button"
-            className={rating === result.auto_rating ? "primary-button" : "secondary-button"}
-            autoFocus={rating === result.auto_rating}
-            disabled={busy}
-            onClick={() => onGrade(rating)}
-          >
-            <span>{label}</span>
-            <span className="grade-interval">{formatInterval(result.intervals[rating])}</span>
-          </button>
-        ))}
-      </div>
+      <SentencePractice
+        key={card.id}
+        cardId={card.id}
+        word={card.canonical_text}
+        result={result}
+        busy={busy}
+        onGrade={onGrade}
+      />
+      <GradeGrid result={result} busy={busy} autoFocus onGrade={onGrade} />
     </section>
   );
 }

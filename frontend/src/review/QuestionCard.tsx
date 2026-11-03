@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 import type { ReviewSessionItem } from "../api/types";
 import { maskWord } from "./maskWord";
@@ -9,14 +9,12 @@ interface QuestionCardProps {
   round: Round;
   estMinutes: number | null;
   busy: boolean;
-  onCheck: (typed: string, hintUsed: boolean) => void;
+  onCheck: (typed: string) => void;
 }
 
 // Cyrillic input is sent as typed: the server converts the ЙЦУКЕН layout.
 export function QuestionCard({ item, round, estMinutes, busy, onCheck }: QuestionCardProps): JSX.Element {
   const [typed, setTyped] = useState("");
-  const [hintUsed, setHintUsed] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
   const { prompt } = item;
 
   return (
@@ -24,7 +22,7 @@ export function QuestionCard({ item, round, estMinutes, busy, onCheck }: Questio
       className="review-screen"
       onSubmit={(event) => {
         event.preventDefault();
-        onCheck(typed, hintUsed);
+        onCheck(typed);
       }}
     >
       <header className="review-progress">
@@ -44,10 +42,10 @@ export function QuestionCard({ item, round, estMinutes, busy, onCheck }: Questio
         {prompt.kind === "chunk" ? (
           <p className="review-word-translation">{item.card.translation_variants.join(", ")}</p>
         ) : null}
+        <p className="review-explanation">{maskWord(item.card.explanation, item.card.canonical_text)}</p>
       </section>
 
       <input
-        ref={input}
         aria-label="Answer"
         placeholder={prompt.kind === "chunk" ? "Type the missing part" : "Type in English"}
         value={typed}
@@ -59,18 +57,6 @@ export function QuestionCard({ item, round, estMinutes, busy, onCheck }: Questio
         autoCapitalize="none"
         spellCheck={false}
       />
-      <button
-        type="button"
-        className="link-button"
-        onClick={() => {
-          setHintUsed(true);
-          // Keep typing in the answer field.
-          input.current?.focus();
-        }}
-      >
-        What's this word?
-      </button>
-      {hintUsed ? <p className="review-explanation">{maskWord(item.card.explanation, item.card.canonical_text)}</p> : null}
       <button type="submit" className="primary-button" disabled={busy}>
         Check
       </button>
