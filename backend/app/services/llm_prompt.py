@@ -144,8 +144,11 @@ Respond with a single JSON object only: {"ok": true | false, "corrected": "..." 
   praise and never mention what was correct.
   - wrong is the exact fragment of the learner's sentence (one to a few words), right is what
     replaces it in corrected, why is a few words in English (up to 8), e.g. "one home, so singular".
-  - If the sentence is grammatical but native speakers would not say it this way, add a general
-    item with wrong and right both null and why naming the problem, e.g. "Not how people say it."
+  - If the sentence is grammatical but native speakers would not say it this way, it is not ok:
+    corrected uses the wording a native speaker would choose, and the item gives the unnatural
+    fragment as wrong and the natural one as right, why e.g. "Not how people say it."
+  - Only when the problem is the whole sentence (no fragment to point at), give a general item
+    with wrong and right both null.
 - Do not add other fields."""
 
 

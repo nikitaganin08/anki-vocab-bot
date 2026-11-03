@@ -29,7 +29,7 @@ export function ReviewView({ mode, onExit }: ReviewViewProps): JSX.Element | nul
           round={session.round}
           estMinutes={summary?.est_minutes ?? null}
           busy={session.busy}
-          onCheck={(typed, hintUsed) => void session.check(typed, hintUsed)}
+          onCheck={(typed) => void session.check(typed, false)}
         />
       );
     case "answer":

@@ -2,12 +2,23 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { checkSentence } from "../api/client";
+import type { CheckResponse } from "../api/types";
 import { Sheet } from "../components/Sheet";
+import { GradeGrid } from "./GradeGrid";
 import { diffSentence } from "./sentenceDiff";
 
 // Optional extra on the back side: a button opens a sheet to write a sentence with the word and
-// get feedback. The card stays behind it; it never changes the grade or the schedule.
-export function SentencePractice({ cardId, word }: { cardId: number; word: string }): JSX.Element {
+// get feedback. The card stays behind it; the feedback never changes the grade, which is still
+// picked by the learner, in the sheet or behind it.
+interface SentencePracticeProps {
+  cardId: number;
+  word: string;
+  result: CheckResponse;
+  busy: boolean;
+  onGrade: (rating: number) => void;
+}
+
+export function SentencePractice({ cardId, word, result, busy, onGrade }: SentencePracticeProps): JSX.Element {
   const [open, setOpen] = useState(false);
   const [sentence, setSentence] = useState("");
   const mutation = useMutation({ mutationFn: () => checkSentence(cardId, sentence.trim()) });
@@ -81,6 +92,7 @@ export function SentencePractice({ cardId, word }: { cardId: number; word: strin
               </div>
             ) : null}
           </form>
+          <GradeGrid result={result} busy={busy} onGrade={onGrade} />
           <div className="sheet-actions sheet-actions-single">
             <button type="button" className="secondary-button" onClick={() => setOpen(false)}>
               Close
