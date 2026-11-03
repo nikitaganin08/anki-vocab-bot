@@ -101,15 +101,17 @@ export function AnswerCard({ card, prompt, answer, busy, onGrade }: AnswerCardPr
     <section className="review-screen">
       <CardDetails card={card} lead={lead} />
 
-      <SentencePractice
-        key={card.id}
-        cardId={card.id}
-        word={card.canonical_text}
-        result={result}
-        busy={busy}
-        onGrade={onGrade}
-      />
-      <GradeGrid result={result} busy={busy} autoFocus onGrade={onGrade} />
+      <div className="review-actions">
+        <SentencePractice
+          key={card.id}
+          cardId={card.id}
+          word={card.canonical_text}
+          result={result}
+          busy={busy}
+          onGrade={onGrade}
+        />
+        <GradeGrid result={result} busy={busy} autoFocus onGrade={onGrade} />
+      </div>
     </section>
   );
 }
