@@ -39,7 +39,7 @@ export function ReviewView({ mode, onExit }: ReviewViewProps): JSX.Element | nul
           prompt={item.prompt}
           answer={session.answer}
           busy={session.busy}
-          onGrade={(rating, overridden) => void session.grade(rating, overridden)}
+          onGrade={(rating) => void session.grade(rating)}
         />
       ) : null;
     case "roundEnd":

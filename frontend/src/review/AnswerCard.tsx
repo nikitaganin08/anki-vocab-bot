@@ -42,7 +42,7 @@ interface AnswerCardProps {
   prompt: ReviewPrompt;
   answer: CheckedAnswer;
   busy: boolean;
-  onGrade: (rating: number, overridden?: boolean) => void;
+  onGrade: (rating: number) => void;
 }
 
 export function AnswerCard({ card, prompt, answer, busy, onGrade }: AnswerCardProps): JSX.Element {
@@ -101,11 +101,6 @@ export function AnswerCard({ card, prompt, answer, busy, onGrade }: AnswerCardPr
     <section className="review-screen">
       <CardDetails card={card} lead={lead} />
 
-      {result.verdict === "wrong" ? (
-        <button type="button" className="link-button" disabled={busy} onClick={() => onGrade(3, true)}>
-          My answer was right
-        </button>
-      ) : null}
       <SentencePractice
         key={card.id}
         cardId={card.id}

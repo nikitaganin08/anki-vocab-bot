@@ -387,17 +387,18 @@ describe("ReviewView", () => {
     expect(mockedSession).toHaveBeenLastCalledWith({ size: 10, includeBacklog: false });
   });
 
-  it("override grades good", async () => {
+  it("a wrong answer can still be graded Good by hand", async () => {
     mockedSession.mockResolvedValue([item(1, "give", "___ up")]);
     mockedCheck.mockResolvedValue(checked({ verdict: "wrong", auto_rating: 1 }));
     renderReview();
 
     await answer("giv");
-    await press(await screen.findByRole("button", { name: "My answer was right" }));
+    expect(screen.queryByRole("button", { name: "My answer was right" })).not.toBeInTheDocument();
+    await press(await screen.findByRole("button", { name: /^Good/ }));
 
     expect(mockedGrade).toHaveBeenCalledWith(
       1,
-      expect.objectContaining({ rating: 3, auto_rating: 1, overridden: true, verdict: "wrong" }),
+      expect.objectContaining({ rating: 3, auto_rating: 1, verdict: "wrong" }),
     );
   });
 
