@@ -4,7 +4,8 @@ import { ApiError, checkAnswer, getReviewSession, getReviewSummary, gradeCard } 
 import type { CheckResponse, ReviewSessionItem, ReviewSummary } from "../api/types";
 import type { ReviewMode } from "../home/HomeView";
 
-export const ROUND_SIZE = 10;
+// One round is the whole day: every grade is saved at once, so leaving midway loses nothing.
+export const ROUND_SIZE = 200;
 // A card that is due again within minutes (Again, Hard on a learning step) comes back in this
 // round after REPEAT_GAP other cards, instead of heading the next round.
 const REPEAT_WITHIN_MS = 30 * 60 * 1000;
@@ -68,7 +69,7 @@ export function useReviewSession(mode: ReviewMode) {
     const size = capLeft > 0 ? Math.min(ROUND_SIZE, capLeft) : ROUND_SIZE;
     try {
       const [items, summary] = await Promise.all([
-        getReviewSession({ size, includeBacklog: mode.includeBacklog ?? false }),
+        getReviewSession({ size, includeBacklog: mode.includeBacklog ?? false, onlyNew: mode.onlyNew ?? false }),
         getReviewSummary(),
       ]);
       setState((s) => ({

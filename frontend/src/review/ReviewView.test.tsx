@@ -80,6 +80,7 @@ function summary(overrides: Partial<ReviewSummary> = {}): ReviewSummary {
     new_today: 2,
     est_minutes: 5,
     backlog: 0,
+    new_extra: 0,
     due_all: 8,
     retention_30d: 0.9,
     hard_share_30d: null,
@@ -279,7 +280,7 @@ describe("ReviewView", () => {
     expect(screen.getByText("Round 1 · 1 of 1")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(mockedSession).toHaveBeenCalledTimes(2);
-    expect(mockedSession).toHaveBeenLastCalledWith({ size: 10, includeBacklog: true });
+    expect(mockedSession).toHaveBeenLastCalledWith({ size: 200, includeBacklog: true, onlyNew: false });
   });
 
   it("empty session shows done screen", async () => {
@@ -315,7 +316,7 @@ describe("ReviewView", () => {
     expect(progress).toHaveAttribute("max", "20");
     expect(screen.getByText("~4 min left")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Done for today" })).toHaveClass("secondary-button");
-    expect(mockedSession).toHaveBeenLastCalledWith({ size: 10, includeBacklog: false });
+    expect(mockedSession).toHaveBeenLastCalledWith({ size: 200, includeBacklog: false, onlyNew: false });
 
     fireEvent.click(screen.getByRole("button", { name: "Another round" }));
     expect(await screen.findByText("___ off")).toBeInTheDocument();
@@ -368,14 +369,14 @@ describe("ReviewView", () => {
     renderReview({ capCards: 3 });
 
     expect(await screen.findByText("Round 1 · 1 of 2")).toBeInTheDocument();
-    expect(mockedSession).toHaveBeenLastCalledWith({ size: 3, includeBacklog: false });
+    expect(mockedSession).toHaveBeenLastCalledWith({ size: 3, includeBacklog: false, onlyNew: false });
     await answer("give");
     await grade(/^Good/);
     await answer("take");
     await grade(/^Good/);
 
     expect(await screen.findByRole("heading", { name: "✓ Round complete" })).toBeInTheDocument();
-    expect(mockedSession).toHaveBeenLastCalledWith({ size: 1, includeBacklog: false });
+    expect(mockedSession).toHaveBeenLastCalledWith({ size: 1, includeBacklog: false, onlyNew: false });
     fireEvent.click(screen.getByRole("button", { name: "Another round" }));
     expect(await screen.findByText("Round 2 · 1 of 1")).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute("max", "1");
@@ -384,7 +385,7 @@ describe("ReviewView", () => {
 
     // The cap is reached: the round ends, and any further round is a regular one.
     expect(await screen.findByRole("heading", { name: "✓ Round complete" })).toBeInTheDocument();
-    expect(mockedSession).toHaveBeenLastCalledWith({ size: 10, includeBacklog: false });
+    expect(mockedSession).toHaveBeenLastCalledWith({ size: 200, includeBacklog: false, onlyNew: false });
   });
 
   it("a wrong answer can still be graded Good by hand", async () => {

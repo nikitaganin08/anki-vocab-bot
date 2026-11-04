@@ -63,11 +63,12 @@ def get_summary(session: SessionDep) -> ReviewSummary:
 @router.get("/session", response_model=ReviewSessionResponse)
 def get_review_session(
     session: SessionDep,
-    size: Annotated[int, Query(ge=1, le=20)] = 10,
+    size: Annotated[int, Query(ge=1, le=200)] = 10,
     include_backlog: bool = False,
+    only_new: bool = False,
 ) -> ReviewSessionResponse:
     items = build_session(
-        session, get_app_settings(session), datetime.now(UTC), size, include_backlog
+        session, get_app_settings(session), datetime.now(UTC), size, include_backlog, only_new
     )
     return ReviewSessionResponse(
         items=[

@@ -102,6 +102,7 @@ def test_empty_db_summary(session: Session) -> None:
         new_today=0,
         est_minutes=0,
         backlog=0,
+        new_extra=0,
         due_all=0,
         retention_30d=None,
         hard_share_30d=None,

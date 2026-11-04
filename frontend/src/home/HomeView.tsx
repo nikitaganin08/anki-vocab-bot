@@ -9,11 +9,15 @@ export interface ReviewMode {
   includeBacklog?: boolean;
   // The session ends after this many graded cards ("Quick", "5 minutes").
   capCards?: number;
+  // Only new words, beyond the daily new limit ("5 more new words").
+  onlyNew?: boolean;
 }
 
 interface HomeViewProps {
   onStart: (mode: ReviewMode) => void;
 }
+
+const EXTRA_NEW = 5;
 
 export function cardsLabel(count: number): string {
   return `${count} ${count === 1 ? "card" : "cards"}`;
@@ -50,12 +54,37 @@ function GoalCard({ summary, onStart }: { summary: ReviewSummary } & HomeViewPro
           )}
         </>
       )}
-      <button type="button" className="primary-button" onClick={() => onStart({})}>
-        Start
-      </button>
-      <button type="button" className="secondary-button" onClick={() => onStart({ capCards: 5 })}>
-        Quick: 5 cards
-      </button>
+      {left === 0 ? (
+        <>
+          {summary.new_extra > 0 ? (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => onStart({ onlyNew: true, capCards: EXTRA_NEW })}
+            >
+              {Math.min(summary.new_extra, EXTRA_NEW)} more new words
+            </button>
+          ) : null}
+          {summary.backlog > 0 ? (
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => onStart({ includeBacklog: true })}
+            >
+              Postponed reviews ({summary.backlog})
+            </button>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <button type="button" className="primary-button" onClick={() => onStart({})}>
+            Start
+          </button>
+          <button type="button" className="secondary-button" onClick={() => onStart({ capCards: 5 })}>
+            Quick: 5 cards
+          </button>
+        </>
+      )}
     </section>
   );
 }
@@ -142,7 +171,9 @@ export function HomeView({ onStart }: HomeViewProps): JSX.Element {
       <p className="section-label">
         Tomorrow ~{data.forecast_tomorrow} · week ~{data.forecast_week_avg}/day
       </p>
-      {data.backlog > 0 ? <p className="section-label">Postponed: {data.backlog}</p> : null}
+      {data.backlog > 0 && data.due_today + data.new_today > 0 ? (
+        <p className="section-label">Postponed: {data.backlog}</p>
+      ) : null}
     </div>
   );
 }

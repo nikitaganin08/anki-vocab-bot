@@ -76,6 +76,7 @@ const summaryPayload = {
   new_today: 0,
   est_minutes: 0,
   backlog: 0,
+  new_extra: 0,
   due_all: 0,
   retention_30d: null,
   hard_share_30d: null,

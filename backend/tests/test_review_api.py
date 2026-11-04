@@ -72,7 +72,7 @@ def test_session_hides_expected_answer(client: TestClient, session: Session) -> 
         "masked": "___ smoking",
         "hint_translation": "бросить курить",
     }
-    assert client.get("/api/review/session?size=21", headers=telegram_headers()).status_code == 422
+    assert client.get("/api/review/session?size=201", headers=telegram_headers()).status_code == 422
 
 
 def test_session_endpoint_include_backlog(client: TestClient, session: Session) -> None:

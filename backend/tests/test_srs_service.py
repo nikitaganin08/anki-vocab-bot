@@ -165,6 +165,20 @@ def test_session_order_learning_then_reviews_then_new(session: Session) -> None:
     assert items[2].prompt.kind == "translation"
 
 
+def test_only_new_ignores_due_cards_and_the_new_limit(session: Session) -> None:
+    settings = get_app_settings(session)
+    settings.new_per_day = 0
+    for i in range(3):
+        _add(session, f"new {i}")
+    _schedule(session, _add(session, "review one"), State.Review, NOW - timedelta(days=1))
+
+    assert [i.card.canonical_text for i in build_session(session, settings, NOW)] == ["review one"]
+    items = build_session(session, settings, NOW, size=2, only_new=True)
+
+    assert [item.card.canonical_text for item in items] == ["new 0", "new 1"]
+    assert all(item.intro for item in items)
+
+
 def test_session_respects_daily_limits(session: Session) -> None:
     for i in range(5):
         card = _schedule(

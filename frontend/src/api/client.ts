@@ -136,10 +136,12 @@ export async function getReviewSummary(): Promise<ReviewSummary> {
 export async function getReviewSession(opts: {
   size: number;
   includeBacklog?: boolean;
+  onlyNew?: boolean;
 }): Promise<ReviewSessionItem[]> {
   const params = new URLSearchParams({
     size: String(opts.size),
     include_backlog: String(opts.includeBacklog ?? false),
+    only_new: String(opts.onlyNew ?? false),
   });
   const response = await request<ReviewSessionResponse>(`/api/review/session?${params}`);
   return response.items;

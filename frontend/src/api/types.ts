@@ -98,6 +98,7 @@ export interface ReviewSummary {
   new_today: number;
   est_minutes: number;
   backlog: number;
+  new_extra: number;
   due_all: number;
   // Shares of the mature answers of the last 30 days; retention is everything but Again.
   retention_30d: number | null;
