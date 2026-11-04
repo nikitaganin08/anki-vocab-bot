@@ -126,11 +126,13 @@ def build_session(
     now: datetime,
     size: int = 10,
     include_backlog: bool = False,
+    only_new: bool = False,
 ) -> list[SessionItem]:
     now = as_utc(now)
     start, end = day_window(now, settings.timezone)
     learning_cards = select(Card).where(Card.is_learning == True)  # noqa: E712
 
+    # only_new ("5 more new words" after the day is done) skips due cards and the new limit.
     learning = [
         card
         for card in session.scalars(
@@ -138,7 +140,7 @@ def build_session(
                 Card.srs_state.in_(("learning", "relearning")), Card.srs_due_at < end
             ).order_by(Card.srs_due_at, Card.id)
         )
-        if is_due(card, now, start, end)
+        if is_due(card, now, start, end) and not only_new
     ]
 
     # Only answers on review-state cards spend the review limit (learning steps don't).
@@ -147,7 +149,7 @@ def build_session(
     )
     reviews: list[Card] = []
     # include_backlog ("all at once" after a break) serves every due review.
-    if include_backlog or reviews_left > 0:
+    if (include_backlog or reviews_left > 0) and not only_new:
         scheduler = build_scheduler(settings)
         due = session.scalars(
             learning_cards.where(Card.srs_state == "review", Card.srs_due_at < end)
@@ -163,8 +165,11 @@ def build_session(
         )
 
     # A log with no previous state is a card's first answer, i.e. a new card introduced.
-    new_left = settings.new_per_day - _logs_today(
-        session, start, end, ReviewLogEntry.state_before.is_(None)
+    new_left = (
+        size
+        if only_new
+        else settings.new_per_day
+        - _logs_today(session, start, end, ReviewLogEntry.state_before.is_(None))
     )
     new: list[Card] = []
     if new_left > 0:

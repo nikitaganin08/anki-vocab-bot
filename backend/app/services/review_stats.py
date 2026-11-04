@@ -31,6 +31,7 @@ class ReviewSummary:
     new_today: int
     est_minutes: int
     backlog: int
+    new_extra: int  # new learning cards left beyond today's new limit
     due_all: int  # due learning + review cards, ignoring the daily limit
     retention_30d: float | None  # Good/Easy 1, Hard 0.5, Again 0 (mature answers)
     hard_share_30d: float | None  # share of Hard (2) among the same mature answers
@@ -167,6 +168,7 @@ def build_summary(session: Session, settings: AppSettings, now: datetime) -> Rev
         new_today=new_today,
         est_minutes=est_minutes,
         backlog=due_reviews - reviews_today,
+        new_extra=available_new - new_today,
         due_all=due_reviews + due_learning,
         retention_30d=(1 - (mature.count(1) + 0.5 * mature.count(2)) / len(mature))
         if mature

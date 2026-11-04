@@ -20,6 +20,7 @@ function summary(overrides: Partial<ReviewSummary> = {}): ReviewSummary {
     new_today: 5,
     est_minutes: 6,
     backlog: 3,
+    new_extra: 0,
     due_all: 15,
     retention_30d: 0.912,
     hard_share_30d: 0.18,
@@ -102,6 +103,27 @@ describe("HomeView", () => {
     expect(screen.queryByText(/~\d+ min/)).not.toBeInTheDocument();
   });
 
+  it("offers extra work instead of Start when the day is done", async () => {
+    const onStart = renderHome(
+      summary({ due_today: 0, new_today: 0, done_today: 12, new_extra: 8, backlog: 3 }),
+    );
+
+    expect(await screen.findByText("All done")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Start" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Quick/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "5 more new words" }));
+    expect(onStart).toHaveBeenLastCalledWith({ onlyNew: true, capCards: 5 });
+    fireEvent.click(screen.getByRole("button", { name: "Postponed reviews (3)" }));
+    expect(onStart).toHaveBeenLastCalledWith({ includeBacklog: true });
+  });
+
+  it("shows no extra buttons when nothing is left to add", async () => {
+    renderHome(summary({ due_today: 0, new_today: 0, done_today: 12, new_extra: 0, backlog: 0 }));
+
+    expect(await screen.findByText("All done")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
   it("shows the Hard and Again shares under the retention goal", async () => {
     renderHome(summary());
 
@@ -128,6 +150,7 @@ describe("HomeView", () => {
       summary({
         streak_days: 2,
         backlog: 0,
+        new_extra: 0,
         retention_30d: null,
         hard_share_30d: null,
         again_share_30d: null,

@@ -44,6 +44,7 @@ def _summary(**overrides: Any) -> ReviewSummary:
         new_today=2,
         est_minutes=4,
         backlog=0,
+        new_extra=0,
         retention_30d=None,
         hard_share_30d=None,
         again_share_30d=None,
