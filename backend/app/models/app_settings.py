@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, Float, Integer, String
+from sqlalchemy import Boolean, Date, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -26,3 +26,13 @@ class AppSettings(Base):
         DateTime(timezone=True), nullable=True
     )
     ignored_reminders: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Speaking practice: today's prompt and its reminder state (see speaking.py).
+    speaking_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    speaking_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    speaking_prompt_words_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    speaking_prompt_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    speaking_reminder_on: Mapped[date | None] = mapped_column(Date, nullable=True)
+    speaking_next_reminder_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    speaking_ignored: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

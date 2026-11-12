@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
@@ -19,6 +20,9 @@ from app.clients.openrouter import OpenRouterError
 from app.models.card import Card
 from app.schemas.description_lookup import DescriptionLookupResponse, FoundDescriptionLookupResponse
 from app.services.card_service import CardServiceResult
+from app.services.speaking import MAX_SECONDS as SPEAKING_MAX_SECONDS
+
+logger = logging.getLogger(__name__)
 
 
 def build_learn_keyboard(card_id: int, synonym: str | None = None) -> InlineKeyboardMarkup:
@@ -275,3 +279,72 @@ class TelegramAddCallbackHandler:
                 format_rare_word_prompt(result.card),
                 reply_markup=build_learn_keyboard(result.card.id, result.card.common_synonym),
             )
+
+
+@dataclass(slots=True)
+class TelegramSpeakHandler:
+    """`/speak`: today's speaking topic (generated on first request of the day)."""
+
+    allowed_user_id: int
+    get_prompt: Callable[[], str]
+
+    async def handle_message(self, message: Any) -> None:
+        if TelegramTextHandler._extract_user_id(message) != self.allowed_user_id:
+            return
+        try:
+            text = await asyncio.to_thread(self.get_prompt)
+        except OpenRouterError as exc:
+            await message.answer(exc.user_message)
+            return
+        await message.answer(text)
+
+
+RECORDING_FORMATS = {"voice": "ogg", "video_note": "mp4"}
+RECORDING_FAILED = "Couldn't check this recording. Please try again."
+
+
+@dataclass
+class TelegramRecordingHandler:
+    """Voice messages and video notes: feedback from the audio model; the file is not kept."""
+
+    allowed_user_id: int
+    # (audio bytes, kind, audio format, duration in seconds) -> Telegram HTML reply
+    analyse: Callable[[bytes, str, str, int], str]
+    rate_limiter: InMemoryRateLimiter
+    max_seconds: int = SPEAKING_MAX_SECONDS
+    pending: set[asyncio.Task[None]] = field(default_factory=set)
+
+    async def handle_message(self, message: Any) -> None:
+        if TelegramTextHandler._extract_user_id(message) != self.allowed_user_id:
+            return
+        kind = "voice" if getattr(message, "voice", None) else "video_note"
+        media = message.voice if kind == "voice" else message.video_note
+        if media.duration > self.max_seconds:
+            await message.answer(
+                f"That's longer than {self.max_seconds // 60} minutes. "
+                "Please send a shorter recording."
+            )
+            return
+        if not self.rate_limiter.allow_request():
+            await message.answer(format_rate_limit_message())
+            return
+        # Not awaited: a long recording takes longer than Telegram waits for the webhook reply.
+        task = asyncio.create_task(self._analyse_and_reply(message, media, kind))
+        self.pending.add(task)
+        task.add_done_callback(self.pending.discard)
+
+    async def _analyse_and_reply(self, message: Any, media: Any, kind: str) -> None:
+        try:
+            await message.bot.send_chat_action(message.chat.id, "typing")
+            buffer = await message.bot.download(media)
+            text = await asyncio.to_thread(
+                self.analyse, buffer.getvalue(), kind, RECORDING_FORMATS[kind], media.duration
+            )
+        except OpenRouterError as exc:
+            await message.answer(exc.user_message)
+            return
+        except Exception:
+            logger.exception("Speaking analysis failed")
+            await message.answer(RECORDING_FAILED)
+            return
+        await message.answer(text, parse_mode="HTML")

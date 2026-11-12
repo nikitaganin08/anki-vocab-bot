@@ -13,8 +13,18 @@ from app.schemas.description_lookup import (
 )
 from app.schemas.llm import LlmResponse, parse_llm_response
 from app.schemas.sentence_check import SentenceFeedback, parse_sentence_feedback
+from app.schemas.speaking import (
+    SpeakingResult,
+    SpeakingTopic,
+    parse_speaking_result,
+    parse_speaking_topic,
+)
 from app.services.description_lookup_prompt import build_description_lookup_messages
 from app.services.llm_prompt import build_llm_messages, build_sentence_check_messages
+from app.services.speaking_prompt import (
+    build_speaking_feedback_messages,
+    build_speaking_topic_messages,
+)
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
@@ -67,13 +77,49 @@ class OpenRouterClient:
             ),
         )
 
+    def generate_speaking_topic(self, words: list[str], story_day: bool) -> SpeakingTopic:
+        return self._request_json_completion(
+            messages=build_speaking_topic_messages(words, story_day),
+            reasoning={"enabled": False},
+            response_parser=parse_speaking_topic,
+            invalid_contract_user_message=(
+                "The language model returned an invalid topic. Please try again."
+            ),
+        )
+
+    def review_speaking(
+        self,
+        *,
+        audio: bytes,
+        audio_format: str,
+        prompt_text: str | None,
+        words: list[str],
+        last_focus: str | None,
+    ) -> SpeakingResult:
+        """Needs an audio-capable model (SPEAKING_LLM_MODEL)."""
+        return self._request_json_completion(
+            messages=build_speaking_feedback_messages(
+                audio=audio,
+                audio_format=audio_format,
+                prompt_text=prompt_text,
+                words=words,
+                last_focus=last_focus,
+            ),
+            reasoning={"effort": "low"},
+            # The learner's voice goes only to providers that neither store nor train on it.
+            provider={"data_collection": "deny"},
+            response_parser=parse_speaking_result,
+            invalid_contract_user_message="Couldn't check this recording. Please try again.",
+        )
+
     def _request_json_completion(
         self,
         *,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         response_parser: Any,
         invalid_contract_user_message: str,
         reasoning: dict[str, Any] | None = None,
+        provider: dict[str, Any] | None = None,
     ) -> Any:
         payload: dict[str, Any] = {
             "model": self.model,
@@ -82,6 +128,8 @@ class OpenRouterClient:
         }
         if reasoning is not None:
             payload["reasoning"] = reasoning
+        if provider is not None:
+            payload["provider"] = provider
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",

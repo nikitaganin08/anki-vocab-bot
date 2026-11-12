@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     openrouter_api_key: str | None = Field(default=None, alias="OPENROUTER_API_KEY")
     database_url: str = Field(default_factory=default_database_url, alias="DATABASE_URL")
     llm_model: str = Field(default="anthropic/claude-haiku-5.5", alias="LLM_MODEL")
+    # Needs audio input; the card model has none.
+    speaking_llm_model: str = Field(default="google/gemini-3.8-flash", alias="SPEAKING_LLM_MODEL")
     google_tts_api_key: str | None = Field(default=None, alias="GOOGLE_TTS_API_KEY")
     google_tts_voice: str = Field(default="en-US-Chirp3-HD-Aoede", alias="GOOGLE_TTS_VOICE")
     yandex_tts_api_key: str | None = Field(default=None, alias="YANDEX_TTS_API_KEY")

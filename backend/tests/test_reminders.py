@@ -292,13 +292,17 @@ def test_ignored_reminders_counted_once_and_reset_by_review(
 def test_lifespan_starts_reminder_loop_unless_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
     started: list[object] = []
 
-    async def fake_loop(_session_factory: object, bot: object) -> None:
+    async def fake_loop(_session_factory: object, bot: object, _generate_topic: object) -> None:
         started.append(bot)
         await asyncio.Event().wait()
 
     monkeypatch.setattr(main_mod, "run_reminder_loop", fake_loop)
     monkeypatch.setattr(main_mod, "get_settings", lambda: SimpleNamespace(telegram_bot_token="t"))
-    monkeypatch.setattr(main_mod, "get_bot_runtime", lambda: SimpleNamespace(bot="bot"))
+    monkeypatch.setattr(
+        main_mod,
+        "get_bot_runtime",
+        lambda: SimpleNamespace(bot="bot", generate_speaking_topic=None),
+    )
 
     with TestClient(main_mod.app) as client:
         client.get("/api/health")
