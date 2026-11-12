@@ -208,7 +208,10 @@ ignored silently.
 - `ok = false` with `message_for_user` when there is no English speech (silence, another language).
 - `transcript`: verbatim, fillers kept ("um", "uh"); stored, not sent to the chat; the filler count
   is computed from it.
-- `fixes`: 0–4 items, `why` a few words, same shape as the sentence check (`SentenceIssue`).
+- `fixes`: every real mistake, most useful first (sanity cap 20), `why` a few words, same shape as
+  the sentence check (`SentenceIssue`). All are stored; the chat shows the top 3 and the rest in a
+  collapsed `<blockquote expandable>` (changed 2026-11-13: the first 1:43 recording had ~8 real
+  mistakes and the cap of 4 lost half).
 - `natural_version`: 1–3 sentences rewriting the weakest part, not the whole answer.
 - `next_time`: exactly one concrete thing, at most ~150 characters; the model is told to pick the most
   useful one and prefer thinking phrases ("let me think", "the thing is") over "stop saying um".

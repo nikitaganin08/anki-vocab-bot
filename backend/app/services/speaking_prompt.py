@@ -13,7 +13,11 @@ Respond with a single JSON object only: {"topic": "...", "questions": ["...", ".
 - topic: a few plain words about everyday life, work, plans, memories or opinions, e.g.
   "a place you'd like to go back to". No exam-style or abstract philosophical topics.
 - questions: 2 or 3 short open questions that lead from easy to a bit deeper.
-- When words are given, choose a topic where they fit naturally; do not mention the words.
+- When words are given, they are the learner's target words: the learner must bring them into
+  the answer on their own, so the task must not give them away. Pick a topic where they could
+  come up naturally. The topic and the questions must NOT contain any of the words or their
+  forms (for "free": no "free time", "freely"; for "somewhat": no "somewhat"). Use other
+  wording, e.g. "spare hours" instead of "free time". Check every question before answering.
 - When it is a story day, the topic asks for a personal story and the questions guide its
   beginning, middle and end.
 - Do not add other fields."""
@@ -38,7 +42,9 @@ Respond with a single JSON object only:
 - transcript: verbatim, exactly as spoken, keeping fillers (um, uh, er) and repetitions.
 - words_used: one item per given word, in the given order; used is true when the learner said
   it in any inflected form. [] when no words are given.
-- fixes: only real mistakes, at most 4, the most useful first; never praise. wrong is the exact
+- fixes: every real mistake in the recording (at most 20), the most useful first (the first three
+  are shown to the learner, the rest are collapsed); never praise; ignore self-corrections the
+  learner already fixed while speaking. wrong is the exact
   fragment as spoken, right is the corrected fragment, why is a few words in English (up to 8).
   For "grammatical but not how people say it", give the natural wording as right. Only when the
   problem has no fragment to point at, wrong and right are both null.

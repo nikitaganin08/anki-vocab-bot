@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from app.models.app_settings import AppSettings
 from app.models.card import Card
 from app.models.speaking import SpeakingIssue, SpeakingSession
-from app.schemas.speaking import SpeakingRejected, SpeakingResult, SpeakingTopic
+from app.schemas.speaking import SpeakingFix, SpeakingRejected, SpeakingResult, SpeakingTopic
 from app.services.app_settings import get_app_settings
 from app.services.srs import DAY_START_HOUR, as_utc
 
@@ -34,6 +34,7 @@ PAUSE_AFTER_IGNORED = 7
 STORY_WEEKDAY = 5  # Saturday
 WORDS_PER_PROMPT = 3
 MAX_SECONDS = 15 * 60
+SHOWN_FIXES = 3  # the rest of the fixes go into a collapsed quote
 
 FILLER_FORMS = {
     "um": "um",
@@ -179,6 +180,15 @@ def _duration(seconds: int) -> str:
     return f"{seconds // 60}:{seconds % 60:02d}"
 
 
+def _fix_lines(index: int, fix: SpeakingFix) -> list[str]:
+    if fix.wrong is None or fix.right is None:
+        return [f"{index}. <i>{escape(fix.why)}</i>"]
+    return [
+        f"{index}. <s>{escape(fix.wrong)}</s> → <b>{escape(fix.right)}</b>",
+        f"    <i>{escape(fix.why)}</i>",
+    ]
+
+
 def format_feedback(
     *,
     duration_seconds: int,
@@ -202,14 +212,17 @@ def format_feedback(
     if words:
         marks = " · ".join(f"{'✅' if w['used'] else '❌'} {escape(str(w['word']))}" for w in words)
         lines.append(f"📚 Words: {marks}")
-    if result.fixes:
-        lines += ["", "✏️ <b>Fixes</b>"]
-        for index, fix in enumerate(result.fixes, 1):
-            if fix.wrong is None or fix.right is None:
-                lines.append(f"{index}. <i>{escape(fix.why)}</i>")
-            else:
-                lines.append(f"{index}. <s>{escape(fix.wrong)}</s> → <b>{escape(fix.right)}</b>")
-                lines.append(f"    <i>{escape(fix.why)}</i>")
+    shown, rest = result.fixes[:SHOWN_FIXES], result.fixes[SHOWN_FIXES:]
+    if shown:
+        count = f" ({len(shown)} of {len(result.fixes)})" if rest else ""
+        lines += ["", f"✏️ <b>{'Top fixes' if rest else 'Fixes'}</b>{count}"]
+        for index, fix in enumerate(shown, 1):
+            lines += _fix_lines(index, fix)
+    if rest:
+        more = [f"➕ <b>{len(rest)} more</b>"]
+        for index, fix in enumerate(rest, SHOWN_FIXES + 1):
+            more += _fix_lines(index, fix)
+        lines.append(f"<blockquote expandable>{chr(10).join(more)}</blockquote>")
     if result.natural_version:
         lines += ["", "✨ <b>Say it like this</b>"]
         lines.append(f"<blockquote>{escape(result.natural_version)}</blockquote>")
