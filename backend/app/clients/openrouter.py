@@ -81,7 +81,7 @@ class OpenRouterClient:
         return self._request_json_completion(
             messages=build_speaking_topic_messages(words, story_day),
             reasoning={"enabled": False},
-            response_parser=parse_speaking_topic,
+            response_parser=lambda content: parse_speaking_topic(content, words),
             invalid_contract_user_message=(
                 "The language model returned an invalid topic. Please try again."
             ),

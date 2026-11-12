@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import re
+from collections.abc import Sequence
 from typing import Any, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -19,6 +21,7 @@ IssueCategory = Literal[
     "grammar_other",
 ]
 ISSUE_CATEGORIES: tuple[str, ...] = get_args(IssueCategory)
+MAX_FIXES = 20  # a sanity cap; all real mistakes are stored, the chat shows the top ones
 
 
 class SpeakingTopic(BaseModel):
@@ -58,7 +61,7 @@ class SpeakingFeedback(BaseModel):
     ok: Literal[True]
     transcript: str = Field(min_length=1)
     words_used: list[WordUse] = Field(default_factory=list)
-    fixes: list[SpeakingFix] = Field(default_factory=list, max_length=4)
+    fixes: list[SpeakingFix] = Field(default_factory=list, max_length=MAX_FIXES)
     natural_version: str | None = None
     next_time: str = Field(min_length=1, max_length=300)
     focus_check: Literal["better", "same", "worse"] | None = None
@@ -87,11 +90,21 @@ def _load(payload: str | dict[str, Any]) -> Any:
     return json.loads(payload) if isinstance(payload, str) else payload
 
 
-def parse_speaking_topic(payload: str | dict[str, Any]) -> SpeakingTopic:
+def parse_speaking_topic(
+    payload: str | dict[str, Any], target_words: Sequence[str] = ()
+) -> SpeakingTopic:
+    """The task must not give the target words away: any of their longer tokens (or a form
+    starting with one) in the topic or questions is invalid, so the client asks again."""
     try:
-        return SpeakingTopic.model_validate(_load(payload))
+        topic = SpeakingTopic.model_validate(_load(payload))
     except Exception as exc:
         raise ValueError("Speaking topic does not match the contract") from exc
+    text = " ".join([topic.topic, *topic.questions]).casefold()
+    for word in target_words:
+        for token in re.findall(r"[a-z']+", word.casefold()):
+            if len(token) >= 4 and re.search(rf"\b{re.escape(token)}", text):
+                raise ValueError(f"Speaking topic gives away the target word {word!r}")
+    return topic
 
 
 def parse_speaking_result(payload: str | dict[str, Any]) -> SpeakingResult:

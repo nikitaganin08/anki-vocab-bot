@@ -24,6 +24,7 @@ from app.schemas.speaking import (
     SpeakingRejected,
     SpeakingTopic,
     parse_speaking_result,
+    parse_speaking_topic,
 )
 from app.services.app_settings import get_app_settings
 from app.services.speaking import (
@@ -410,3 +411,38 @@ def test_client_sends_audio_with_no_data_collection() -> None:
     audio_part = seen["messages"][1]["content"][1]
     assert audio_part == {"type": "input_audio", "input_audio": {"data": "YWJj", "format": "ogg"}}
     assert "words: linger" in seen["messages"][1]["content"][0]["text"]
+
+
+def test_top_three_fixes_shown_and_the_rest_collapsed_all_stored(session: Session) -> None:
+    fixes = [
+        {"wrong": f"w{n}", "right": f"r{n}", "why": f"y{n}", "category": "article"}
+        for n in range(1, 6)
+    ]
+    reply = analyse_recording(
+        session,
+        lambda **_: _feedback(fixes=fixes, words_used=[]),
+        audio=b"x",
+        kind="voice",
+        audio_format="ogg",
+        duration_seconds=103,
+        llm_model="m",
+        now=_moscow(12, 9),
+    )
+
+    assert "✏️ <b>Top fixes</b> (3 of 5)\n1. <s>w1</s> → <b>r1</b>" in reply
+    assert "3. <s>w3</s> → <b>r3</b>" in reply
+    collapsed = reply[reply.index("<blockquote expandable>") :]
+    assert collapsed.startswith("<blockquote expandable>➕ <b>2 more</b>\n4. <s>w4</s>")
+    assert "5. <s>w5</s> → <b>r5</b>\n    <i>y5</i></blockquote>" in collapsed
+    assert len(session.scalars(select(SpeakingIssue)).all()) == 5
+
+
+def test_topic_that_gives_a_target_word_away_is_invalid() -> None:
+    payload = {"topic": "your free evenings", "questions": ["What do you do?", "Was it worth it?"]}
+    with pytest.raises(ValueError):
+        parse_speaking_topic(json.dumps(payload), ["free"])
+    with pytest.raises(ValueError):
+        parse_speaking_topic(json.dumps(payload), ["worth it"])
+    assert (
+        parse_speaking_topic(json.dumps(payload), ["satellite", "it"]).topic == "your free evenings"
+    )
