@@ -308,8 +308,8 @@ class TelegramRecordingHandler:
     """Voice messages and video notes: feedback from the audio model; the file is not kept."""
 
     allowed_user_id: int
-    # (audio bytes, kind, audio format, duration in seconds) -> Telegram HTML reply
-    analyse: Callable[[bytes, str, str, int], str]
+    # (audio bytes, kind, audio format, duration in seconds, message id) -> Telegram HTML reply
+    analyse: Callable[[bytes, str, str, int, int], str]
     rate_limiter: InMemoryRateLimiter
     max_seconds: int = SPEAKING_MAX_SECONDS
     pending: set[asyncio.Task[None]] = field(default_factory=set)
@@ -338,7 +338,12 @@ class TelegramRecordingHandler:
             await message.bot.send_chat_action(message.chat.id, "typing")
             buffer = await message.bot.download(media)
             text = await asyncio.to_thread(
-                self.analyse, buffer.getvalue(), kind, RECORDING_FORMATS[kind], media.duration
+                self.analyse,
+                buffer.getvalue(),
+                kind,
+                RECORDING_FORMATS[kind],
+                media.duration,
+                message.message_id,
             )
         except OpenRouterError as exc:
             await message.answer(exc.user_message)

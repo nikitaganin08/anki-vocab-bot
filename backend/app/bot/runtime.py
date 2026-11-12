@@ -85,8 +85,12 @@ def _build_speak_prompt(client: OpenRouterClient) -> Callable[[], str]:
     return get_prompt
 
 
-def _build_analyse_recording(client: OpenRouterClient) -> Callable[[bytes, str, str, int], str]:
-    def analyse(audio: bytes, kind: str, audio_format: str, duration_seconds: int) -> str:
+def _build_analyse_recording(
+    client: OpenRouterClient,
+) -> Callable[[bytes, str, str, int, int], str]:
+    def analyse(
+        audio: bytes, kind: str, audio_format: str, duration_seconds: int, message_id: int
+    ) -> str:
         with SessionLocal() as session:
             return analyse_recording(
                 session,
@@ -97,6 +101,7 @@ def _build_analyse_recording(client: OpenRouterClient) -> Callable[[bytes, str, 
                 duration_seconds=duration_seconds,
                 llm_model=client.model,
                 now=datetime.now(UTC),
+                telegram_message_id=message_id,
             )
 
     return analyse

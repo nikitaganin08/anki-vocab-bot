@@ -32,6 +32,7 @@ from app.services.speaking import (
     count_fillers,
     pick_words,
     prepare_reminder,
+    prepare_weekly_summary,
     prompt_for_speak_command,
     today_prompt,
 )
@@ -307,6 +308,7 @@ class FakeMessage:
     def __init__(self, user_id: int = TELEGRAM_ALLOWED_USER_ID, **media: Any) -> None:
         self.from_user = SimpleNamespace(id=user_id)
         self.chat = SimpleNamespace(id=user_id)
+        self.message_id = 555
         self.voice = media.get("voice")
         self.video_note = media.get("video_note")
         self.answers: list[tuple[str, dict[str, Any]]] = []
@@ -355,8 +357,8 @@ def test_voice_and_video_note_are_analysed_in_memory() -> None:
     _handle(handler, note)
 
     assert calls == [
-        (b"audio-bytes", "voice", "ogg", 47),
-        (b"audio-bytes", "video_note", "mp4", 42),
+        (b"audio-bytes", "voice", "ogg", 47, 555),
+        (b"audio-bytes", "video_note", "mp4", 42, 555),
     ]
     assert voice.answers == [("<b>Feedback</b>", {"parse_mode": "HTML"})]
 
@@ -446,3 +448,97 @@ def test_topic_that_gives_a_target_word_away_is_invalid() -> None:
     assert (
         parse_speaking_topic(json.dumps(payload), ["satellite", "it"]).topic == "your free evenings"
     )
+
+
+def _recording(
+    day: int,
+    hour: int,
+    *,
+    seconds: int,
+    fillers: int,
+    message_id: int | None,
+    words: list[dict[str, Any]],
+    issues: list[tuple[str, str | None, str | None]],
+) -> SpeakingSession:
+    row = _session_row(
+        recorded_at=_moscow(day, hour),
+        duration_seconds=seconds,
+        filler_count=fillers,
+        words_json=json.dumps(words),
+        telegram_message_id=message_id,
+    )
+    row.issues_for_test = issues  # type: ignore[attr-defined]
+    return row
+
+
+def _store(session: Session, rows: list[SpeakingSession]) -> None:
+    for row in rows:
+        session.add(row)
+        session.flush()
+        for category, wrong, right in row.issues_for_test:  # type: ignore[attr-defined]
+            session.add(
+                SpeakingIssue(
+                    session_id=row.id, category=category, wrong=wrong, right=right, why="w"
+                )
+            )
+    session.commit()
+
+
+def test_weekly_summary_on_monday_morning_once(session: Session) -> None:
+    # November 2026: Monday the 9th and 16th. Last week = Nov 9-15, the week before = Nov 2-8.
+    _store(
+        session,
+        [
+            _recording(3, 16, seconds=120, fillers=16, message_id=None, words=[], issues=[]),
+            _recording(
+                9,
+                16,
+                seconds=103,
+                fillers=11,
+                message_id=501,
+                words=[
+                    {"card_id": 1, "word": "free", "used": True},
+                    {"card_id": 2, "word": "vivid", "used": False},
+                ],
+                issues=[
+                    ("preposition", "at China", "in China"),
+                    ("article", "at end of May", "at the end of May"),
+                ],
+            ),
+            _recording(
+                14,
+                18,
+                seconds=137,
+                fillers=5,
+                message_id=502,
+                words=[],
+                issues=[
+                    ("preposition", None, None),
+                    ("preposition", "in our trip", "on our trip"),
+                    ("tense", "ride", "rode"),
+                ],
+            ),
+        ],
+    )
+    assert prepare_weekly_summary(session, _moscow(16, 9, 55)) is None  # before 10:00
+    summary = prepare_weekly_summary(session, _moscow(16, 10))
+    assert summary is not None
+    assert summary.text.splitlines()[:5] == [
+        "📊 <b>Your speaking week</b> · Nov 9–15",
+        "<blockquote>🗓 2 of 7 days · 4 min spoken",
+        "🗣 Fillers: 8.0 → <b>4.0</b>/min 📉",
+        "📚 Deck words used: 1 of 2</blockquote>",
+        "",
+    ]
+    assert "<b>Prepositions</b> ×3 · <s>at China</s> → <b>in China</b>" in summary.text
+    assert "<b>Articles</b> ×1" in summary.text and "<b>Tenses</b> ×1" in summary.text
+    assert "🎧 <b>Before today's topic:</b>" in summary.text
+    assert summary.text.endswith("👉 <b>Focus this week:</b> prepositions")
+    assert summary.forward_message_ids == [501, 502]
+    assert prepare_weekly_summary(session, _moscow(16, 12)) is None  # once a week
+
+
+def test_no_weekly_summary_without_recordings_or_off_monday(session: Session) -> None:
+    assert prepare_weekly_summary(session, _moscow(17, 10)) is None  # Tuesday
+    assert prepare_weekly_summary(session, _moscow(16, 10)) is None  # no recordings last week
+    assert get_app_settings(session).speaking_weekly_on is not None

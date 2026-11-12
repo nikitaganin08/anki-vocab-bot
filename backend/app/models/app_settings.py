@@ -40,3 +40,4 @@ class AppSettings(Base):
         DateTime(timezone=True), nullable=True
     )
     speaking_ignored: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    speaking_weekly_on: Mapped[date | None] = mapped_column(Date, nullable=True)
