@@ -29,10 +29,10 @@ from app.services.app_settings import get_app_settings
 from app.services.speaking import (
     analyse_recording,
     count_fillers,
-    ensure_today_prompt,
     pick_words,
     prepare_reminder,
     prompt_for_speak_command,
+    today_prompt,
 )
 
 from .conftest import TELEGRAM_ALLOWED_USER_ID, make_card
@@ -119,20 +119,23 @@ def test_today_prompt_is_generated_once_with_words_and_last_focus(session: Sessi
     session.commit()
     topic = TopicStub()
 
-    text = ensure_today_prompt(session, topic, _moscow(12, 15))
-    assert text.startswith("Speaking practice\nTopic: a place you'd like to go back to\n1. Where?")
-    assert "Try to use: " in text and "Last time: Fewer fillers." in text
-    assert ensure_today_prompt(session, topic, _moscow(12, 20)) == text
+    text = today_prompt(session, topic, _moscow(12, 15))
+    assert text.startswith(
+        "🎙 <b>Speaking practice</b>\n\n📌 <b>A place you'd like to go back to</b>\n1. Where?"
+    )
+    assert "• <b>linger</b> — взлетать" in text
+    assert "💡 <b>Last time:</b> <i>Fewer fillers.</i>" in text
+    assert today_prompt(session, topic, _moscow(12, 20)) == text
     assert len(topic.calls) == 1 and topic.calls[0][1] is False
 
-    ensure_today_prompt(session, topic, _moscow(14, 15))  # Saturday: story day
+    today_prompt(session, topic, _moscow(14, 15))  # Saturday: story day
     assert topic.calls[1][1] is True
 
 
 def test_speak_command_lifts_the_backoff(session: Session) -> None:
     get_app_settings(session).speaking_ignored = 7
     session.commit()
-    assert prompt_for_speak_command(session, TopicStub(), _moscow(12, 9)).startswith("Speaking")
+    assert prompt_for_speak_command(session, TopicStub(), _moscow(12, 9)).startswith("🎙")
     assert get_app_settings(session).speaking_ignored == 0
 
 
@@ -152,7 +155,7 @@ def _session_row(**overrides: Any) -> SpeakingSession:
 
 def test_analyse_recording_stores_findings_not_media(session: Session) -> None:
     ids = _cards(session)
-    ensure_today_prompt(session, TopicStub(), _moscow(12, 15))
+    today_prompt(session, TopicStub(), _moscow(12, 15))
     session.add(_session_row(next_time="Slow down."))
     session.commit()
     calls: list[dict[str, Any]] = []
@@ -174,15 +177,19 @@ def test_analyse_recording_stores_findings_not_media(session: Session) -> None:
 
     assert calls[0]["audio"] == b"OggS..." and calls[0]["audio_format"] == "ogg"
     assert calls[0]["last_focus"] == "Slow down."
-    assert calls[0]["prompt_text"].startswith("Speaking practice")
-    assert reply.splitlines()[:3] == [
-        "<b>Feedback</b> · 0:47",
-        "Last time's focus: better",
-        "Fillers: 3 (um ×2, uh ×1) · 3.8 per min",
+    assert calls[0]["prompt_text"] == "Topic: a place you'd like to go back to\n1. Where?\n2. Why?"
+    assert reply.splitlines()[:5] == [
+        "✅ <b>Feedback</b> · 0:47",
+        "",
+        "🎯 Last focus: <b>better</b>",
+        "🗣 Fillers: <b>3</b> · 3.8/min (um ×2, uh ×1)",
+        "📚 Words: " + reply.splitlines()[4].removeprefix("📚 Words: "),
     ]
-    assert "<s>suggested to go</s> → suggested going — suggest + -ing" in reply
-    assert "• Not how people say it." in reply
-    assert "Next time: Say 'let me think' instead of 'um'." in reply
+    assert "✅ linger" in reply and "❌ vivid" in reply
+    assert "1. <s>suggested to go</s> → <b>suggested going</b>\n    <i>suggest + -ing</i>" in reply
+    assert "2. <i>Not how people say it.</i>" in reply
+    assert "<blockquote>I suggested going there.</blockquote>" in reply
+    assert reply.endswith("👉 <b>Next time:</b> Say 'let me think' instead of 'um'.")
 
     row = session.scalars(select(SpeakingSession).order_by(SpeakingSession.id.desc())).first()
     assert row is not None and row.kind == "voice" and row.duration_seconds == 47
@@ -190,6 +197,7 @@ def test_analyse_recording_stores_findings_not_media(session: Session) -> None:
     assert "<great>" in row.transcript
     words = json.loads(row.words_json)
     assert {w["card_id"] for w in words} == set(ids)
+    assert all(set(w) == {"card_id", "word", "used"} for w in words)
     assert [w["used"] for w in words if w["word"] == "linger"] == [True]
     assert sum(w["used"] for w in words) == 1
     issues = session.scalars(select(SpeakingIssue).where(SpeakingIssue.session_id == row.id)).all()
@@ -215,7 +223,7 @@ def test_free_speech_without_prompt_or_focus(session: Session) -> None:
         llm_model="m",
         now=_moscow(12, 9),
     )
-    assert "Last time's focus" not in reply and "Words:" not in reply and "Fixes:" not in reply
+    assert "Last focus" not in reply and "Words:" not in reply and "Fixes" not in reply
     row = session.scalars(select(SpeakingSession)).one()
     assert row.focus_check is None and row.prompt_text is None and row.words_json == "[]"
 
@@ -231,7 +239,7 @@ def test_rejected_recording_is_not_stored(session: Session) -> None:
         llm_model="m",
         now=_moscow(12, 9),
     )
-    assert reply == "No English &lt;speech&gt;."
+    assert reply == "🤔 No English &lt;speech&gt;."
     assert session.scalars(select(SpeakingSession)).all() == []
 
 
@@ -251,7 +259,7 @@ def _remind(session: Session, now: datetime, seed: int = 1) -> str | None:
 def test_reminders_from_15_with_random_follow_ups_until_21(session: Session) -> None:
     assert _remind(session, _moscow(12, 14, 55)) is None
     first = _remind(session, _moscow(12, 15))
-    assert first is not None and first.startswith("Speaking practice")
+    assert first is not None and first.startswith("🎙 <b>Speaking practice</b>")
     next_at = get_app_settings(session).speaking_next_reminder_at
     assert next_at is not None
     gap = (next_at.replace(tzinfo=UTC) - _moscow(12, 15)).total_seconds() / 60
@@ -259,7 +267,8 @@ def test_reminders_from_15_with_random_follow_ups_until_21(session: Session) -> 
 
     assert _remind(session, _moscow(12, 16, 25)) is None
     follow_up = _remind(session, _moscow(12, 17))
-    assert follow_up is not None and "topic is above" in follow_up
+    assert follow_up is not None and follow_up.startswith("⏰ <b>Still time for speaking today</b>")
+    assert "📌 <b>A place you'd like to go back to</b>" in follow_up
     assert _remind(session, _moscow(12, 21, 30)) is None
 
 
@@ -376,7 +385,7 @@ def test_speak_command_replies_with_the_prompt() -> None:
             message
         )
     )
-    assert message.answers == [("Speaking practice", {})]
+    assert message.answers == [("Speaking practice", {"parse_mode": "HTML"})]
 
 
 def test_client_sends_audio_with_no_data_collection() -> None:

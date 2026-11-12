@@ -46,11 +46,6 @@ FILLER_FORMS = {
     "hmm": "hmm",
 }
 
-FOLLOW_UPS: tuple[str, ...] = (
-    "Still time for a few minutes of speaking? Today's topic is above.",
-    "A quick voice message before the day ends? The topic is above.",
-    "Two minutes of speaking today? Reply to the topic above.",
-)
 
 # Text nodes only: apostrophes stay readable in Telegram.
 escape = partial(html_escape, quote=False)
@@ -89,7 +84,16 @@ def pick_words(session: Session) -> list[dict[str, object]]:
         taken = [card.id for card in cards]
         rest = learning.where(Card.id.not_in(taken)).limit(WORDS_PER_PROMPT - len(cards))
         cards += session.scalars(rest)
-    return [{"card_id": card.id, "word": card.canonical_text} for card in cards]
+    return [
+        {
+            "card_id": card.id,
+            "word": card.canonical_text,
+            "translation": card.translation_variants_json[0]
+            if card.translation_variants_json
+            else None,
+        }
+        for card in cards
+    ]
 
 
 def latest_session(session: Session) -> SpeakingSession | None:
@@ -102,37 +106,70 @@ def _recorded_since(session: Session, since: datetime) -> bool:
     return session.scalar(query) is not None
 
 
-def render_prompt(topic: SpeakingTopic, words: list[str], last_focus: str | None) -> str:
-    lines = ["Speaking practice", f"Topic: {topic.topic}"]
-    lines += [f"{index}. {question}" for index, question in enumerate(topic.questions, 1)]
+def render_prompt(
+    topic: SpeakingTopic,
+    words: list[dict[str, object]],
+    last_focus: str | None,
+    *,
+    follow_up: bool = False,
+) -> str:
+    """Telegram HTML for the reminder and `/speak`."""
+    title = "⏰ <b>Still time for speaking today</b>" if follow_up else "🎙 <b>Speaking practice</b>"
+    lines = [title, "", f"📌 <b>{escape(topic.topic[:1].upper() + topic.topic[1:])}</b>"]
+    lines += [f"{index}. {escape(question)}" for index, question in enumerate(topic.questions, 1)]
     if words:
-        lines.append(f"Try to use: {', '.join(words)}")
+        lines += ["", "🎯 <b>Use these words</b>"]
+        for word in words:
+            translation = (
+                f" — {escape(str(word['translation']))}" if word.get("translation") else ""
+            )
+            lines.append(f"• <b>{escape(str(word['word']))}</b>{translation}")
     if last_focus:
-        lines.append(f"Last time: {last_focus}")
-    lines += ["", "Answer with a voice message or a video note, 1–3 min."]
+        lines += ["", f"💡 <b>Last time:</b> <i>{escape(last_focus)}</i>"]
+    lines += ["", "⏱ 1–3 min · reply with a voice message or a video note"]
     return "\n".join(lines)
 
 
-def ensure_today_prompt(session: Session, generate_topic: GenerateTopic, now: datetime) -> str:
+def task_text(topic: SpeakingTopic) -> str:
+    """The task as the audio model sees it (and as stored with the recording)."""
+    questions = [f"{index}. {question}" for index, question in enumerate(topic.questions, 1)]
+    return "\n".join([f"Topic: {topic.topic}", *questions])
+
+
+def _today_topic(settings: AppSettings, today: date) -> SpeakingTopic | None:
+    if settings.speaking_prompt_on != today or not settings.speaking_prompt:
+        return None
+    return SpeakingTopic.model_validate_json(settings.speaking_prompt)
+
+
+def today_prompt(
+    session: Session, generate_topic: GenerateTopic, now: datetime, *, follow_up: bool = False
+) -> str:
+    """Today's prompt as HTML; the topic is generated once a day and kept as data."""
     settings = get_app_settings(session)
     day = local_day(settings, now)
-    if settings.speaking_prompt_on == day.today and settings.speaking_prompt:
-        return settings.speaking_prompt
-    words = pick_words(session)
-    topic = generate_topic([str(w["word"]) for w in words], day.today.weekday() == STORY_WEEKDAY)
+    topic = _today_topic(settings, day.today)
+    if topic is None:
+        words = pick_words(session)
+        topic = generate_topic(
+            [str(w["word"]) for w in words], day.today.weekday() == STORY_WEEKDAY
+        )
+        settings.speaking_prompt = topic.model_dump_json()
+        settings.speaking_prompt_words_json = json.dumps(words, ensure_ascii=False)
+        settings.speaking_prompt_on = day.today
+        session.commit()
     latest = latest_session(session)
-    settings.speaking_prompt = render_prompt(
-        topic, [str(w["word"]) for w in words], latest.next_time if latest else None
+    return render_prompt(
+        topic,
+        json.loads(settings.speaking_prompt_words_json),
+        latest.next_time if latest else None,
+        follow_up=follow_up,
     )
-    settings.speaking_prompt_words_json = json.dumps(words, ensure_ascii=False)
-    settings.speaking_prompt_on = day.today
-    session.commit()
-    return settings.speaking_prompt
 
 
 def prompt_for_speak_command(session: Session, generate_topic: GenerateTopic, now: datetime) -> str:
     """`/speak`: today's prompt; asking for it also lifts the reminder backoff."""
-    text = ensure_today_prompt(session, generate_topic, now)
+    text = today_prompt(session, generate_topic, now)
     get_app_settings(session).speaking_ignored = 0
     session.commit()
     return text
@@ -151,32 +188,34 @@ def format_feedback(
 ) -> str:
     """Telegram HTML for the chat; the transcript and categories are not shown."""
     if isinstance(result, SpeakingRejected):
-        return escape(result.message_for_user)
-    lines = [f"<b>Feedback</b> · {_duration(duration_seconds)}"]
+        return f"🤔 {escape(result.message_for_user)}"
+    lines = [f"✅ <b>Feedback</b> · {_duration(duration_seconds)}", ""]
     if result.focus_check:
-        lines.append(f"Last time's focus: {result.focus_check}")
+        lines.append(f"🎯 Last focus: <b>{result.focus_check}</b>")
     total = sum(fillers.values())
     if total:
         top = ", ".join(f"{word} ×{count}" for word, count in fillers.most_common())
-        per_minute = f" · {total * 60 / duration_seconds:.1f} per min" if duration_seconds else ""
-        lines.append(f"Fillers: {total} ({top}){per_minute}")
+        per_minute = f" · {total * 60 / duration_seconds:.1f}/min" if duration_seconds else ""
+        lines.append(f"🗣 Fillers: <b>{total}</b>{per_minute} ({top})")
     else:
-        lines.append("Fillers: none")
+        lines.append("🗣 Fillers: <b>none</b>")
     if words:
-        marks = "  ".join(f"{'✓' if w['used'] else '✗'} {escape(str(w['word']))}" for w in words)
-        lines.append(f"Words: {marks}")
+        marks = " · ".join(f"{'✅' if w['used'] else '❌'} {escape(str(w['word']))}" for w in words)
+        lines.append(f"📚 Words: {marks}")
     if result.fixes:
-        lines.append("Fixes:")
-        for fix in result.fixes:
+        lines += ["", "✏️ <b>Fixes</b>"]
+        for index, fix in enumerate(result.fixes, 1):
             if fix.wrong is None or fix.right is None:
-                lines.append(f"• {escape(fix.why)}")
+                lines.append(f"{index}. <i>{escape(fix.why)}</i>")
             else:
-                lines.append(
-                    f"• <s>{escape(fix.wrong)}</s> → {escape(fix.right)} — {escape(fix.why)}"
-                )
+                lines.append(f"{index}. <s>{escape(fix.wrong)}</s> → <b>{escape(fix.right)}</b>")
+                lines.append(f"    <i>{escape(fix.why)}</i>")
     if result.natural_version:
-        lines.append(f"Sounds more natural: “{escape(result.natural_version)}”")
-    lines.append(f"Next time: {escape(result.next_time)}")
+        lines += ["", "✨ <b>Say it like this</b>"]
+        lines.append(f"<blockquote>{escape(result.natural_version)}</blockquote>")
+    else:
+        lines.append("")
+    lines.append(f"👉 <b>Next time:</b> {escape(result.next_time)}")
     return "\n".join(lines)
 
 
@@ -197,10 +236,10 @@ def analyse_recording(
     """Send the recording to the audio model, store what it found, return the chat reply."""
     settings = get_app_settings(session)
     day = local_day(settings, now)
-    has_prompt = settings.speaking_prompt_on == day.today and bool(settings.speaking_prompt)
-    prompt_text = settings.speaking_prompt if has_prompt else None
+    topic = _today_topic(settings, day.today)
+    prompt_text = task_text(topic) if topic else None
     words: list[dict[str, object]] = (
-        json.loads(settings.speaking_prompt_words_json) if has_prompt else []
+        json.loads(settings.speaking_prompt_words_json) if topic else []
     )
     latest = latest_session(session)
     last_focus = latest.next_time if latest else None
@@ -220,7 +259,14 @@ def analyse_recording(
     if not last_focus:
         result.focus_check = None
     used = {item.word.casefold(): item.used for item in result.words_used}
-    words = [{**w, "used": used.get(str(w["word"]).casefold(), False)} for w in words]
+    words = [
+        {
+            "card_id": w["card_id"],
+            "word": w["word"],
+            "used": used.get(str(w["word"]).casefold(), False),
+        }
+        for w in words
+    ]
     fillers = count_fillers(result.transcript)
     row = SpeakingSession(
         recorded_at=as_utc(now),
@@ -290,10 +336,7 @@ def prepare_reminder(
             session.rollback()
         return None
 
-    if last != day.today:
-        text = ensure_today_prompt(session, generate_topic, now)
-    else:
-        text = rng.choice(FOLLOW_UPS)
+    text = today_prompt(session, generate_topic, now, follow_up=last == day.today)
     settings.speaking_reminder_on = day.today
     settings.speaking_next_reminder_at = as_utc(now) + timedelta(
         minutes=rng.randint(*FOLLOW_UP_MINUTES)

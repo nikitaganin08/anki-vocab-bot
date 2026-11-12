@@ -3,10 +3,12 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
+from contextlib import suppress
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from aiogram import Bot
+from aiogram.exceptions import TelegramAPIError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -146,17 +148,28 @@ async def send_reminder_if_due(
             summary, settings.reminder_anchor, today.toordinal() + now_local.hour, weekly
         )
         config = get_settings()
-        await bot.send_message(
+        message = await bot.send_message(
             config.telegram_allowed_user_id,
             text,
             reply_markup=_web_app_keyboard(
                 "Review", f"{config.resolved_telegram_webapp_url}?view=review"
             ),
         )
+        previous = settings.reminder_message_id
+        settings.reminder_message_id = message.message_id
         settings.last_reminder_on = today
         settings.last_reminder_at = now
         session.commit()
-        return True
+    await _delete_quietly(bot, config.telegram_allowed_user_id, previous)
+    return True
+
+
+async def _delete_quietly(bot: Bot, chat_id: int | None, message_id: int | None) -> None:
+    """Remove the previous reminder; Telegram refuses after 48 hours, which is fine."""
+    if chat_id is None or message_id is None:
+        return
+    with suppress(TelegramAPIError):
+        await bot.delete_message(chat_id, message_id)
 
 
 async def send_speaking_reminder_if_due(
@@ -173,7 +186,14 @@ async def send_speaking_reminder_if_due(
     text = await asyncio.to_thread(prepare)
     if text is None:
         return False
-    await bot.send_message(get_settings().telegram_allowed_user_id, text)
+    chat_id = get_settings().telegram_allowed_user_id
+    message = await bot.send_message(chat_id, text, parse_mode="HTML")
+    with session_factory() as session:
+        settings = get_app_settings(session)
+        previous = settings.speaking_reminder_message_id
+        settings.speaking_reminder_message_id = message.message_id
+        session.commit()
+    await _delete_quietly(bot, chat_id, previous)
     return True
 
 

@@ -132,6 +132,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 - The first reminder of a day comes at `reminder_hour` local time when nothing was reviewed yet and cards are due. While cards are still left today (`due_today + new_today > 0`, also after a partly done session), a follow-up comes every 3 hours (`FOLLOW_UP_HOURS`, from `app_settings.last_reminder_at`), none from 21:00 on (`LAST_REMINDER_HOUR`) and none once everything is done; never mentions streaks.
 - Backoff: after 3 ignored days only one reminder every other day and no follow-ups, after 7 paused until the next review; any review resets the counter. A day counts as ignored when reminders were sent and nothing was reviewed that day.
 - Short rotating English templates with card count ("1 card", "12 cards") and minutes, optional `reminder_anchor` prefix, no warm-up chunk; Mondays add a "Weekly summary" block (days reviewed, learned, 30-day retention). Inline button "Review" opens the Mini App at `?view=review`.
+- Each new reminder deletes the previous one of its kind (`app_settings.reminder_message_id`, `speaking_reminder_message_id`), so one reminder stays in the chat; a refused delete (Telegram allows it for 48 hours) is ignored silently.
 
 ## LLM Contract
 
@@ -268,6 +269,7 @@ Validation rules:
 - `last_reminder_on`
 - `last_reminder_at` (UTC time of the latest reminder, for follow-ups)
 - `ignored_reminders`
+- `reminder_message_id`, `speaking_reminder_message_id` (latest reminder of each kind, deleted by the next one)
 - `speaking_enabled` (default true), `speaking_prompt`, `speaking_prompt_words_json`, `speaking_prompt_on`, `speaking_reminder_on`, `speaking_next_reminder_at`, `speaking_ignored`
 
 ## Backend API
@@ -322,9 +324,9 @@ Production exposure (`deploy/nginx/anki.conf`):
 - The owner answers with a voice message (OGG/Opus, up to 15 min, `MAX_SECONDS`) or a video note (MP4, up to 60 s) in the bot chat. `TelegramRecordingHandler` downloads it into memory and analyses it in a background task (a long recording takes longer than Telegram waits for the webhook reply); the file is never written to disk and no `file_id` is kept.
 - One request to the audio model (`SPEAKING_LLM_MODEL`, default `google/gemini-3.8-flash`) through OpenRouter: `input_audio` with `format` `ogg` or `mp4` as is (no `ffmpeg`), `reasoning: {effort: low}`, `provider: {data_collection: deny}`. Contract `speaking_feedback` (`app/schemas/speaking.py`): `transcript` (verbatim, fillers kept), `words_used`, `fixes` (0-4 `{wrong, right, why, category}`, category from a fixed list), `natural_version`, `next_time` (one thing), `focus_check` (`better`/`same`/`worse`/null); `{ok: false, message_for_user}` without English speech (not stored). About $0.002 per minute.
 - Fillers (`um`, `uh`, `er`, `erm`, `hmm`) are counted by code from the transcript, not by the model.
-- Today's prompt (`ensure_today_prompt`): 3 learning cards (review state first), a topic with 2-3 questions from the card model (`LLM_MODEL`; Saturday is a story day), the last `next_time`. Stored in `app_settings.speaking_prompt*`; `/speak` sends it any time and lifts the backoff.
-- Reminders (in the same 5-minute loop as review reminders, `prepare_reminder`): first at 15:00 local with the prompt, follow-ups at a random 90-120 min gap, none at or after 21:00, none once a recording was analysed today; backoff like review reminders with its own counter (`speaking_ignored`). `speaking_enabled` (Settings switch) turns them off; recordings are still analysed.
-- Chat reply: duration, last focus, fillers per minute, words ✓/✗, fixes, a more natural version, next time. Transcript and categories are stored, not shown.
+- Today's prompt (`today_prompt`): 3 learning cards (review state first) with their first translation, a topic with 2-3 questions from the card model (`LLM_MODEL`; Saturday is a story day), the last `next_time`. The topic is stored as JSON in `app_settings.speaking_prompt` and rendered as Telegram HTML on each send (🎙 title, 📌 topic and numbered questions, 🎯 words with translations, 💡 last time, ⏱ footer; a follow-up has the title ⏰ "Still time for speaking today"); `/speak` sends it any time and lifts the backoff.
+- Reminders (in the same 5-minute loop as review reminders, `prepare_reminder`): first at 15:00 local with the prompt, follow-ups (the whole prompt again, replacing the previous message) at a random 90-120 min gap, none at or after 21:00, none once a recording was analysed today; backoff like review reminders with its own counter (`speaking_ignored`). `speaking_enabled` (Settings switch) turns them off; recordings are still analysed.
+- Chat reply (Telegram HTML): ✅ Feedback · duration, 🎯 last focus, 🗣 fillers per minute, 📚 words ✅/❌, ✏️ numbered fixes (struck-through wrong → bold right, italic reason), ✨ "Say it like this" in a blockquote, 👉 next time. Transcript and categories are stored, not shown.
 
 ## Pronunciation
 
