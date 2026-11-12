@@ -25,6 +25,7 @@ from app.services.reminders import (
     build_reminder_text,
     send_reminder_if_due,
     send_speaking_reminder_if_due,
+    send_speaking_weekly_if_due,
     should_send,
 )
 from app.services.review_stats import ReviewSummary
@@ -182,6 +183,11 @@ class FakeBot:
 
     async def delete_message(self, _chat_id: int, message_id: int) -> None:
         self.deleted.append(message_id)
+
+    async def forward_message(self, _chat_id: int, _from_chat_id: int, message_id: int) -> None:
+        if message_id == 404:
+            raise TelegramBadRequest(method=None, message="message to forward not found")  # type: ignore[arg-type]
+        self.sent.append({"forwarded": message_id})
 
 
 @pytest.fixture
@@ -356,3 +362,15 @@ def test_speaking_reminder_replaces_the_previous_one_quietly(
     assert send(_moscow(20, 17, 30))  # a refused delete (older than 48 h) is ignored
     session.expire_all()
     assert get_app_settings(session).speaking_reminder_message_id == 102
+
+
+def test_weekly_summary_is_sent_with_the_recordings_forwarded(
+    session: Session, session_factory: sessionmaker[Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    summary = SimpleNamespace(text="📊 <b>Your speaking week</b>", forward_message_ids=[404, 502])
+    monkeypatch.setattr(reminders_mod, "prepare_weekly_summary", lambda _s, _now: summary)
+    bot = FakeBot()
+
+    assert asyncio.run(send_speaking_weekly_if_due(session_factory, bot, _moscow(19, 10)))
+    assert bot.sent[0]["parse_mode"] == "HTML"
+    assert bot.sent[1:] == [{"forwarded": 502}]  # a deleted recording is skipped quietly

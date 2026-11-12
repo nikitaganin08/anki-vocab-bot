@@ -248,6 +248,7 @@ Validation rules:
 - `next_time`
 - `focus_check`
 - `llm_model`
+- `telegram_message_id` (the owner's message with the recording, a reference for forwarding; the file stays only in Telegram)
 
 ### `speaking_issues`
 
@@ -270,7 +271,7 @@ Validation rules:
 - `last_reminder_at` (UTC time of the latest reminder, for follow-ups)
 - `ignored_reminders`
 - `reminder_message_id`, `speaking_reminder_message_id` (latest reminder of each kind, deleted by the next one)
-- `speaking_enabled` (default true), `speaking_prompt`, `speaking_prompt_words_json`, `speaking_prompt_on`, `speaking_reminder_on`, `speaking_next_reminder_at`, `speaking_ignored`
+- `speaking_enabled` (default true), `speaking_prompt`, `speaking_prompt_words_json`, `speaking_prompt_on`, `speaking_reminder_on`, `speaking_next_reminder_at`, `speaking_ignored`, `speaking_weekly_on`
 
 ## Backend API
 
@@ -326,6 +327,7 @@ Production exposure (`deploy/nginx/anki.conf`):
 - Fillers (`um`, `uh`, `er`, `erm`, `hmm`) are counted by code from the transcript, not by the model.
 - Today's prompt (`today_prompt`): 3 learning cards (review state first) with their first translation, a topic with 2-3 questions from the card model (`LLM_MODEL`; Saturday is a story day) that must not contain the target words (a topic with any of their 4+ letter tokens is invalid and asked again once), the last `next_time`. The topic is stored as JSON in `app_settings.speaking_prompt` and rendered as Telegram HTML on each send (🎙 title, 📌 topic and numbered questions, 🎯 words with translations, 💡 last time, ⏱ footer; a follow-up has the title ⏰ "Still time for speaking today"); `/speak` sends it any time and lifts the backoff.
 - Reminders (in the same 5-minute loop as review reminders, `prepare_reminder`): first at 15:00 local with the prompt, follow-ups (the whole prompt again, replacing the previous message) at a random 90-120 min gap, none at or after 21:00, none once a recording was analysed today; backoff like review reminders with its own counter (`speaking_ignored`). `speaking_enabled` (Settings switch) turns them off; recordings are still analysed.
+- Weekly summary (`prepare_weekly_summary`, same loop): on Monday from 10:00 local (`WEEKLY_HOUR`), once (`app_settings.speaking_weekly_on`), a separate message about the week before when it has recordings: 📊 days recorded and minutes, 🗣 fillers per minute with the trend against the week before, 📚 deck words used, 🔁 the top 3 mistake categories with one real example each, 🎧 "play your first recording of last week, then the last one" with those two recordings forwarded from the chat (by `speaking_sessions.telegram_message_id`; a deleted one is skipped quietly), 👉 focus this week (the top category). The daily topic still comes at 15:00, also on Sundays.
 - Chat reply (Telegram HTML): ✅ Feedback · duration, 🎯 last focus, 🗣 fillers per minute, 📚 words ✅/❌, ✏️ the top 3 fixes (`SHOWN_FIXES`; struck-through wrong → bold right, italic reason) and the rest in a collapsed `<blockquote expandable>` "➕ N more", ✨ "Say it like this" in a blockquote, 👉 next time. Transcript and categories are stored, not shown.
 
 ## Pronunciation

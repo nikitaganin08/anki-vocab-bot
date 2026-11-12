@@ -245,6 +245,7 @@ def analyse_recording(
     duration_seconds: int,
     llm_model: str,
     now: datetime,
+    telegram_message_id: int | None = None,
 ) -> str:
     """Send the recording to the audio model, store what it found, return the chat reply."""
     settings = get_app_settings(session)
@@ -293,6 +294,7 @@ def analyse_recording(
         next_time=result.next_time,
         focus_check=result.focus_check,
         llm_model=llm_model,
+        telegram_message_id=telegram_message_id,
     )
     session.add(row)
     session.flush()
@@ -356,3 +358,121 @@ def prepare_reminder(
     )
     session.commit()
     return text
+
+
+WEEKLY_HOUR = 10  # Monday morning: last week's summary, separate from the daily topic
+CATEGORY_LABELS = {
+    "article": "Articles",
+    "tense": "Tenses",
+    "verb_pattern": "Verb patterns",
+    "preposition": "Prepositions",
+    "collocation": "Collocations",
+    "word_choice": "Word choice",
+    "word_order": "Word order",
+    "agreement": "Agreement",
+    "grammar_other": "Other grammar",
+}
+
+
+@dataclass(frozen=True, slots=True)
+class WeeklySummary:
+    text: str
+    forward_message_ids: list[int]  # the week's first and last recordings, to listen back
+
+
+def _sessions_between(session: Session, start: datetime, end: datetime) -> list[SpeakingSession]:
+    query = (
+        select(SpeakingSession)
+        .where(SpeakingSession.recorded_at >= start, SpeakingSession.recorded_at < end)
+        .order_by(SpeakingSession.recorded_at)
+    )
+    return list(session.scalars(query))
+
+
+def _filler_rate(rows: list[SpeakingSession]) -> float | None:
+    seconds = sum(row.duration_seconds for row in rows)
+    return sum(row.filler_count for row in rows) * 60 / seconds if seconds else None
+
+
+def _week_label(start: date) -> str:
+    end = start + timedelta(days=6)
+    if start.month == end.month:
+        return f"{start:%b} {start.day}–{end.day}"
+    return f"{start:%b} {start.day} – {end:%b} {end.day}"
+
+
+def build_weekly_summary(session: Session, day: LocalDay, week_start: date) -> WeeklySummary | None:
+    """Last week's speaking: days, minutes, filler trend, deck words, recurring mistakes."""
+    start, end = day.start(week_start), day.start(week_start + timedelta(days=7))
+    rows = _sessions_between(session, start, end)
+    if not rows:
+        return None
+    days = {
+        (as_utc(row.recorded_at).astimezone(day.tz) - timedelta(hours=DAY_START_HOUR)).date()
+        for row in rows
+    }
+    minutes = max(1, round(sum(row.duration_seconds for row in rows) / 60))
+    stats = [f"🗓 {len(days)} of 7 days · {minutes} min spoken"]
+    rate = _filler_rate(rows)
+    previous = _filler_rate(
+        _sessions_between(session, day.start(week_start - timedelta(days=7)), start)
+    )
+    if rate is not None and previous is not None:
+        trend = "📉" if rate < previous else "📈" if rate > previous else ""
+        stats.append(f"🗣 Fillers: {previous:.1f} → <b>{rate:.1f}</b>/min {trend}".rstrip())
+    elif rate is not None:
+        stats.append(f"🗣 Fillers: <b>{rate:.1f}</b>/min")
+    words = [word for row in rows for word in json.loads(row.words_json)]
+    if words:
+        stats.append(f"📚 Deck words used: {sum(bool(w['used']) for w in words)} of {len(words)}")
+    lines = [f"📊 <b>Your speaking week</b> · {_week_label(week_start)}"]
+    lines.append(f"<blockquote>{chr(10).join(stats)}</blockquote>")
+
+    issues = session.scalars(
+        select(SpeakingIssue)
+        .where(SpeakingIssue.session_id.in_([row.id for row in rows]))
+        .order_by(SpeakingIssue.id)
+    ).all()
+    counts = Counter(issue.category for issue in issues)
+    if counts:
+        lines += ["", "🔁 <b>What keeps coming back</b>"]
+        for category, count in counts.most_common(3):
+            example = next(
+                (i for i in issues if i.category == category and i.wrong and i.right), None
+            )
+            line = f"<b>{CATEGORY_LABELS[category]}</b> ×{count}"
+            if example is not None:
+                line += (
+                    f" · <s>{escape(str(example.wrong))}</s> → <b>{escape(str(example.right))}</b>"
+                )
+            lines.append(line)
+
+    forward = [row.telegram_message_id for row in (rows[0], rows[-1]) if row.telegram_message_id]
+    if len(rows) < 2 or len(forward) < 2:
+        forward = []
+    else:
+        lines += [
+            "",
+            "🎧 <b>Before today's topic:</b> play your first recording of last week, "
+            "then the last one.",
+        ]
+    if counts:
+        focus = CATEGORY_LABELS[counts.most_common(1)[0][0]].lower()
+        lines += ["", f"👉 <b>Focus this week:</b> {focus}"]
+    return WeeklySummary("\n".join(lines), forward)
+
+
+def prepare_weekly_summary(session: Session, now: datetime) -> WeeklySummary | None:
+    """Monday from WEEKLY_HOUR, once: the summary of the week before (None without recordings)."""
+    settings = get_app_settings(session)
+    day = local_day(settings, now)
+    if (
+        not settings.speaking_enabled
+        or day.today.weekday() != 0
+        or day.now_local.hour < WEEKLY_HOUR
+        or settings.speaking_weekly_on == day.today
+    ):
+        return None
+    settings.speaking_weekly_on = day.today
+    session.commit()
+    return build_weekly_summary(session, day, day.today - timedelta(days=7))

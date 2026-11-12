@@ -184,6 +184,32 @@ each send; the audio model gets a plain "Topic: … / 1. …" task. Each new rem
 speaking) deletes the previous one of its kind; Telegram refuses deletes after 48 hours, which is
 ignored silently.
 
+## Weekly summary
+
+Added 2026-11-13; the owner combined mockups 1 and 3 and chose a separate Monday message (the
+daily topic keeps coming every day, Sundays included). From the video: compare the first and the
+latest recording to hear the progress.
+
+```
+📊 <b>Your speaking week</b> · Nov 9–15
+<blockquote>🗓 4 of 7 days · 9 min spoken
+🗣 Fillers: 6.4 → <b>4.1</b>/min 📉
+📚 Deck words used: 7 of 12</blockquote>
+
+🔁 <b>What keeps coming back</b>
+<b>Prepositions</b> ×7 · <s>at China</s> → <b>in China</b>
+<b>Articles</b> ×5 · <s>at end of May</s> → <b>at the end of May</b>
+<b>Tenses</b> ×3 · <s>ride</s> → <b>rode</b>
+
+🎧 <b>Before today's topic:</b> play your first recording of last week, then the last one.
+
+👉 <b>Focus this week:</b> prepositions
+```
+
+Then the bot forwards the week's first and last recordings from the chat (`forwardMessage` by
+`speaking_sessions.telegram_message_id`: a reference, the file itself stays only in Telegram).
+Sent once on Monday from 10:00 local, only when last week has recordings.
+
 ## LLM contract (`speaking_feedback`)
 
 ```json

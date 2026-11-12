@@ -18,7 +18,7 @@ from app.models.app_settings import AppSettings
 from app.models.review_log import ReviewLogEntry
 from app.services.app_settings import get_app_settings
 from app.services.review_stats import ReviewSummary, build_summary
-from app.services.speaking import GenerateTopic, prepare_reminder
+from app.services.speaking import GenerateTopic, prepare_reminder, prepare_weekly_summary
 from app.services.srs import DAY_START_HOUR, as_utc
 
 logger = logging.getLogger(__name__)
@@ -197,6 +197,22 @@ async def send_speaking_reminder_if_due(
     return True
 
 
+async def send_speaking_weekly_if_due(
+    session_factory: Callable[[], Session], bot: Bot, now: datetime
+) -> bool:
+    with session_factory() as session:
+        summary = prepare_weekly_summary(session, now)
+    if summary is None:
+        return False
+    chat_id = get_settings().telegram_allowed_user_id
+    await bot.send_message(chat_id, summary.text, parse_mode="HTML")
+    for message_id in summary.forward_message_ids:
+        # The owner may have deleted the recording since; nothing to listen to then.
+        with suppress(TelegramAPIError):
+            await bot.forward_message(chat_id, chat_id, message_id)
+    return True
+
+
 async def run_reminder_loop(
     session_factory: Callable[[], Session],
     bot: Bot,
@@ -210,6 +226,10 @@ async def run_reminder_loop(
             await send_reminder_if_due(session_factory, bot, now)
         except Exception:
             logger.exception("Reminder check failed")
+        try:
+            await send_speaking_weekly_if_due(session_factory, bot, now)
+        except Exception:
+            logger.exception("Speaking weekly summary failed")
         try:
             await send_speaking_reminder_if_due(session_factory, bot, generate_topic, now)
         except Exception:
