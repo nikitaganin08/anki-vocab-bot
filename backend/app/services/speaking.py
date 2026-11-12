@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import random
+import re
 from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -36,16 +37,18 @@ WORDS_PER_PROMPT = 3
 MAX_SECONDS = 15 * 60
 SHOWN_FIXES = 3  # the rest of the fixes go into a collapsed quote
 
-FILLER_FORMS = {
-    "um": "um",
-    "umm": "um",
-    "uh": "uh",
-    "uhh": "uh",
-    "er": "er",
-    "erm": "erm",
-    "hm": "hmm",
-    "hmm": "hmm",
-}
+# Hesitation sounds of any length ("ummm", "m-m-m", "эээ"); "uh-huh" (yes) is not one.
+FILLER_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
+    (name, re.compile(pattern))
+    for name, pattern in (
+        ("um", r"u+h*m+|э+м+"),
+        ("uh", r"u+h+|э+"),
+        ("erm", r"e+r+m+"),
+        ("er", r"e+r+"),
+        ("hmm", r"h+m+|х+м+"),
+        ("mm", r"m{2,}|м{2,}"),
+    )
+)
 
 
 # Text nodes only: apostrophes stay readable in Telegram.
@@ -70,9 +73,15 @@ def local_day(settings: AppSettings, now: datetime) -> LocalDay:
     return LocalDay(tz, now_local, (now_local - timedelta(hours=DAY_START_HOUR)).date())
 
 
+def _filler(word: str) -> str | None:
+    return next((name for name, pattern in FILLER_PATTERNS if pattern.fullmatch(word)), None)
+
+
 def count_fillers(transcript: str) -> Counter[str]:
-    words = (word.strip(".,!?;:…—-\"'()").casefold() for word in transcript.split())
-    return Counter(FILLER_FORMS[word] for word in words if word in FILLER_FORMS)
+    words = (
+        word.strip(".,!?;:…—-\"'()").replace("-", "").casefold() for word in transcript.split()
+    )
+    return Counter(name for name in map(_filler, words) if name)
 
 
 def pick_words(session: Session) -> list[dict[str, object]]:
