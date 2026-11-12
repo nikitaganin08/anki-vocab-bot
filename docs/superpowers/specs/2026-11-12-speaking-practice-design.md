@@ -139,37 +139,50 @@ sent after one was already analysed today is analysed too (practice twice is fin
 
 ## Messages
 
-Prompt (reminder and `/speak`):
+Design A, picked 2026-11-13 from three rendered variants. Telegram HTML.
+
+Prompt (reminder and `/speak`); a follow-up is the same message with the title
+"⏰ <b>Still time for speaking today</b>" and replaces the previous reminder:
 
 ```
-Speaking practice
-Topic: a place you'd like to go back to
+🎙 <b>Speaking practice</b>
+
+📌 <b>A place you'd like to go back to</b>
 1. Where is it and when were you there?
 2. What made it special?
 3. Would it be the same now?
-Try to use: vivid, linger, worth it
-Last time: when you need a second, say "let me think" instead of "uh".
 
-Answer with a voice message or a video note, 1–3 min.
+🎯 <b>Use these words</b>
+• <b>linger</b> — задерживаться
+• <b>vivid</b> — яркий
+
+💡 <b>Last time:</b> <i>say "let me think" instead of "uh"</i>
+
+⏱ 1–3 min · reply with a voice message or a video note
 ```
 
-Follow-ups are one line with the topic, e.g. "Still time for 2 minutes of speaking? Topic: …".
-
-Feedback (Telegram HTML):
+Feedback:
 
 ```
-Feedback · 1:42
-Last time's focus: better
-Fillers: 9 (um ×6, uh ×3) · 5.3 per min
-Words: ✓ vivid  ✓ worth it  ✗ linger
-Fixes:
-• <s>I have been there in 2019</s> → I was there in 2019 — finished time, past simple
-• <s>it was very interesting place</s> → it was a really interesting place — article
-Sounds more natural: "I went there back in 2019, and what stuck with me was …"
-Next time: finish the story with one sentence on how it ended.
+✅ <b>Feedback</b> · 0:47
+
+🎯 Last focus: <b>better</b>
+🗣 Fillers: <b>5</b> · 6.4/min (uh ×3, um ×2)
+📚 Words: ✅ linger · ❌ vivid
+
+✏️ <b>Fixes</b>
+1. <s>suggested to speak</s> → <b>suggested speaking</b>
+    <i>suggest + -ing</i>
+
+✨ <b>Say it like this</b>
+<blockquote>They suggested speaking to yourself every day …</blockquote>
+👉 <b>Next time:</b> finish with one sentence on how it ended.
 ```
 
-The "Last time's focus" line only when `focus_check` is set; the category is not shown in the chat.
+The topic is kept as data (`SpeakingTopic` JSON in `app_settings.speaking_prompt`) and rendered on
+each send; the audio model gets a plain "Topic: … / 1. …" task. Each new reminder (review or
+speaking) deletes the previous one of its kind; Telegram refuses deletes after 48 hours, which is
+ignored silently.
 
 ## LLM contract (`speaking_feedback`)
 

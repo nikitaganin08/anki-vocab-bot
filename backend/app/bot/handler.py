@@ -296,7 +296,7 @@ class TelegramSpeakHandler:
         except OpenRouterError as exc:
             await message.answer(exc.user_message)
             return
-        await message.answer(text)
+        await message.answer(text, parse_mode="HTML")
 
 
 RECORDING_FORMATS = {"voice": "ogg", "video_note": "mp4"}

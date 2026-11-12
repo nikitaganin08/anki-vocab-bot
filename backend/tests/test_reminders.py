@@ -8,6 +8,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import pytest
+from aiogram.exceptions import TelegramBadRequest
 from fastapi.testclient import TestClient
 from fsrs import Card as FsrsCard
 from fsrs import State
@@ -16,12 +17,14 @@ from sqlalchemy.orm import Session, sessionmaker
 import app.main as main_mod
 import app.services.reminders as reminders_mod
 from app.models.review_log import ReviewLogEntry
+from app.schemas.speaking import SpeakingTopic
 from app.services.app_settings import get_app_settings
 from app.services.reminders import (
     REMINDER_TEMPLATES,
     _weekly_block,
     build_reminder_text,
     send_reminder_if_due,
+    send_speaking_reminder_if_due,
     should_send,
 )
 from app.services.review_stats import ReviewSummary
@@ -171,9 +174,14 @@ def test_weekly_block_is_english() -> None:
 @dataclass
 class FakeBot:
     sent: list[dict[str, Any]] = field(default_factory=list)
+    deleted: list[int] = field(default_factory=list)
 
-    async def send_message(self, chat_id: int, text: str, **kwargs: Any) -> None:
+    async def send_message(self, chat_id: int, text: str, **kwargs: Any) -> SimpleNamespace:
         self.sent.append({"chat_id": chat_id, "text": text, **kwargs})
+        return SimpleNamespace(message_id=100 + len(self.sent))
+
+    async def delete_message(self, _chat_id: int, message_id: int) -> None:
+        self.deleted.append(message_id)
 
 
 @pytest.fixture
@@ -326,3 +334,25 @@ def test_follow_up_is_sent_three_hours_after_the_last_reminder(
     assert _send(session_factory, bot, _moscow(20, 13))
     assert not _send(session_factory, bot, _moscow(20, 15))
     assert len(bot.sent) == 2
+    assert bot.deleted == [101]  # the follow-up replaced the first reminder
+
+
+class RefusingBot(FakeBot):
+    async def delete_message(self, _chat_id: int, message_id: int) -> None:
+        raise TelegramBadRequest(method=None, message="message can't be deleted")  # type: ignore[arg-type]
+
+
+def test_speaking_reminder_replaces_the_previous_one_quietly(
+    session: Session, session_factory: sessionmaker[Session]
+) -> None:
+    topic = lambda _words, _story: SpeakingTopic(topic="your weekend", questions=["What?", "Why?"])  # noqa: E731
+    bot = RefusingBot()
+
+    def send(now: datetime) -> bool:
+        return asyncio.run(send_speaking_reminder_if_due(session_factory, bot, topic, now))
+
+    assert send(_moscow(20, 15))
+    assert bot.sent[0]["parse_mode"] == "HTML"
+    assert send(_moscow(20, 17, 30))  # a refused delete (older than 48 h) is ignored
+    session.expire_all()
+    assert get_app_settings(session).speaking_reminder_message_id == 102

@@ -26,8 +26,12 @@ class AppSettings(Base):
         DateTime(timezone=True), nullable=True
     )
     ignored_reminders: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # The latest reminder of each kind; a new one deletes it so only one stays in the chat.
+    reminder_message_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    speaking_reminder_message_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Speaking practice: today's prompt and its reminder state (see speaking.py).
     speaking_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    # Today's SpeakingTopic as JSON.
     speaking_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
     speaking_prompt_words_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     speaking_prompt_on: Mapped[date | None] = mapped_column(Date, nullable=True)
