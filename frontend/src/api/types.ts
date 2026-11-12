@@ -189,6 +189,7 @@ export interface AppSettings {
   reviews_per_day: number;
   desired_retention: number;
   learn_threshold: number;
+  speaking_enabled: boolean;
   // Read-only from the server (Google TTS key set); PUT ignores it.
   readonly tts_enabled?: boolean;
 }

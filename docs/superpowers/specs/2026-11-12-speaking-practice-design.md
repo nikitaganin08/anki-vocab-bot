@@ -189,7 +189,8 @@ The "Last time's focus" line only when `focus_check` is set; the category is not
   patterns), `preposition`, `collocation`, `word_choice`, `word_order`, `agreement`, `grammar_other`.
   An unknown value fails validation (one retry, like any invalid response).
 - `focus_check`: did the learner follow the previous `next_time` note: `better`, `same`, `worse`;
-  `null` when the prompt had no previous note.
+  `null` when there was no previous note or the recording gives no chance to tell (checked live: a
+  grammar note about "make mistakes" on a recording without that phrase comes back null).
 
 - `ok = false` with `message_for_user` when there is no English speech (silence, another language).
 - `transcript`: verbatim, fillers kept ("um", "uh"); stored, not sent to the chat; the filler count

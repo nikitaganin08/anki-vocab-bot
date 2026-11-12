@@ -22,7 +22,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     task = None
     if get_settings().telegram_bot_token and os.environ.get("DISABLE_REMINDERS") != "1":
         try:
-            bot = get_bot_runtime().bot
+            runtime = get_bot_runtime()
+            bot = runtime.bot
         except ValueError as exc:  # partial bot config, e.g. local dev without a webhook
             logger.warning("Reminders disabled: %s", exc)
         else:
@@ -30,7 +31,9 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
                 await ensure_menu_button(bot)
             except Exception:
                 logger.exception("Could not set the menu button")
-            task = asyncio.create_task(run_reminder_loop(SessionLocal, bot))
+            task = asyncio.create_task(
+                run_reminder_loop(SessionLocal, bot, runtime.generate_speaking_topic)
+            )
     yield
     if task is not None:
         task.cancel()

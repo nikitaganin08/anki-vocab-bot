@@ -68,6 +68,7 @@ const settingsPayload = {
   reviews_per_day: 50,
   desired_retention: 0.9,
   learn_threshold: 3,
+  speaking_enabled: true,
 };
 
 const summaryPayload = {

@@ -22,6 +22,7 @@ const settings: AppSettings = {
   reviews_per_day: 200,
   desired_retention: 0.9,
   learn_threshold: 3,
+  speaking_enabled: true,
 };
 
 function renderSettings(): void {
@@ -65,6 +66,19 @@ describe("SettingsView", () => {
       reminder_anchor: "после кофе",
     });
     expect(await screen.findByText("Saved")).toBeInTheDocument();
+  });
+
+  it("turns speaking practice off", async () => {
+    mockedSave.mockImplementation(async (body) => body);
+    renderSettings();
+
+    const speaking = await screen.findByRole("switch", { name: "Speaking practice" });
+    expect(speaking).toBeChecked();
+    fireEvent.click(speaking);
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(mockedSave).toHaveBeenCalledTimes(1));
+    expect(mockedSave.mock.calls[0][0]).toEqual({ ...settings, speaking_enabled: false });
   });
 
   it("keeps a stored retention outside the list", async () => {

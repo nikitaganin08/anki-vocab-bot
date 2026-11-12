@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from functools import lru_cache
 
 from aiogram import Bot, Dispatcher, F, Router
@@ -14,7 +15,9 @@ from app.bot.handler import (
     TelegramAdminWebAppHandler,
     TelegramDescriptionLookupHandler,
     TelegramLearnCallbackHandler,
+    TelegramRecordingHandler,
     TelegramReviewWebAppHandler,
+    TelegramSpeakHandler,
     TelegramTextHandler,
 )
 from app.bot.rate_limiter import InMemoryRateLimiter
@@ -23,6 +26,7 @@ from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.models.card import Card
 from app.services.card_service import CardServiceResult, apply_source_text
+from app.services.speaking import GenerateTopic, analyse_recording, prompt_for_speak_command
 
 
 @dataclass(slots=True)
@@ -30,6 +34,7 @@ class BotRuntime:
     bot: Bot
     dispatcher: Dispatcher
     webhook_secret: str
+    generate_speaking_topic: GenerateTopic
 
 
 def _build_apply_source_text(client: OpenRouterClient) -> Callable[[str], CardServiceResult]:
@@ -70,6 +75,33 @@ def _build_swap_for_synonym(client: OpenRouterClient) -> Callable[[int], Synonym
     return swap
 
 
+def _build_speak_prompt(client: OpenRouterClient) -> Callable[[], str]:
+    def get_prompt() -> str:
+        with SessionLocal() as session:
+            return prompt_for_speak_command(
+                session, client.generate_speaking_topic, datetime.now(UTC)
+            )
+
+    return get_prompt
+
+
+def _build_analyse_recording(client: OpenRouterClient) -> Callable[[bytes, str, str, int], str]:
+    def analyse(audio: bytes, kind: str, audio_format: str, duration_seconds: int) -> str:
+        with SessionLocal() as session:
+            return analyse_recording(
+                session,
+                client.review_speaking,
+                audio=audio,
+                kind=kind,
+                audio_format=audio_format,
+                duration_seconds=duration_seconds,
+                llm_model=client.model,
+                now=datetime.now(UTC),
+            )
+
+    return analyse
+
+
 async def ensure_menu_button(bot: Bot) -> None:
     """The menu button next to the message field opens the Mini App in one tap.
 
@@ -100,8 +132,18 @@ def build_bot_router(
     review_handler: TelegramReviewWebAppHandler,
     learn_callback_handler: TelegramLearnCallbackHandler,
     add_callback_handler: TelegramAddCallbackHandler,
+    speak_handler: TelegramSpeakHandler,
+    recording_handler: TelegramRecordingHandler,
 ) -> Router:
     router = Router()
+
+    @router.message(Command("speak"))
+    async def handle_speak_command(message) -> None:
+        await speak_handler.handle_message(message)
+
+    @router.message(F.voice | F.video_note)
+    async def handle_recording(message) -> None:
+        await recording_handler.handle_message(message)
 
     @router.message(Command("admin"))
     async def handle_admin_command(message) -> None:
@@ -146,6 +188,11 @@ def build_bot_runtime() -> BotRuntime:
         api_key=settings.openrouter_api_key,
         model=settings.llm_model,
     )
+    speaking_client = OpenRouterClient(
+        api_key=settings.openrouter_api_key,
+        model=settings.speaking_llm_model,
+        timeout_seconds=180.0,  # audio of up to 15 minutes
+    )
     rate_limiter = InMemoryRateLimiter(limit=5, window_seconds=60.0)
     text_handler = TelegramTextHandler(
         allowed_user_id=settings.telegram_allowed_user_id,
@@ -183,6 +230,15 @@ def build_bot_runtime() -> BotRuntime:
             review_handler,
             learn_callback_handler,
             add_callback_handler,
+            TelegramSpeakHandler(
+                allowed_user_id=settings.telegram_allowed_user_id,
+                get_prompt=_build_speak_prompt(openrouter_client),
+            ),
+            TelegramRecordingHandler(
+                allowed_user_id=settings.telegram_allowed_user_id,
+                analyse=_build_analyse_recording(speaking_client),
+                rate_limiter=rate_limiter,
+            ),
         )
     )
 
@@ -190,6 +246,7 @@ def build_bot_runtime() -> BotRuntime:
         bot=bot,
         dispatcher=dispatcher,
         webhook_secret=settings.telegram_webhook_secret,
+        generate_speaking_topic=openrouter_client.generate_speaking_topic,
     )
 
 

@@ -204,6 +204,7 @@ def test_settings_roundtrip_and_validation(client: TestClient) -> None:
         "reviews_per_day": 50,
         "desired_retention": 0.9,
         "learn_threshold": 3,
+        "speaking_enabled": True,
         "tts_enabled": False,
     }
 
@@ -215,6 +216,7 @@ def test_settings_roundtrip_and_validation(client: TestClient) -> None:
         "reviews_per_day": 100,
         "desired_retention": 0.85,
         "learn_threshold": 4,
+        "speaking_enabled": False,
     }
     # tts_enabled is read-only: PUT does not need it and ignores a sent value.
     put = client.put(

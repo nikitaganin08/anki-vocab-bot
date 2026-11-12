@@ -190,6 +190,7 @@ class AppSettingsPayload(BaseModel):
     reviews_per_day: int = Field(ge=0, le=1000)
     desired_retention: float = Field(ge=0.7, le=0.97)
     learn_threshold: int = Field(ge=0, le=10)
+    speaking_enabled: bool
 
     @field_validator("timezone")
     @classmethod

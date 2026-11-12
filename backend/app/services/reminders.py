@@ -16,6 +16,7 @@ from app.models.app_settings import AppSettings
 from app.models.review_log import ReviewLogEntry
 from app.services.app_settings import get_app_settings
 from app.services.review_stats import ReviewSummary, build_summary
+from app.services.speaking import GenerateTopic, prepare_reminder
 from app.services.srs import DAY_START_HOUR, as_utc
 
 logger = logging.getLogger(__name__)
@@ -158,13 +159,39 @@ async def send_reminder_if_due(
         return True
 
 
+async def send_speaking_reminder_if_due(
+    session_factory: Callable[[], Session],
+    bot: Bot,
+    generate_topic: GenerateTopic,
+    now: datetime,
+) -> bool:
+    def prepare() -> str | None:
+        with session_factory() as session:
+            return prepare_reminder(session, generate_topic, now)
+
+    # In a thread: the first reminder of the day asks the LLM for a topic.
+    text = await asyncio.to_thread(prepare)
+    if text is None:
+        return False
+    await bot.send_message(get_settings().telegram_allowed_user_id, text)
+    return True
+
+
 async def run_reminder_loop(
-    session_factory: Callable[[], Session], bot: Bot, interval_seconds: int = 300
+    session_factory: Callable[[], Session],
+    bot: Bot,
+    generate_topic: GenerateTopic,
+    interval_seconds: int = 300,
 ) -> None:
     # ponytail: single uvicorn worker; use an atomic DB claim if workers > 1
     while True:
+        now = datetime.now(UTC)
         try:
-            await send_reminder_if_due(session_factory, bot, datetime.now(UTC))
+            await send_reminder_if_due(session_factory, bot, now)
         except Exception:
             logger.exception("Reminder check failed")
+        try:
+            await send_speaking_reminder_if_due(session_factory, bot, generate_topic, now)
+        except Exception:
+            logger.exception("Speaking reminder check failed")
         await asyncio.sleep(interval_seconds)

@@ -25,6 +25,7 @@ The app receives words and stable expressions from Telegram, generates learning 
 - Telegram Web App (Mini App) with a review dashboard, the daily review flow, settings, and the word list (add words, search, filter, delete, toggle learning)
 - FSRS review of learning cards with typed answers and usage chunks
 - Daily review reminder from the bot
+- Daily speaking practice: a topic with deck words, feedback on voice messages and video notes (see "Speaking practice")
 - Bot copy is English, sentence case, like the Mini App (replies, buttons, reminders, bot profile and command list); Russian appears only as card data (translations, chunk translations) and the free-text `reminder_anchor`. The LLM is told to write `message_for_user` (rejections) in English
 - The production migrations to the SRS model (chunks backfill, Anki deck import, General American IPA backfill) were run on 2026-10-17 and their scripts removed; the Anki integration itself (sync helper, `/api/anki/*`, `anki_*` card columns, sync token) was removed on 2026-10-18; see git history
 
@@ -80,7 +81,7 @@ The app receives words and stable expressions from Telegram, generates learning 
   this repo owns only its `/anki/` routes in `deploy/nginx/anki.conf`, which the deploy workflow
   copies to `/opt/nginx/snippets/anki.conf` and applies with `nginx -t` + reload (restoring the
   previous file if the test fails)
-- The deploy workflow also sets the bot's name, short description, description, command list (English; `/review` and `/find`) through the Bot API (`deploy/telegram/profile.py`). The app itself sets the menu button "Wordloop" for the owner's private chat on startup (`ensure_menu_button`; the bot-wide default does not read back reliably); it opens the Mini App in one tap, while a bot command can only reply with a button first. `/admin` was dropped from the command list as a duplicate (its handler still answers if typed)
+- The deploy workflow also sets the bot's name, short description, description, command list (English; `/review`, `/find` and `/speak`) through the Bot API (`deploy/telegram/profile.py`). The app itself sets the menu button "Wordloop" for the owner's private chat on startup (`ensure_menu_button`; the bot-wide default does not read back reliably); it opens the Mini App in one tap, while a bot command can only reply with a button first. `/admin` was dropped from the command list as a duplicate (its handler still answers if typed)
 - In production, admin access is expected through Telegram Web App auth tied to the allowed Telegram user
 - Docker uses a multi-stage build:
   - frontend build stage
@@ -232,6 +233,29 @@ Validation rules:
 - `card_before_json` (for undo)
 - `state_before`
 
+### `speaking_sessions`
+
+- `id`
+- `recorded_at`
+- `kind` (`voice`, `video_note`)
+- `duration_seconds`
+- `prompt_text` (null for free speech)
+- `words_json` (`[{card_id, word, used}]`)
+- `transcript`
+- `filler_count`
+- `natural_version`
+- `next_time`
+- `focus_check`
+- `llm_model`
+
+### `speaking_issues`
+
+- `id`
+- `session_id` (FK `speaking_sessions.id`, cascade delete)
+- `category` (`article`, `tense`, `verb_pattern`, `preposition`, `collocation`, `word_choice`, `word_order`, `agreement`, `grammar_other`)
+- `wrong`, `right` (both null for a general note)
+- `why`
+
 ### `app_settings` (single row, `id = 1`)
 
 - `timezone` (default `Europe/Moscow`; the Mini App replaces it with the device timezone)
@@ -244,6 +268,7 @@ Validation rules:
 - `last_reminder_on`
 - `last_reminder_at` (UTC time of the latest reminder, for follow-ups)
 - `ignored_reminders`
+- `speaking_enabled` (default true), `speaking_prompt`, `speaking_prompt_words_json`, `speaking_prompt_on`, `speaking_reminder_on`, `speaking_next_reminder_at`, `speaking_ignored`
 
 ## Backend API
 
@@ -280,7 +305,7 @@ Views are switched by `?view=` (`history.replaceState`, other params and the has
 - Home (`src/home/`): today's goal, progress first: headline "{done} of {total} done today" (total = `done_today + due_today + new_today` distinct cards; "Done for today" when total is 0), a thin progress bar, one row with "{left} left" and "~{est_minutes} min" at the right edge, then "Start" (the whole day in one round) and "Quick: 5 cards" (ends after 5 graded cards); when nothing is left today these two are replaced by "5 more new words" (`only_new`, shown when `new_extra > 0`) and "Postponed reviews (N)" (`include_backlog`, shown when `backlog > 0`), and no button at all when neither exists; retention tile (big number, "goal 90%", muted "Hard h% · Again a%" line) and learned tile, 14-week heatmap, streak line (only from 3 days), forecast, backlog. After 3+ study days away with cards due it shows "Welcome back" instead: "5 minutes" (card cap from today's pace), "Regular session", "All at once (N)" (`include_backlog=true`).
 - Review (`src/review/`): `useReviewSession` drives the flow in one round of up to 200 cards (`ROUND_SIZE`; every grade is saved at once; 5 for "Quick" and "5 more new words") from `GET /api/review/session`. New cards show an intro ("New word" chip, full card, "Got it"), and the typed question for that card comes two items later in the same round. Question → `check` → back side: one card whose top block (`lead` of `CardDetails`) holds a result chip (Correct green, Typo and Wrong form amber, Wrong and No answer red; "No answer" when nothing was typed), the asked sentence with the gap filled in and the right word marked (green or amber by verdict, neutral for wrong answers; for a chunk prompt its own speaker (`SpeakerButton` with `phrase`) sits right after the sentence) and, next to the chip, what was typed (struck through for wrong, a diff for a typo, nothing for no answer or a correct one), then the full card (translations, explanation, usage, example, word family; no "Delete word" on the back side) and, pinned to the bottom of the screen (`review-actions`, sticky) while a long card scrolls above them, the sentence button and four grade buttons "Again / Hard / Good / Easy" (auto rating highlighted; a wrong answer can still be graded Good by hand) → `grade`. Above the grade buttons sits the optional "Test yourself: use it in a sentence" button (outlined in the accent colour) opens a bottom sheet (`SentencePractice`, shared `Sheet`) over the card: a text box, "Check sentence", then a "Looks good" / "Needs a fix" chip with the corrected sentence (words changed by the fix highlighted, a client-side word diff in `sentenceDiff.ts`) and a list of issues, one line each: "~~wrong~~ → **right**" plus a short reason (a general note has only the reason), the same four grade buttons (`GradeGrid`, auto rating highlighted; a press grades and moves on) and "Close"; the keys 1-4 are ignored inside the sheet and the card stays visible behind it. `grade` echoes `srs_due_at` verbatim as `expected_due_at`; a 409 refetches the round. A graded card that is due again within 30 minutes (Again, Hard on a learning step) is put back into the same round after 3 other cards (`REPEAT_GAP`) with the new `srs_due_at` from the grade response, if another card is still left in the round; the round's total grows by one. The last card of a round waits for the next round. After each round: "Round complete" with "Today X of Y" from the same distinct-card counts as Home (an Again does not count as done until the card passes); an empty session shows "Done for today".
 - Full card (`CardDetails` in `src/review/IntroCard.tsx`, intro and back side): word + speaker + IPA → type chip (`src/entryTypes.ts`) → translations → explanation (full English definition) → "Usage" chunks → one example → "Forms" (the word family), one form per line with the word in bold ("**distinguishable** (adjective) — различимый"). Word, speaker, IPA and type chip share one centred row.
-- Settings (`src/settings/`): daily limits, desired retention, reminder hour and anchor, learn threshold, timezone; saved with `PUT /api/settings`. On each Mini App load the shell saves the device timezone (`Intl.DateTimeFormat().resolvedOptions().timeZone`) when it differs from the stored one; a zone picked by hand in Settings is replaced on the next load if the device reports another.
+- Settings (`src/settings/`): daily limits, desired retention, reminder hour and anchor, learn threshold, "Speaking practice" switch (`speaking_enabled`), timezone; saved with `PUT /api/settings`. On each Mini App load the shell saves the device timezone (`Intl.DateTimeFormat().resolvedOptions().timeZone`) when it differs from the stored one; a zone picked by hand in Settings is replaced on the next load if the device reports another.
 - Words (`src/pages/CardsPage.tsx`, sheets in `AddWordsSheet.tsx` and `CardSheet.tsx`, shared `src/components/Sheet.tsx`): a search box (debounced) with a "+" button, filter chips "All" / "Learning" / "Not learning" (`is_learning`), a second chip row by card type ("All types", Word, Phrasal verb, Collocation, Idiom, Proverb, Phrase; `type` in the query string, `entry_type` in the API) with a "What are these types?" sheet (`EntryTypesSheet`), then a compact row per card: status dot (blue new, amber learning/relearning, green review, grey not learning), word, primary translation and a right-hand label ("new", "today", "N d", "off"; the day follows the browser's local time). 50 cards per page with "Load more" (offset paging). `q` and `filter` live in the query string. "+" opens the "Add words" sheet (batch import, 5 words per request). A row tap opens a bottom sheet with the full card (`CardDetails`), a "Learning" switch (`PATCH /api/cards/{card_id}`), "Delete" (with a confirm dialog) and "Close"; Escape or a backdrop tap closes it and focus returns to the row.
 
 The UI reads only from backend JSON endpoints.
@@ -290,6 +315,16 @@ Production exposure (`deploy/nginx/anki.conf`):
 - `/anki/api/*` → every backend API route; each authenticates itself (Telegram Web App init data),
   except the health check
 - other backend paths (e.g. FastAPI docs) are not exposed
+
+## Speaking practice
+
+- Spec: `docs/superpowers/specs/2026-11-12-speaking-practice-design.md` (spike results included).
+- The owner answers with a voice message (OGG/Opus, up to 15 min, `MAX_SECONDS`) or a video note (MP4, up to 60 s) in the bot chat. `TelegramRecordingHandler` downloads it into memory and analyses it in a background task (a long recording takes longer than Telegram waits for the webhook reply); the file is never written to disk and no `file_id` is kept.
+- One request to the audio model (`SPEAKING_LLM_MODEL`, default `google/gemini-3.8-flash`) through OpenRouter: `input_audio` with `format` `ogg` or `mp4` as is (no `ffmpeg`), `reasoning: {effort: low}`, `provider: {data_collection: deny}`. Contract `speaking_feedback` (`app/schemas/speaking.py`): `transcript` (verbatim, fillers kept), `words_used`, `fixes` (0-4 `{wrong, right, why, category}`, category from a fixed list), `natural_version`, `next_time` (one thing), `focus_check` (`better`/`same`/`worse`/null); `{ok: false, message_for_user}` without English speech (not stored). About $0.002 per minute.
+- Fillers (`um`, `uh`, `er`, `erm`, `hmm`) are counted by code from the transcript, not by the model.
+- Today's prompt (`ensure_today_prompt`): 3 learning cards (review state first), a topic with 2-3 questions from the card model (`LLM_MODEL`; Saturday is a story day), the last `next_time`. Stored in `app_settings.speaking_prompt*`; `/speak` sends it any time and lifts the backoff.
+- Reminders (in the same 5-minute loop as review reminders, `prepare_reminder`): first at 15:00 local with the prompt, follow-ups at a random 90-120 min gap, none at or after 21:00, none once a recording was analysed today; backoff like review reminders with its own counter (`speaking_ignored`). `speaking_enabled` (Settings switch) turns them off; recordings are still analysed.
+- Chat reply: duration, last focus, fillers per minute, words ✓/✗, fixes, a more natural version, next time. Transcript and categories are stored, not shown.
 
 ## Pronunciation
 
@@ -333,6 +368,7 @@ Optional:
 - `YANDEX_TTS_VOICE` (default: `john`, the only English voice)
 - `GOOGLE_TTS_API_KEY` (Google Cloud Text-to-Speech; with neither key set, pronunciation endpoints return 503)
 - `GOOGLE_TTS_VOICE` (default: `en-US-Chirp3-HD-Aoede`; the language code is taken from the name)
+- `SPEAKING_LLM_MODEL` (default: `google/gemini-3.8-flash`; must accept audio input)
 - `DISABLE_REMINDERS=1` turns off the reminder loop (set in tests)
 
 Review preferences (timezone, reminder hour, limits, retention, learn threshold) live in `app_settings`, edited via `PUT /api/settings`.

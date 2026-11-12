@@ -25,12 +25,14 @@ DESIRED: dict[str, Any] = {
         'translation, transcription and natural usages like "give up smoking". Then it reminds '
         "you to review when the word starts to fade.\n\n"
         "/review — review words\n"
-        "/find — find a word by description\n\n"
+        "/find — find a word by description\n"
+        "/speak — today's speaking topic\n\n"
         "The Wordloop button next to the message field opens the app."
     ),
     "commands": [
         {"command": "review", "description": "Review words"},
         {"command": "find", "description": "Find a word by description"},
+        {"command": "speak", "description": "Today's speaking topic"},
     ],
 }
 PRIVATE_SCOPE = {"scope": {"type": "all_private_chats"}}

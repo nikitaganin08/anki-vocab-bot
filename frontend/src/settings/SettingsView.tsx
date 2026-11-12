@@ -34,6 +34,7 @@ function readForm(form: HTMLFormElement): AppSettings {
     reminder_hour: num("reminder_hour"),
     reminder_anchor: text("reminder_anchor") || null,
     learn_threshold: num("learn_threshold"),
+    speaking_enabled: data.get("speaking_enabled") === "on",
     timezone: text("timezone"),
   };
 }
@@ -105,6 +106,19 @@ export function SettingsView(): JSX.Element {
         Learn threshold (0–10)
         <input name="learn_threshold" type="number" min={0} max={10} required defaultValue={data.learn_threshold} />
       </label>
+      <label className="learning-toggle">
+        <input
+          name="speaking_enabled"
+          type="checkbox"
+          role="switch"
+          defaultChecked={data.speaking_enabled}
+          aria-describedby="speaking-hint"
+        />
+        Speaking practice
+      </label>
+      <span id="speaking-hint" className="field-hint">
+        A daily topic for a voice message, from 15:00
+      </span>
       <label>
         Time zone
         <select name="timezone" defaultValue={data.timezone} aria-describedby="timezone-hint">
