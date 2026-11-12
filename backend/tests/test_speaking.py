@@ -99,6 +99,11 @@ def test_count_fillers_counts_whole_words_only() -> None:
     assert count_fillers(text) == Counter({"um": 2, "uh": 2, "er": 1, "hmm": 1, "erm": 1})
 
 
+def test_count_fillers_of_any_length_and_script() -> None:
+    text = "Ummm, uhhh... errr, m-m-m, Mmm. Uhm, эээ, ммм. Uh-huh, I'm mum, a summer term."
+    assert count_fillers(text) == Counter({"um": 2, "uh": 2, "er": 1, "mm": 3})
+
+
 def test_pick_words_prefers_review_cards_and_fills_up(session: Session) -> None:
     assert pick_words(session) == []
     session.add(

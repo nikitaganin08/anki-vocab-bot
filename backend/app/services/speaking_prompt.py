@@ -39,7 +39,8 @@ Respond with a single JSON object only:
 "fixes": [{{"wrong": "..." | null, "right": "..." | null, "why": "...", "category": "..."}}],
 "natural_version": "..." | null, "next_time": "...",
 "focus_check": "better" | "same" | "worse" | null}}
-- transcript: verbatim, exactly as spoken, keeping fillers (um, uh, er) and repetitions.
+- transcript: verbatim, exactly as spoken, keeping repetitions and every hesitation sound. Write
+  hesitation sounds only as um, uh, er or mm (never in Cyrillic, never as "...").
 - words_used: one item per given word, in the given order; used is true when the learner said
   it in any inflected form. [] when no words are given.
 - fixes: every real mistake in the recording (at most 20), the most useful first (the first three
