@@ -15,7 +15,7 @@ Success: the owner records on most days for 4+ weeks.
 
 ## Non-goals
 
-- Storing recordings, transcripts or feedback on our side (see "What is stored").
+- Storing the recordings themselves (audio or video files) on our side (see "What is stored").
 - Feedback on body language from the video (the video note's picture is ignored; maybe later, Gemini
   accepts video).
 - Pronunciation scoring, streaks, a history screen in the Mini App, the "day 1 vs day 75" comparison
@@ -38,20 +38,33 @@ Success: the owner records on most days for 4+ weeks.
 
 ## What is stored
 
-Nothing about the recordings: no audio, no file ids, no transcripts, no feedback text, no history
-table. The audio is downloaded into memory, sent to the model and dropped; logs record only duration,
-model, latency and errors, never the text.
+The media never lands on our side: the audio/video file is downloaded into memory, sent to the model
+and dropped; no file on disk, no Telegram `file_id`. Everything derived from it is kept.
 
-Only the state needed to run the reminders, in `app_settings` (single row, overwritten):
+New table `speaking_sessions`, one row per analysed recording:
+
+- `id`
+- `recorded_at` (UTC)
+- `kind` (`voice`, `video_note`)
+- `duration_seconds`
+- `prompt_text` (the prompt it answered, null for free speech)
+- `words_json` (the prompt's words, `[]` for free speech)
+- `transcript` (from the model)
+- `feedback_json` (the validated `speaking_feedback`, see the contract)
+- `llm_model`
+
+"Recorded today" and the last "next time" note are read from the latest row. Failed analyses are not
+stored.
+
+Reminder state in `app_settings` (single row, overwritten):
 
 - `speaking_enabled` (bool, default true)
 - `speaking_prompt` (text: today's prompt as sent; the analysis needs the topic and words)
 - `speaking_prompt_on` (date of `speaking_prompt`)
-- `speaking_focus` (text: the last "next time" note, max ~200 chars)
-- `speaking_done_on` (date of the last analysed recording)
 - `speaking_reminder_on`, `speaking_next_reminder_at` (UTC), `speaking_ignored` (int)
 
-Alembic migration adds these columns; nothing else changes in the schema.
+One Alembic migration adds the table and the columns. The history is not shown anywhere yet; it is
+there for later stats (fillers per minute over time, words used) and for the daily backups.
 
 ## Flow
 
@@ -69,13 +82,12 @@ sequenceDiagram
   B->>M: audio + today's prompt + focus
   M-->>B: JSON feedback
   B->>U: Feedback message
-  Note over B: speaking_done_on = today, speaking_focus = next_time
+  Note over B: new speaking_sessions row (transcript, feedback)
 ```
 
 A recording without a prompt for today (sent before 15:00 or on a disabled day) is analysed as free
-speech: no topic, no words, only the last `speaking_focus`; `/speak` gets a prompt first. A recording sent after one
-was already analysed today is analysed again (practice twice is fine); `speaking_focus` takes the
-latest note.
+speech: no topic, no words, only the last "next time" note; `/speak` gets a prompt first. A recording
+sent after one was already analysed today is analysed too (practice twice is fine) and adds its own row.
 
 ## Messages
 
@@ -113,7 +125,7 @@ Next time: when you need time, say "let me think" instead of "um".
 ```json
 {
   "ok": true,
-  "duration_note": null,
+  "transcript": "...",
   "fillers": {"total": 9, "top": [{"word": "um", "count": 6}, {"word": "like", "count": 3}]},
   "words_used": [{"word": "vivid", "used": true}],
   "fixes": [{"wrong": "...", "right": "...", "why": "..."}],
@@ -123,6 +135,7 @@ Next time: when you need time, say "let me think" instead of "um".
 ```
 
 - `ok = false` with `message_for_user` when there is no English speech (silence, another language).
+- `transcript`: verbatim, fillers kept ("um", "uh"); stored, not sent to the chat.
 - `fixes`: 0–4 items, `why` a few words, same shape as the sentence check (`SentenceIssue`).
 - `natural_version`: 1–3 sentences rewriting the weakest part, not the whole answer.
 - `next_time`: exactly one concrete thing, at most ~150 characters; the model is told to pick the most
@@ -164,8 +177,8 @@ On 1–2 real recordings of the owner (one voice, one video note), with a throwa
 - Word picking: review-state first, fill-up, empty deck.
 - Feedback schema validation and rendering (HTML escaping, fixes, missing words).
 - Handlers: voice → client called with OGG bytes and today's prompt; too long → refused before
-  download; foreign user ignored; model error → retry message; state updated (`speaking_done_on`,
-  `speaking_focus`), no recording data persisted.
+  download; foreign user ignored; model error → retry message and no row; success → one
+  `speaking_sessions` row with transcript and feedback, no media written to disk.
 
 ## Docs
 
