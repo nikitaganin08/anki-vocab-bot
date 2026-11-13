@@ -160,7 +160,7 @@ export function HomeView({ onStart }: HomeViewProps): JSX.Element {
 
       <section className="surface-panel home-activity">
         <span className="section-label">Activity</span>
-        <Heatmap counts={data.heatmap} />
+        <Heatmap goalMet={data.heatmap_goal_met} speaking={data.heatmap_speaking} />
         {data.streak_days >= 3 ? (
           <p className="section-label">
             streak {data.streak_days} days · best {data.best_streak_days}

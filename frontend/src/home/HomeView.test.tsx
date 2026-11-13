@@ -30,6 +30,8 @@ function summary(overrides: Partial<ReviewSummary> = {}): ReviewSummary {
     streak_days: 4,
     best_streak_days: 11,
     heatmap: Array.from({ length: 98 }, (_, i) => (i % 3 === 0 ? 0 : i % 9)),
+    heatmap_goal_met: Array.from({ length: 98 }, (_, i) => i % 2 === 0),
+    heatmap_speaking: Array.from({ length: 98 }, (_, i) => i % 3 === 0),
     forecast_tomorrow: 14,
     forecast_week_avg: 11,
     days_away: 0,
@@ -166,7 +168,7 @@ describe("HomeView", () => {
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
-  it("heatmap renders 98 cells without red", async () => {
+  it("heatmap halves show the closed review goal and speaking per day", async () => {
     const data = summary();
     renderHome(data);
 
@@ -174,11 +176,11 @@ describe("HomeView", () => {
     const cells = Array.from(heatmap.children) as HTMLElement[];
     expect(cells).toHaveLength(98);
     cells.forEach((cell, i) => {
-      const count = data.heatmap[i];
-      // Missed days are neutral (level 0); only one accent hue at two strengths otherwise.
-      expect(cell.dataset.level).toBe(count === 0 ? "0" : count < 5 ? "1" : "2");
+      expect(cell.dataset.review).toBe(data.heatmap_goal_met[i] ? "done" : undefined);
+      expect(cell.dataset.speaking).toBe(data.heatmap_speaking[i] ? "done" : undefined);
       expect(cell.className).toBe("heatmap-cell");
     });
+    expect(screen.getByText(/review done/)).toBeInTheDocument();
   });
 
   it("shows welcome back after three days away", async () => {

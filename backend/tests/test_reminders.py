@@ -57,6 +57,8 @@ def _summary(**overrides: Any) -> ReviewSummary:
         streak_days=0,
         best_streak_days=0,
         heatmap=[0] * 98,
+        heatmap_goal_met=[False] * 98,
+        heatmap_speaking=[False] * 98,
         forecast_tomorrow=0,
         forecast_week_avg=0,
         due_all=10,

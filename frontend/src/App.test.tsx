@@ -87,6 +87,8 @@ const summaryPayload = {
   streak_days: 0,
   best_streak_days: 0,
   heatmap: Array.from({ length: 98 }, () => 0),
+  heatmap_goal_met: Array.from({ length: 98 }, () => false),
+  heatmap_speaking: Array.from({ length: 98 }, () => false),
   forecast_tomorrow: 0,
   forecast_week_avg: 0,
   days_away: null,
