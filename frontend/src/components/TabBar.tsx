@@ -13,14 +13,14 @@ const TABS: { view: View; label: string; paths: string[] }[] = [
     paths: ["M5 12H3l9-9 9 9h-2", "M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7", "M9 21v-6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v6"],
   },
   {
-    view: "review",
-    label: "Review",
-    paths: ["M4 12V9a3 3 0 0 1 3-3h13m-3-3 3 3-3 3", "M20 12v3a3 3 0 0 1-3 3H4m3 3-3-3 3-3"],
-  },
-  {
     view: "cards",
     label: "Words",
     paths: ["M3 19a9 9 0 0 1 9 0 9 9 0 0 1 9 0", "M3 6a9 9 0 0 1 9 0 9 9 0 0 1 9 0", "M3 6v13M12 6v13M21 6v13"],
+  },
+  {
+    view: "speaking",
+    label: "Speaking",
+    paths: ["M9 5a3 3 0 0 1 6 0v5a3 3 0 0 1-6 0z", "M5 10a7 7 0 0 0 14 0", "M8 21h8", "M12 17v4"],
   },
   {
     view: "settings",

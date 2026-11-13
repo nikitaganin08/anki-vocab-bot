@@ -193,3 +193,56 @@ export interface AppSettings {
   // Read-only from the server (Google TTS key set); PUT ignores it.
   readonly tts_enabled?: boolean;
 }
+
+export interface SpeakingCategory {
+  category: string;
+  label: string;
+  count: number;
+}
+
+export interface SpeakingSessionRow {
+  id: number;
+  recorded_at: string;
+  kind: "voice" | "video_note";
+  duration_seconds: number;
+  topic: string | null;
+  filler_count: number;
+  fix_count: number;
+}
+
+export interface SpeakingStats {
+  recordings: number;
+  minutes: number;
+  filler_rate: number | null;
+  filler_rate_prev: number | null;
+  words_used: number;
+  words_total: number;
+  categories: SpeakingCategory[];
+  sessions: SpeakingSessionRow[];
+}
+
+export interface SpeakingIssue {
+  id: number;
+  session_id: number;
+  recorded_at: string;
+  category: string;
+  label: string;
+  wrong: string | null;
+  right: string | null;
+  why: string;
+}
+
+export interface SpeakingSessionDetail {
+  id: number;
+  recorded_at: string;
+  kind: "voice" | "video_note";
+  duration_seconds: number;
+  topic: string | null;
+  words: { word: string; used: boolean }[];
+  transcript: string;
+  filler_count: number;
+  natural_version: string | null;
+  next_time: string;
+  focus_check: "better" | "same" | "worse" | null;
+  issues: SpeakingIssue[];
+}

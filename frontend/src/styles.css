@@ -881,3 +881,74 @@ progress::-moz-progress-bar {
     opacity: 0.35;
   }
 }
+
+/* Speaking tab */
+.speaking-view {
+  display: grid;
+  gap: 12px;
+}
+
+.pattern-list {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pattern-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  width: 100%;
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  text-align: left;
+}
+
+.pattern-bar {
+  grid-column: 1 / -1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+.speaking-fix {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.speaking-fix s {
+  color: var(--hint);
+}
+
+.speaking-fixes {
+  display: grid;
+  gap: 8px;
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+
+.speaking-word {
+  display: inline-block;
+  margin-right: 10px;
+}
+
+.speaking-quote {
+  margin: 6px 0 0;
+  padding: 4px 10px;
+  border-left: 3px solid var(--accent);
+  background: var(--muted-fill);
+}
+
+.speaking-transcript {
+  color: var(--hint);
+  white-space: pre-wrap;
+}
+
+.issue-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+}

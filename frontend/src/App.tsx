@@ -9,6 +9,7 @@ import { useView, type View } from "./navigation";
 import { CardsPage } from "./pages/CardsPage";
 import { ReviewView } from "./review/ReviewView";
 import { SettingsView } from "./settings/SettingsView";
+import { SpeakingView } from "./speaking/SpeakingView";
 import {
   applyTelegramTheme,
   hasTelegramWebAppContext,
@@ -28,6 +29,8 @@ function renderView(
       return <ReviewView mode={mode} onExit={() => openView("home")} />;
     case "cards":
       return <CardsPage />;
+    case "speaking":
+      return <SpeakingView />;
     case "settings":
       return <SettingsView />;
   }

@@ -204,3 +204,69 @@ class AppSettingsPayload(BaseModel):
 
 class AppSettingsResponse(AppSettingsPayload):
     tts_enabled: bool  # read-only: YANDEX_TTS_API_KEY or GOOGLE_TTS_API_KEY is set
+
+
+class SpeakingCategoryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    category: str
+    label: str
+    count: int
+
+
+class SpeakingSessionRowResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    recorded_at: datetime
+    kind: str
+    duration_seconds: int
+    topic: str | None
+    filler_count: int
+    fix_count: int
+
+
+class SpeakingStatsResponse(BaseModel):
+    """The last 30 days of speaking practice and the latest recordings."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    recordings: int
+    minutes: int
+    filler_rate: float | None
+    filler_rate_prev: float | None  # the 30 days before, for the trend
+    words_used: int
+    words_total: int
+    categories: list[SpeakingCategoryResponse]
+    sessions: list[SpeakingSessionRowResponse]
+
+
+class SpeakingIssueResponse(BaseModel):
+    id: int
+    session_id: int
+    recorded_at: datetime
+    category: str
+    label: str
+    wrong: str | None
+    right: str | None
+    why: str
+
+
+class SpeakingWordResponse(BaseModel):
+    word: str
+    used: bool
+
+
+class SpeakingSessionDetailResponse(BaseModel):
+    id: int
+    recorded_at: datetime
+    kind: str
+    duration_seconds: int
+    topic: str | None
+    words: list[SpeakingWordResponse]
+    transcript: str
+    filler_count: int
+    natural_version: str | None
+    next_time: str
+    focus_check: str | None
+    issues: list[SpeakingIssueResponse]
