@@ -12,6 +12,9 @@ import type {
   ReviewSessionItem,
   ReviewSessionResponse,
   ReviewSummary,
+  SpeakingIssue,
+  SpeakingSessionDetail,
+  SpeakingStats,
 } from "./types";
 import { getTelegramInitData } from "../telegram";
 
@@ -165,4 +168,16 @@ export async function getSettings(): Promise<AppSettings> {
 
 export async function saveSettings(body: AppSettings): Promise<AppSettings> {
   return request("/api/settings", "PUT", body);
+}
+
+export async function getSpeakingStats(): Promise<SpeakingStats> {
+  return request("/api/speaking/stats");
+}
+
+export async function getSpeakingIssues(category: string): Promise<SpeakingIssue[]> {
+  return request(`/api/speaking/issues?${new URLSearchParams({ category })}`);
+}
+
+export async function getSpeakingSession(sessionId: number): Promise<SpeakingSessionDetail> {
+  return request(`/api/speaking/sessions/${sessionId}`);
 }

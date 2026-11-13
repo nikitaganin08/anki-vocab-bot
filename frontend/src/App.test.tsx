@@ -164,7 +164,7 @@ describe("App", () => {
     render(<App />);
 
     const tabs = within(screen.getByRole("navigation", { name: "Sections" })).getAllByRole("button");
-    expect(tabs.map((tab) => tab.textContent)).toEqual(["Home", "Review", "Words", "Settings"]);
+    expect(tabs.map((tab) => tab.textContent)).toEqual(["Home", "Words", "Speaking", "Settings"]);
     expect(screen.getByRole("button", { name: "Home" })).toHaveAttribute("aria-current", "page");
   });
 

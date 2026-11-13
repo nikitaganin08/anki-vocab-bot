@@ -1,8 +1,8 @@
 import { useState } from "react";
 
-export type View = "home" | "review" | "cards" | "settings";
+export type View = "home" | "review" | "cards" | "speaking" | "settings";
 
-const VIEWS: readonly string[] = ["home", "review", "cards", "settings"];
+const VIEWS: readonly string[] = ["home", "review", "cards", "speaking", "settings"];
 
 export function readView(search: string): View {
   const view = new URLSearchParams(search).get("view") ?? "";
