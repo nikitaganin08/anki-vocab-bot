@@ -60,7 +60,9 @@ button {
 .app-shell {
   display: flex;
   flex-direction: column;
-  min-height: var(--tg-viewport-stable-height, 100vh);
+  /* The real window, not Telegram's --tg-viewport-stable-height: on the phone that value at times
+     ran taller than the visible area, and Home grew past the screen. */
+  min-height: 100dvh;
 }
 
 .page-shell,
@@ -248,7 +250,7 @@ input[type="radio"]:focus-visible {
   flex-direction: column;
   gap: 12px;
   height: calc(
-    var(--tg-viewport-stable-height, 100dvh) - 57px - env(safe-area-inset-bottom, 0px) - 32px
+    100dvh - 57px - env(safe-area-inset-bottom, 0px) - 32px
   );
   min-height: min-content;
 }
