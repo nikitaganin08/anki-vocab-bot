@@ -39,22 +39,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy on VPS
-        uses: appleboy/ssh-action@v1.2.0
+      - name: Upload compose file
+        uses: appleboy/scp-action@v1.0.0
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           port: ${{ secrets.SSH_PORT }}
-          script: |
-            set -euo pipefail
-            cd /opt/anki-vocab-bot
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-            export APP_IMAGE="ghcr.io/${{ github.repository }}:latest"
-            docker compose pull app
-            docker compose up -d app
-            docker compose exec -T app alembic upgrade head
-            docker image prune -f
+          source: docker-compose.yml
+          target: /opt/anki-vocab-bot
 
       - name: Upload nginx routes
         uses: appleboy/scp-action@v1.0.0
@@ -77,6 +70,62 @@ jobs:
           source: deploy/backup/backup.sh,deploy/backup/restore.sh
           target: /opt/anki-vocab-bot/backup
           strip_components: 2
+
+      # GitHub Secrets are the only copy of the app's secrets: .env and the backup's S3 config
+      # on the server are rewritten from them on every deploy, so a new server needs no
+      # hand-made files.
+      - name: Deploy on VPS
+        uses: appleboy/ssh-action@v1.2.0
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ALLOWED_USER_ID: ${{ secrets.TELEGRAM_ALLOWED_USER_ID }}
+          TELEGRAM_WEBHOOK_URL: ${{ secrets.TELEGRAM_WEBHOOK_URL }}
+          TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+          TELEGRAM_WEBAPP_URL: ${{ secrets.TELEGRAM_WEBAPP_URL }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          YANDEX_TTS_API_KEY: ${{ secrets.YANDEX_TTS_API_KEY }}
+          CLIP_TOKEN: ${{ secrets.CLIP_TOKEN }}
+          S3_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
+          S3_SECRET_ACCESS_KEY: ${{ secrets.S3_SECRET_ACCESS_KEY }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          envs: TELEGRAM_BOT_TOKEN,TELEGRAM_ALLOWED_USER_ID,TELEGRAM_WEBHOOK_URL,TELEGRAM_WEBHOOK_SECRET,TELEGRAM_WEBAPP_URL,OPENROUTER_API_KEY,YANDEX_TTS_API_KEY,CLIP_TOKEN,S3_ACCESS_KEY_ID,S3_SECRET_ACCESS_KEY,S3_BUCKET
+          script: |
+            set -euo pipefail
+            cd /opt/anki-vocab-bot
+            umask 077
+
+            for k in TELEGRAM_BOT_TOKEN TELEGRAM_ALLOWED_USER_ID TELEGRAM_WEBHOOK_URL TELEGRAM_WEBHOOK_SECRET TELEGRAM_WEBAPP_URL OPENROUTER_API_KEY; do
+              if [ -z "${!k:-}" ]; then echo "secret $k is empty" >&2; exit 1; fi
+            done
+            {
+              echo "DATABASE_URL=sqlite:///backend/data/app.db"
+              for k in TELEGRAM_BOT_TOKEN TELEGRAM_ALLOWED_USER_ID TELEGRAM_WEBHOOK_URL TELEGRAM_WEBHOOK_SECRET TELEGRAM_WEBAPP_URL OPENROUTER_API_KEY YANDEX_TTS_API_KEY CLIP_TOKEN; do
+                if [ -n "${!k:-}" ]; then printf '%s=%s\n' "$k" "${!k}"; fi
+              done
+            } > .env.new
+            mv .env.new .env
+
+            if [ -n "${S3_BUCKET:-}" ]; then
+              printf 'S3_ACCESS_KEY_ID=%s\nS3_SECRET_ACCESS_KEY=%s\nS3_BUCKET=%s\n' \
+                "$S3_ACCESS_KEY_ID" "$S3_SECRET_ACCESS_KEY" "$S3_BUCKET" > "$HOME/.backup-s3.env"
+            fi
+
+            mkdir -p "$HOME/backups/wordloop"
+            job='17 4 * * * /opt/anki-vocab-bot/backup/backup.sh >> $HOME/backups/wordloop/backup.log 2>&1'
+            ( crontab -l 2>/dev/null | grep -vF /backup/backup.sh || true; echo "$job" ) | crontab -
+
+            mkdir -p backend/data
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+            export APP_IMAGE="ghcr.io/${{ github.repository }}:latest"
+            docker compose pull app
+            docker compose up -d app
+            docker compose exec -T app alembic upgrade head
+            docker image prune -f
 
       - name: Apply nginx routes
         uses: appleboy/ssh-action@v1.2.0

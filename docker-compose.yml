@@ -2,6 +2,7 @@ services:
   app:
     container_name: anki-app
     image: ${APP_IMAGE:-anki-vocab-bot:local}
+    restart: unless-stopped
     build:
       context: .
       dockerfile: Dockerfile
