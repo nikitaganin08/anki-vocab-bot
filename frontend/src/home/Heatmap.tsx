@@ -3,26 +3,48 @@ interface HeatmapProps {
   speaking: boolean[];
 }
 
-// 98 study days, oldest first; columns are weeks, rows Monday→Sunday, today is the last cell.
-// Each cell is split in two: left half filled when the review goal was closed that day, right half
-// when a speaking recording was analysed. Missed halves stay neutral grey, never red.
-// Study days start at local midnight (backend DAY_START_HOUR = 0), so today is the calendar day.
-// ponytail: weekday from the browser clock; matches the settings timezone, which follows the device.
+const WEEKDAYS = ["M", "T", "W", "T", "F", "S", "S"];
+
+// The current month as a calendar (rows are weeks, Monday first). Each past day is split in two:
+// left half when the review goal was closed, right half when a speaking recording was analysed.
+// goalMet / speaking: the last 98 study days, oldest first, today last. Study days start at local
+// midnight (backend DAY_START_HOUR = 0), so today is the calendar day.
+// ponytail: dates from the browser clock; matches the settings timezone, which follows the device.
 export function Heatmap({ goalMet, speaking }: HeatmapProps): JSX.Element {
-  const todayRow = (new Date().getDay() + 6) % 7; // Monday = 0
-  // The first cell starts at its weekday's row; the rest flow down the columns after it.
-  const firstRow = (((todayRow - (goalMet.length - 1)) % 7) + 7) % 7;
+  const now = new Date();
+  const today = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const firstWeekday = (new Date(now.getFullYear(), now.getMonth(), 1).getDay() + 6) % 7;
+  const last = goalMet.length - 1;
+  const at = (list: boolean[], day: number): boolean => list[last - (today - day)] ?? false;
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const closed = days.filter((day) => day <= today && at(goalMet, day)).length;
+  const spoken = days.filter((day) => day <= today && at(speaking, day)).length;
+  const month = now.toLocaleDateString("en", { month: "long", year: "numeric" });
+
   return (
     <>
-      <div className="heatmap" role="img" aria-label="Activity over 14 weeks">
-        {goalMet.map((met, i) => (
+      <p className="section-label">
+        {month} · review {closed} · speaking {spoken} of {today} days
+      </p>
+      <div className="month-calendar" role="img" aria-label={`Activity in ${month}`}>
+        {WEEKDAYS.map((name, i) => (
+          <span key={`wd-${i}`} className="month-weekday" aria-hidden="true">
+            {name}
+          </span>
+        ))}
+        {days.map((day) => (
           <span
-            key={i}
-            className="heatmap-cell"
-            data-review={met ? "done" : undefined}
-            data-speaking={speaking[i] ? "done" : undefined}
-            style={i === 0 ? { gridRowStart: firstRow + 1 } : undefined}
-          />
+            key={day}
+            className="month-day"
+            data-review={day <= today && at(goalMet, day) ? "done" : undefined}
+            data-speaking={day <= today && at(speaking, day) ? "done" : undefined}
+            data-today={day === today ? "true" : undefined}
+            data-future={day > today ? "true" : undefined}
+            style={day === 1 ? { gridColumnStart: firstWeekday + 1 } : undefined}
+          >
+            {day}
+          </span>
         ))}
       </div>
       <p className="heatmap-legend section-label">

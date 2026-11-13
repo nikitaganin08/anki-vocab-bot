@@ -133,17 +133,26 @@ describe("HomeView", () => {
     expect(screen.getByText("Hard 18% · Again 9%")).toBeInTheDocument();
   });
 
-  it("captions the heatmap and lays rows out Monday to Sunday", async () => {
+  it("shows the current month as a calendar starting on its weekday", async () => {
     // 00:30 on Thursday 2026-10-22 already belongs to Thursday's study day (starts at midnight).
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(2026, 9, 22, 0, 30));
-    renderHome(summary());
+    const goalMet = Array.from({ length: 98 }, () => false);
+    const speaking = Array.from({ length: 98 }, () => false);
+    goalMet[97] = true; // today, Oct 22
+    goalMet[96] = true; // Oct 21
+    speaking[96] = true;
+    renderHome(summary({ heatmap_goal_met: goalMet, heatmap_speaking: speaking }));
 
-    expect(await screen.findByText("Activity")).toBeInTheDocument();
-    const heatmap = screen.getByRole("img", { name: "Activity over 14 weeks" });
-    // Today (Thursday, row 4) is the last of 98 cells, so the first one is a Friday (row 5).
-    expect((heatmap.children[0] as HTMLElement).style.gridRowStart).toBe("5");
-    expect((heatmap.children[1] as HTMLElement).style.gridRowStart).toBe("");
+    const calendar = await screen.findByRole("img", { name: "Activity in October 2026" });
+    expect(screen.getByText("October 2026 · review 2 · speaking 1 of 22 days")).toBeInTheDocument();
+    const days = Array.from(calendar.querySelectorAll<HTMLElement>(".month-day"));
+    expect(days).toHaveLength(31);
+    expect(days[0].style.gridColumnStart).toBe("4"); // Oct 1, 2026 is a Thursday
+    expect(days[21].dataset).toMatchObject({ review: "done", today: "true" });
+    expect(days[20].dataset).toMatchObject({ review: "done", speaking: "done" });
+    expect(days[22].dataset.future).toBe("true");
+    expect(days[22].dataset.review).toBeUndefined();
     vi.useRealTimers();
   });
 
@@ -166,21 +175,6 @@ describe("HomeView", () => {
     expect(screen.queryByText(/Hard \d+%/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Postponed/)).not.toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument();
-  });
-
-  it("heatmap halves show the closed review goal and speaking per day", async () => {
-    const data = summary();
-    renderHome(data);
-
-    const heatmap = await screen.findByRole("img", { name: "Activity over 14 weeks" });
-    const cells = Array.from(heatmap.children) as HTMLElement[];
-    expect(cells).toHaveLength(98);
-    cells.forEach((cell, i) => {
-      expect(cell.dataset.review).toBe(data.heatmap_goal_met[i] ? "done" : undefined);
-      expect(cell.dataset.speaking).toBe(data.heatmap_speaking[i] ? "done" : undefined);
-      expect(cell.className).toBe("heatmap-cell");
-    });
-    expect(screen.getByText(/review done/)).toBeInTheDocument();
   });
 
   it("shows welcome back after three days away", async () => {
