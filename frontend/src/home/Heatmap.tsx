@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 interface HeatmapProps {
   goalMet: boolean[];
   speaking: boolean[];
@@ -21,13 +23,17 @@ export function Heatmap({ goalMet, speaking }: HeatmapProps): JSX.Element {
   const closed = days.filter((day) => day <= today && at(goalMet, day)).length;
   const spoken = days.filter((day) => day <= today && at(speaking, day)).length;
   const month = now.toLocaleDateString("en", { month: "long", year: "numeric" });
+  const weeks = Math.ceil((firstWeekday + daysInMonth) / 7);
 
   return (
     <>
-      <p className="section-label">
-        {month} · review {closed} · speaking {spoken} of {today} days
-      </p>
-      <div className="month-calendar" role="img" aria-label={`Activity in ${month}`}>
+      <span className="section-label">Activity · {month}</span>
+      <div
+        className="month-calendar"
+        role="img"
+        aria-label={`Activity in ${month}`}
+        style={{ "--weeks": weeks } as CSSProperties}
+      >
         {WEEKDAYS.map((name, i) => (
           <span key={`wd-${i}`} className="month-weekday" aria-hidden="true">
             {name}
@@ -48,8 +54,9 @@ export function Heatmap({ goalMet, speaking }: HeatmapProps): JSX.Element {
         ))}
       </div>
       <p className="heatmap-legend section-label">
-        <span className="heatmap-key heatmap-key-review" aria-hidden="true" /> review done
-        <span className="heatmap-key heatmap-key-speaking" aria-hidden="true" /> speaking
+        <span className="heatmap-key heatmap-key-review" aria-hidden="true" /> review {closed}
+        <span className="heatmap-key heatmap-key-speaking" aria-hidden="true" /> speaking {spoken} of{" "}
+        {today} days
       </p>
     </>
   );
