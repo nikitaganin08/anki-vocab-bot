@@ -281,14 +281,19 @@ input[type="radio"]:focus-visible {
   font-weight: 600;
 }
 
+/* contain: size keeps the calendar's own size out of Home's min-content: without it WebKit
+   (Telegram on iOS) measured min-content from the last laid-out height and Home grew on every
+   relayout until it scrolled. The minimum is spelled out instead: weekday row + 22px weeks. */
 .month-calendar {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  grid-template-rows: auto repeat(var(--weeks), minmax(22px, 1fr));
+  grid-template-rows: 16px repeat(var(--weeks), minmax(22px, 1fr));
   flex: 1 1 0;
   gap: 4px;
   max-width: 360px;
-  max-height: calc(20px + var(--weeks) * 48px);
+  contain: size;
+  min-height: calc(16px + var(--weeks) * 26px);
+  max-height: calc(16px + var(--weeks) * 48px);
 }
 
 .month-weekday {
