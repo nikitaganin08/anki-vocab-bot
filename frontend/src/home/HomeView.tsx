@@ -159,7 +159,6 @@ export function HomeView({ onStart }: HomeViewProps): JSX.Element {
       </div>
 
       <section className="surface-panel home-activity">
-        <span className="section-label">Activity</span>
         <Heatmap goalMet={data.heatmap_goal_met} speaking={data.heatmap_speaking} />
         {data.streak_days >= 3 ? (
           <p className="section-label">

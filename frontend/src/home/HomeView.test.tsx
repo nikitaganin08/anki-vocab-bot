@@ -145,7 +145,8 @@ describe("HomeView", () => {
     renderHome(summary({ heatmap_goal_met: goalMet, heatmap_speaking: speaking }));
 
     const calendar = await screen.findByRole("img", { name: "Activity in October 2026" });
-    expect(screen.getByText("October 2026 · review 2 · speaking 1 of 22 days")).toBeInTheDocument();
+    expect(screen.getByText("Activity · October 2026")).toBeInTheDocument();
+    expect(screen.getByText(/review 2/)).toHaveTextContent("review 2 speaking 1 of 22 days");
     const days = Array.from(calendar.querySelectorAll<HTMLElement>(".month-day"));
     expect(days).toHaveLength(31);
     expect(days[0].style.gridColumnStart).toBe("4"); // Oct 1, 2026 is a Thursday

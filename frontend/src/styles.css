@@ -240,8 +240,24 @@ input[type="radio"]:focus-visible {
   gap: 12px;
 }
 
+/* Home fills exactly one screen above the tab bar (57px with its border, plus the page padding):
+   the calendar takes the height that is left, its rows shrink to 22px before the page scrolls and
+   grow up to 44px on tall screens. min-height: min-content lets it scroll only as a last resort. */
 .home-view {
-  gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  height: calc(
+    var(--tg-viewport-stable-height, 100dvh) - 57px - env(safe-area-inset-bottom, 0px) - 32px
+  );
+  min-height: min-content;
+}
+
+.home-activity {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .home-card h2 {
@@ -268,8 +284,11 @@ input[type="radio"]:focus-visible {
 .month-calendar {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-rows: auto repeat(var(--weeks), minmax(22px, 1fr));
+  flex: 1 1 0;
   gap: 4px;
   max-width: 360px;
+  max-height: calc(20px + var(--weeks) * 48px);
 }
 
 .month-weekday {
@@ -284,7 +303,7 @@ input[type="radio"]:focus-visible {
   --speaking-fill: var(--muted-fill);
   display: grid;
   place-items: center;
-  aspect-ratio: 1;
+  min-height: 0;
   border-radius: 6px;
   background: linear-gradient(90deg, var(--review-fill) 50%, var(--speaking-fill) 50%);
   font-size: 12px;
