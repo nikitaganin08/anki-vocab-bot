@@ -77,6 +77,13 @@ The app receives words and stable expressions from Telegram, generates learning 
 - Production deploy is triggered by GitHub Actions on push to `master`
 - The deploy workflow lives in `.github/workflows/deploy.yml`
 - GitHub Actions builds and pushes the Docker image, then deploys it on the VPS over SSH
+- Server setup (Docker, swap, key-only SSH, the `edge` network, edge nginx with TLS and the
+  landing page, certbot) and the step-by-step move to a new server live in the private repository
+  `nikitaganin08/vps` (`bootstrap.sh`, `README.md`), not here: this repository is public
+- The deploy workflow writes everything this app needs on the server: `docker-compose.yml`
+  (`restart: unless-stopped`), `.env` and the backup's `~/.backup-s3.env` rendered from GitHub
+  Secrets (the only copy of the secrets; a required one left empty fails the deploy), the backup
+  scripts and their cron entry
 - Edge nginx (domain, TLS, other sites) lives outside this repository in `/opt/nginx` on the VPS;
   this repo owns only its `/anki/` routes in `deploy/nginx/anki.conf`, which the deploy workflow
   copies to `/opt/nginx/snippets/anki.conf` and applies with `nginx -t` + reload (restoring the
@@ -357,11 +364,11 @@ Production exposure (`deploy/nginx/anki.conf`):
 
 ## Backups
 
-- `deploy/backup/backup.sh` runs daily from the VPS user's cron (`17 4 * * *`): consistent SQLite online copy, `integrity_check`, gzip into `~/backups/wordloop/app-<timestamp>.db.gz`, 14 days kept (log: `backup.log` next to them). The deploy workflow keeps the scripts in `/opt/anki-vocab-bot/backup/`; the cron entry itself is installed once by hand.
-- Off-site copy: if `~/.backup-s3.env` exists on the VPS (`chmod 600`; `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, optional `S3_ENDPOINT` default `https://storage.yandexcloud.net` and `S3_REGION` default `ru-central1`), `backup.sh` also uploads each copy to that S3-compatible bucket with `curl --aws-sigv4` (credentials via curl's stdin config, not the command line); an upload failure prints `off-site copy FAILED` and exits 1 after the local copy is done. To restore from the bucket, download the object in the Yandex Cloud console and pass it to `restore.sh`. Bucket setup: a private bucket, a service account with role `storage.uploader` and a static access key; optionally a lifecycle rule that expires objects after 30 days.
+- `deploy/backup/backup.sh` runs daily from the VPS user's cron (`17 4 * * *`): consistent SQLite online copy, `integrity_check`, gzip into `~/backups/wordloop/app-<timestamp>.db.gz`, 14 days kept (log: `backup.log` next to them). The deploy workflow keeps the scripts in `/opt/anki-vocab-bot/backup/` and installs the cron entry.
+- Off-site copy: if `~/.backup-s3.env` exists on the VPS (written by the deploy from the `S3_*` GitHub Secrets; `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_BUCKET`, optional `S3_ENDPOINT` default `https://storage.yandexcloud.net` and `S3_REGION` default `ru-central1`), `backup.sh` also uploads each copy to that S3-compatible bucket with `curl --aws-sigv4` (credentials via curl's stdin config, not the command line); an upload failure prints `off-site copy FAILED` and exits 1 after the local copy is done. To restore from the bucket, download the object in the Yandex Cloud console and pass it to `restore.sh`. Bucket setup: a private bucket, a service account with role `storage.uploader` and a static access key; optionally a lifecycle rule that expires objects after 30 days.
 - Restore: `/opt/anki-vocab-bot/backup/restore.sh ~/backups/wordloop/app-<timestamp>.db.gz` (checks the copy, stops the app, keeps the current database as `app.db.before-restore`, starts the app).
 - `make pull-backups` copies the server's backups to `~/Backups/wordloop` on the dev machine (off-server copy; `BACKUP_HOST` overrides the ssh host).
-- `.env` (tokens, keys) is not backed up; keep the secrets in a password manager.
+- `.env` (tokens, keys) is not backed up: the deploy rewrites it from GitHub Secrets (`TELEGRAM_*`, `OPENROUTER_API_KEY`, `YANDEX_TTS_API_KEY`, `CLIP_TOKEN`, `S3_*`); change a secret there, not on the server.
 
 ## Configuration
 
