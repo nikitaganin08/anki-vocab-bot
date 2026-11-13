@@ -7,9 +7,11 @@ from fsrs import State
 from sqlalchemy.orm import Session
 
 from app.models.card import Card
+from app.models.daily_progress import DailyProgress
 from app.models.review_log import ReviewLogEntry
+from app.models.speaking import SpeakingSession
 from app.services.app_settings import get_app_settings
-from app.services.review_stats import ReviewSummary, build_summary
+from app.services.review_stats import ReviewSummary, build_summary, record_goal_if_closed
 
 from .conftest import make_card
 
@@ -112,6 +114,8 @@ def test_empty_db_summary(session: Session) -> None:
         streak_days=0,
         best_streak_days=0,
         heatmap=[0] * 98,
+        heatmap_goal_met=[False] * 98,
+        heatmap_speaking=[False] * 98,
         forecast_tomorrow=0,
         forecast_week_avg=0,
         days_away=None,
@@ -280,3 +284,42 @@ def test_forecast_skips_learning_steps_due_later_today(session: Session) -> None
     summary = build_summary(session, get_app_settings(session), NOW)
 
     assert (summary.due_today, summary.forecast_tomorrow) == (0, 0)
+
+
+def test_heatmap_marks_closed_days_and_speaking(session: Session) -> None:
+    card = _add(session, "give up", "review", NOW + timedelta(days=10))
+    session.add(DailyProgress(day=(NOW - timedelta(days=3)).date()))
+    session.add(
+        SpeakingSession(
+            recorded_at=NOW - timedelta(days=1),
+            kind="voice",
+            duration_seconds=60,
+            transcript="Hi.",
+            filler_count=0,
+            next_time="x",
+            llm_model="m",
+        )
+    )
+    _answers(session, card, 0, 3)  # today: answers, nothing left due
+    session.commit()
+
+    summary = build_summary(session, get_app_settings(session), NOW)
+
+    assert summary.heatmap_goal_met[-4:] == [True, False, False, True]  # today closed live
+    assert summary.heatmap_speaking[-4:] == [False, False, True, False]
+    assert len(summary.heatmap_goal_met) == len(summary.heatmap_speaking) == 98
+
+
+def test_closing_the_day_is_recorded_once(session: Session) -> None:
+    due = _add(session, "give up", "review", NOW - timedelta(hours=1))
+    settings = get_app_settings(session)
+
+    record_goal_if_closed(session, settings, NOW)
+    assert session.get(DailyProgress, NOW.date()) is None  # a card is still due
+
+    due.srs_due_at = NOW + timedelta(days=5)
+    _answers(session, due, 0, 1)
+    session.commit()
+    record_goal_if_closed(session, settings, NOW)
+    record_goal_if_closed(session, settings, NOW)
+    assert session.get(DailyProgress, NOW.date()) is not None

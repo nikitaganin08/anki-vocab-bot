@@ -109,6 +109,8 @@ export interface ReviewSummary {
   streak_days: number;
   best_streak_days: number;
   heatmap: number[];
+  heatmap_goal_met: boolean[];
+  heatmap_speaking: boolean[];
   forecast_tomorrow: number;
   forecast_week_avg: number;
   days_away: number | null;

@@ -13,7 +13,9 @@ from sqlalchemy.orm import Session
 
 from app.models.app_settings import AppSettings
 from app.models.card import Card
+from app.models.daily_progress import DailyProgress
 from app.models.review_log import ReviewLogEntry
+from app.models.speaking import SpeakingSession
 from app.services.srs import DAY_START_HOUR, as_utc, day_window, is_due
 
 HEATMAP_DAYS = 98
@@ -41,9 +43,22 @@ class ReviewSummary:
     streak_days: int
     best_streak_days: int
     heatmap: list[int]
+    # Same 98 days: the review goal closed, a speaking recording analysed.
+    heatmap_goal_met: list[bool]
+    heatmap_speaking: list[bool]
     forecast_tomorrow: int
     forecast_week_avg: int
     days_away: int | None  # study days since the last answer; None if never answered
+
+
+def record_goal_if_closed(session: Session, settings: AppSettings, now: datetime) -> None:
+    """After an answer: a day with nothing due or new left is closed for good (heatmap)."""
+    summary = build_summary(session, settings, now)
+    if summary.done_today and summary.due_today + summary.new_today == 0:
+        today = _study_day(now, ZoneInfo(settings.timezone))
+        if session.get(DailyProgress, today) is None:
+            session.add(DailyProgress(day=today))
+            session.commit()
 
 
 def _study_day(dt: datetime, tz: ZoneInfo) -> date:
@@ -162,6 +177,19 @@ def build_summary(session: Session, settings: AppSettings, now: datetime) -> Rev
     week = sum(day <= today + timedelta(days=7) for day in upcoming)
     last_answer = max((as_utc(log.reviewed_at) for log in logs), default=None)
 
+    days = [today - timedelta(days=i) for i in reversed(range(HEATMAP_DAYS))]
+    closed = set(session.scalars(select(DailyProgress.day).where(DailyProgress.day >= days[0])))
+    if done_today and due_today + new_today == 0:
+        closed.add(today)
+    spoken = {
+        _study_day(recorded_at, tz)
+        for recorded_at in session.scalars(
+            select(SpeakingSession.recorded_at).where(
+                SpeakingSession.recorded_at >= start - timedelta(days=HEATMAP_DAYS)
+            )
+        )
+    }
+
     return ReviewSummary(
         done_today=done_today,
         due_today=due_today,
@@ -179,7 +207,9 @@ def build_summary(session: Session, settings: AppSettings, now: datetime) -> Rev
         learned_delta_7d=len(graduated & learned),
         streak_days=streak,
         best_streak_days=best_streak,
-        heatmap=[answers[today - timedelta(days=i)] for i in reversed(range(HEATMAP_DAYS))],
+        heatmap=[answers[day] for day in days],
+        heatmap_goal_met=[day in closed for day in days],
+        heatmap_speaking=[day in spoken for day in days],
         forecast_tomorrow=sum(day <= tomorrow for day in upcoming),
         forecast_week_avg=round(week / 7),
         days_away=None if last_answer is None else (today - _study_day(last_answer, tz)).days,

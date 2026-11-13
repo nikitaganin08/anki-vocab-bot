@@ -12,6 +12,7 @@
   --ok: #2e9d5b;
   --info: #3b82f6;
   --warn: #e8a317;
+  --speaking: #7f77dd;
   --radius: 12px;
   color: var(--text);
   background: var(--bg);
@@ -273,19 +274,47 @@ input[type="radio"]:focus-visible {
   max-width: 360px;
 }
 
+/* Left half: review goal closed; right half: speaking. One flat fill per half. */
 .heatmap-cell {
+  --review-fill: var(--muted-fill);
+  --speaking-fill: var(--muted-fill);
   aspect-ratio: 1;
   border-radius: 3px;
-  background: var(--muted-fill);
+  background: linear-gradient(90deg, var(--review-fill) 50%, var(--speaking-fill) 50%);
 }
 
-.heatmap-cell[data-level="1"] {
-  background: var(--accent);
-  opacity: 0.4;
+.heatmap-cell[data-review="done"] {
+  --review-fill: var(--accent);
 }
 
-.heatmap-cell[data-level="2"] {
+.heatmap-cell[data-speaking="done"] {
+  --speaking-fill: var(--speaking);
+}
+
+.heatmap-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.heatmap-key {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-left: 6px;
+}
+
+.heatmap-key:first-child {
+  margin-left: 0;
+}
+
+.heatmap-key-review {
   background: var(--accent);
+}
+
+.heatmap-key-speaking {
+  background: var(--speaking);
 }
 
 /* Review */

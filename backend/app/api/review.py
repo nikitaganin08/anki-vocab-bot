@@ -25,7 +25,7 @@ from app.db.session import get_session
 from app.models.card import Card
 from app.services.answer_check import auto_rating, build_prompt, check_answer
 from app.services.app_settings import get_app_settings
-from app.services.review_stats import ReviewSummary, build_summary
+from app.services.review_stats import ReviewSummary, build_summary, record_goal_if_closed
 from app.services.srs import (
     GradeInput,
     StaleReviewError,
@@ -152,6 +152,7 @@ def grade(card_id: int, body: ReviewGradeRequest, session: SessionDep) -> Review
         card = grade_card(session, settings, card, grade_input, datetime.now(UTC))
     except StaleReviewError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    record_goal_if_closed(session, settings, datetime.now(UTC))
     return ReviewGradeResponse(srs_due_at=as_utc(card.srs_due_at), srs_state=card.srs_state)
 
 
