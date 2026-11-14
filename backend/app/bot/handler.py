@@ -3,9 +3,11 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any
 
+from aiogram.exceptions import TelegramAPIError
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
 from app.bot.formatter import (
@@ -301,11 +303,26 @@ class TelegramSpeakHandler:
 
 RECORDING_FORMATS = {"voice": "ogg", "video_note": "mp4"}
 RECORDING_FAILED = "Couldn't check this recording. Please try again."
+RETRY_SPEAKING = "retry_speaking"
+RETRY_KEYBOARD = InlineKeyboardMarkup(
+    inline_keyboard=[[InlineKeyboardButton(text="Try again", callback_data=RETRY_SPEAKING)]]
+)
+
+
+def _recording(message: Any) -> tuple[str, Any] | None:
+    if getattr(message, "voice", None):
+        return "voice", message.voice
+    if getattr(message, "video_note", None):
+        return "video_note", message.video_note
+    return None
 
 
 @dataclass
 class TelegramRecordingHandler:
-    """Voice messages and video notes: feedback from the audio model; the file is not kept."""
+    """Voice messages and video notes: feedback from the audio model; the file is not kept.
+
+    A failure is a reply to the recording with "Try again": the retry takes the recording
+    from that reply, so nothing has to be stored to download it again."""
 
     allowed_user_id: int
     # (audio bytes, kind, audio format, duration in seconds, message id) -> Telegram HTML reply
@@ -328,6 +345,26 @@ class TelegramRecordingHandler:
         if not self.rate_limiter.allow_request():
             await message.answer(format_rate_limit_message())
             return
+        self._start(message, media, kind)
+
+    async def handle_retry(self, callback: Any) -> None:
+        if TelegramTextHandler._extract_user_id(callback) != self.allowed_user_id:
+            return
+        source = getattr(callback.message, "reply_to_message", None)
+        recording = _recording(source) if source else None
+        if recording is None:
+            await callback.answer("Recording not found. Please send it again.", show_alert=True)
+            return
+        if not self.rate_limiter.allow_request():
+            await callback.answer(format_rate_limit_message(), show_alert=True)
+            return
+        await callback.answer("Checking again…")
+        with suppress(TelegramAPIError):
+            await callback.message.delete()
+        kind, media = recording
+        self._start(source, media, kind)
+
+    def _start(self, message: Any, media: Any, kind: str) -> None:
         # Not awaited: a long recording takes longer than Telegram waits for the webhook reply.
         task = asyncio.create_task(self._analyse_and_reply(message, media, kind))
         self.pending.add(task)
@@ -346,10 +383,10 @@ class TelegramRecordingHandler:
                 message.message_id,
             )
         except OpenRouterError as exc:
-            await message.answer(exc.user_message)
+            await message.reply(exc.user_message, reply_markup=RETRY_KEYBOARD)
             return
         except Exception:
             logger.exception("Speaking analysis failed")
-            await message.answer(RECORDING_FAILED)
+            await message.reply(RECORDING_FAILED, reply_markup=RETRY_KEYBOARD)
             return
         await message.answer(text, parse_mode="HTML")
