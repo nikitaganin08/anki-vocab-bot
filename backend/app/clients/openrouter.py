@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from contextlib import nullcontext
 from dataclasses import dataclass
 from typing import Any
@@ -25,6 +26,8 @@ from app.services.speaking_prompt import (
     build_speaking_feedback_messages,
     build_speaking_topic_messages,
 )
+
+logger = logging.getLogger(__name__)
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
@@ -220,6 +223,13 @@ class OpenRouterClient:
                 raise ValueError("OpenRouter message content must be a string")
             return response_parser(content)
         except ValueError as exc:
+            # The validation error is the chained cause; the content shows what the model sent.
+            logger.warning(
+                "Invalid contract from %s: %r; content: %.3000r",
+                self.model,
+                exc.__cause__ or exc,
+                content,
+            )
             raise OpenRouterError(
                 "OpenRouter payload did not contain valid contract JSON",
                 code="openrouter_invalid_contract",
