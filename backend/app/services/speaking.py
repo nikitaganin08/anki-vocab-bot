@@ -204,13 +204,14 @@ def format_feedback(
     fillers: Counter[str],
     words: list[dict[str, object]],
     result: SpeakingResult,
+    last_focus: str | None = None,
 ) -> str:
     """Telegram HTML for the chat; the transcript and categories are not shown."""
     if isinstance(result, SpeakingRejected):
         return f"🤔 {escape(result.message_for_user)}"
     lines = [f"✅ <b>Feedback</b> · {_duration(duration_seconds)}", ""]
-    if result.focus_check:
-        lines.append(f"🎯 Last focus: <b>{result.focus_check}</b>")
+    if last_focus:
+        lines.append(f"🎯 Last focus: <b>{result.focus_check or 'no chance to tell'}</b>")
     total = sum(fillers.values())
     if total:
         top = ", ".join(f"{word} ×{count}" for word, count in fillers.most_common())
@@ -315,7 +316,11 @@ def analyse_recording(
     )
     session.commit()
     return format_feedback(
-        duration_seconds=duration_seconds, fillers=fillers, words=words, result=result
+        duration_seconds=duration_seconds,
+        fillers=fillers,
+        words=words,
+        result=result,
+        last_focus=last_focus,
     )
 
 

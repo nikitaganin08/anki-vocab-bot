@@ -10,6 +10,7 @@ from aiogram.filters import Command
 from aiogram.types import MenuButtonWebApp, WebAppInfo
 
 from app.bot.handler import (
+    RETRY_SPEAKING,
     SynonymSwap,
     TelegramAddCallbackHandler,
     TelegramAdminWebAppHandler,
@@ -149,6 +150,10 @@ def build_bot_router(
     @router.message(F.voice | F.video_note)
     async def handle_recording(message) -> None:
         await recording_handler.handle_message(message)
+
+    @router.callback_query(F.data == RETRY_SPEAKING)
+    async def handle_retry_speaking(callback) -> None:
+        await recording_handler.handle_retry(callback)
 
     @router.message(Command("admin"))
     async def handle_admin_command(message) -> None:

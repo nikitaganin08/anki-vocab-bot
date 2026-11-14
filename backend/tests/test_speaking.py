@@ -15,7 +15,12 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.bot.handler import TelegramRecordingHandler, TelegramSpeakHandler
+from app.bot.handler import (
+    RECORDING_FAILED,
+    RETRY_KEYBOARD,
+    TelegramRecordingHandler,
+    TelegramSpeakHandler,
+)
 from app.bot.rate_limiter import InMemoryRateLimiter
 from app.clients.openrouter import OpenRouterClient, OpenRouterError
 from app.models.speaking import SpeakingIssue, SpeakingSession
@@ -235,6 +240,23 @@ def test_free_speech_without_prompt_or_focus(session: Session) -> None:
     assert row.focus_check is None and row.prompt_text is None and row.words_json == "[]"
 
 
+def test_last_focus_line_stays_when_the_model_could_not_tell(session: Session) -> None:
+    session.add(_session_row(next_time="Use articles with professions."))
+    session.commit()
+
+    reply = analyse_recording(
+        session,
+        lambda **_: _feedback(focus_check=None),
+        audio=b"x",
+        kind="voice",
+        audio_format="ogg",
+        duration_seconds=30,
+        llm_model="m",
+        now=_moscow(12, 17),
+    )
+    assert "🎯 Last focus: <b>no chance to tell</b>" in reply
+
+
 def test_rejected_recording_is_not_stored(session: Session) -> None:
     reply = analyse_recording(
         session,
@@ -331,6 +353,9 @@ class FakeMessage:
     async def answer(self, text: str, **kwargs: Any) -> None:
         self.answers.append((text, kwargs))
 
+    async def reply(self, text: str, **kwargs: Any) -> None:
+        self.answers.append((text, {"reply": True, **kwargs}))
+
 
 def _handle(handler: TelegramRecordingHandler, message: FakeMessage) -> None:
     async def run() -> None:
@@ -383,7 +408,51 @@ def test_long_foreign_or_failed_recordings() -> None:
 
     failed = FakeMessage(voice=SimpleNamespace(duration=10))
     _handle(handler, failed)
-    assert failed.answers == [("Timed out.", {})]
+    assert failed.answers == [("Timed out.", {"reply": True, "reply_markup": RETRY_KEYBOARD})]
+
+
+class FakeCallback:
+    def __init__(self, source: Any) -> None:
+        self.from_user = SimpleNamespace(id=TELEGRAM_ALLOWED_USER_ID)
+        self.message = SimpleNamespace(reply_to_message=source, delete=self._delete)
+        self.answers: list[tuple[str, dict[str, Any]]] = []
+        self.deleted = False
+
+    async def _delete(self) -> None:
+        self.deleted = True
+
+    async def answer(self, text: str, **kwargs: Any) -> None:
+        self.answers.append((text, kwargs))
+
+
+def test_try_again_takes_the_recording_from_the_failure_reply() -> None:
+    results = iter([RuntimeError("boom"), "<b>Feedback</b>"])
+
+    def flaky(*_: Any) -> str:
+        result = next(results)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    handler = _recording_handler(flaky)
+    voice = FakeMessage(voice=SimpleNamespace(duration=10, file_id="v"))
+    _handle(handler, voice)
+    assert voice.answers == [(RECORDING_FAILED, {"reply": True, "reply_markup": RETRY_KEYBOARD})]
+
+    callback = FakeCallback(voice)
+
+    async def retry() -> None:
+        await handler.handle_retry(callback)
+        await asyncio.gather(*handler.pending)
+
+    asyncio.run(retry())
+    assert callback.deleted and callback.answers == [("Checking again…", {})]
+    assert voice.answers[-1] == ("<b>Feedback</b>", {"parse_mode": "HTML"})
+    assert len(voice.downloads) == 2
+
+    gone = FakeCallback(None)
+    asyncio.run(handler.handle_retry(gone))
+    assert gone.answers[0][1] == {"show_alert": True} and not gone.deleted
 
 
 def test_speak_command_replies_with_the_prompt() -> None:
