@@ -18,6 +18,7 @@ def test_telegram_webapp_index_serves_spa() -> None:
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
     assert '<div id="root"></div>' in response.text
+    assert response.headers["cache-control"] == "no-cache"
 
 
 def test_telegram_webapp_deep_link_serves_spa_index() -> None:
