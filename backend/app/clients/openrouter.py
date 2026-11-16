@@ -15,16 +15,20 @@ from app.schemas.description_lookup import (
 from app.schemas.llm import LlmResponse, parse_llm_response
 from app.schemas.sentence_check import SentenceFeedback, parse_sentence_feedback
 from app.schemas.speaking import (
+    SpeakingRejected,
     SpeakingResult,
     SpeakingTopic,
+    SpokenSentence,
     parse_speaking_result,
     parse_speaking_topic,
+    parse_spoken_sentence,
 )
 from app.services.description_lookup_prompt import build_description_lookup_messages
 from app.services.llm_prompt import build_llm_messages, build_sentence_check_messages
 from app.services.speaking_prompt import (
     build_speaking_feedback_messages,
     build_speaking_topic_messages,
+    build_transcribe_messages,
 )
 
 logger = logging.getLogger(__name__)
@@ -113,6 +117,18 @@ class OpenRouterClient:
             provider={"data_collection": "deny"},
             response_parser=parse_speaking_result,
             invalid_contract_user_message="Couldn't check this recording. Please try again.",
+        )
+
+    def transcribe_sentence(
+        self, *, audio: bytes, audio_format: str, word: str
+    ) -> SpokenSentence | SpeakingRejected:
+        """Needs an audio-capable model (SPEAKING_LLM_MODEL)."""
+        return self._request_json_completion(
+            messages=build_transcribe_messages(audio=audio, audio_format=audio_format, word=word),
+            reasoning={"effort": "low"},
+            provider={"data_collection": "deny"},
+            response_parser=parse_spoken_sentence,
+            invalid_contract_user_message="Couldn't hear that. Please try again.",
         )
 
     def _request_json_completion(

@@ -484,6 +484,12 @@ progress::-moz-progress-bar {
   gap: 8px;
 }
 
+/* Two lines: the sentence is short, and dictation fills it. */
+.sentence-input {
+  min-height: 0;
+  resize: none;
+}
+
 .sentence-feedback {
   display: grid;
   gap: 6px;

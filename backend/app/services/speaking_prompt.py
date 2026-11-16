@@ -63,6 +63,39 @@ Respond with a single JSON object only:
 - Do not add other fields."""
 
 
+TRANSCRIBE_PROMPT = """The learner (first language Russian) dictated one English sentence with a
+given word to practise it. Write down what they said.
+Respond with a single JSON object only: {"ok": true, "text": "..."}.
+- text: the sentence exactly as spoken, words and grammar unchanged (mistakes are checked later,
+  so never correct them), without hesitation sounds, with normal capitalisation and punctuation.
+  Spell the given word as written when the learner says it.
+- If there is no English speech (silence, noise, another language), respond
+  {"ok": false, "message_for_user": "..."} with one short English sentence.
+- Do not add other fields."""
+
+
+def _audio_part(audio: bytes, audio_format: str) -> dict[str, Any]:
+    return {
+        "type": "input_audio",
+        "input_audio": {"data": base64.b64encode(audio).decode(), "format": audio_format},
+    }
+
+
+def build_transcribe_messages(
+    *, audio: bytes, audio_format: str, word: str
+) -> list[dict[str, Any]]:
+    return [
+        {"role": "system", "content": TRANSCRIBE_PROMPT},
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": f"word: {word}"},
+                _audio_part(audio, audio_format),
+            ],
+        },
+    ]
+
+
 def build_speaking_feedback_messages(
     *,
     audio: bytes,
@@ -82,13 +115,7 @@ def build_speaking_feedback_messages(
             "role": "user",
             "content": [
                 {"type": "text", "text": "\n".join(context)},
-                {
-                    "type": "input_audio",
-                    "input_audio": {
-                        "data": base64.b64encode(audio).decode(),
-                        "format": audio_format,
-                    },
-                },
+                _audio_part(audio, audio_format),
             ],
         },
     ]

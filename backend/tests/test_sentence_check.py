@@ -6,10 +6,11 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_openrouter_client
+from app.api.deps import get_openrouter_client, get_speaking_client
 from app.clients.openrouter import OpenRouterError
 from app.main import app
 from app.schemas.sentence_check import SentenceFeedback, SentenceIssue, parse_sentence_feedback
+from app.schemas.speaking import SpeakingRejected, SpokenSentence, parse_spoken_sentence
 from app.services.llm_prompt import build_sentence_check_messages
 
 from .conftest import make_card, telegram_headers
@@ -111,3 +112,53 @@ def test_sentence_endpoint_errors(client: TestClient, session: Session) -> None:
     assert missing.status_code == 404
     assert empty.status_code == 422
     assert anonymous.status_code == 401
+
+
+@dataclass
+class FakeTranscriber:
+    result: SpokenSentence | SpeakingRejected
+    calls: list[dict] = field(default_factory=list)
+
+    def transcribe_sentence(self, **kwargs: object) -> SpokenSentence | SpeakingRejected:
+        self.calls.append(kwargs)
+        return self.result
+
+
+def test_transcribe_endpoint_turns_dictation_into_text(
+    client: TestClient, session: Session
+) -> None:
+    card = _card(session)
+    fake = FakeTranscriber(SpokenSentence(ok=True, text="He pleaded for help."))
+    app.dependency_overrides[get_speaking_client] = lambda: fake
+    headers = {**telegram_headers(), "Content-Type": "audio/mp4; codecs=mp4a.40.2"}
+
+    resp = client.post(f"/api/review/{card.id}/transcribe", content=b"m4a", headers=headers)
+
+    assert resp.status_code == 200 and resp.json() == {"text": "He pleaded for help."}
+    assert fake.calls == [{"audio": b"m4a", "audio_format": "mp4", "word": "plead"}]
+
+
+def test_transcribe_endpoint_errors(client: TestClient, session: Session) -> None:
+    card = _card(session)
+    url = f"/api/review/{card.id}/transcribe"
+    app.dependency_overrides[get_speaking_client] = lambda: FakeTranscriber(
+        SpeakingRejected(ok=False, message_for_user="I couldn't hear any English.")
+    )
+    mp4 = {**telegram_headers(), "Content-Type": "audio/mp4"}
+
+    silent = client.post(url, content=b"x", headers=mp4)
+    wav = client.post(
+        url, content=b"x", headers={**telegram_headers(), "Content-Type": "audio/x-foo"}
+    )
+    empty = client.post(url, content=b"", headers=mp4)
+    huge = client.post(url, content=b"x" * 2_000_001, headers=mp4)
+
+    assert silent.status_code == 422
+    assert silent.json() == {"detail": "I couldn't hear any English."}
+    assert (wav.status_code, empty.status_code, huge.status_code) == (415, 400, 413)
+
+
+def test_parse_spoken_sentence() -> None:
+    assert parse_spoken_sentence({"ok": True, "text": " He  pleaded. "}).text == "He pleaded."
+    with pytest.raises(ValueError):
+        parse_spoken_sentence({"ok": True, "text": ""})

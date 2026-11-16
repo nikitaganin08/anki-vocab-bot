@@ -132,6 +132,10 @@ class SentenceRequest(BaseModel):
     sentence: str = Field(min_length=1, max_length=300)
 
 
+class TranscriptResponse(BaseModel):
+    text: str
+
+
 class SentenceIssueResponse(BaseModel):
     wrong: str | None
     right: str | None
