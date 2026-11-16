@@ -86,6 +86,20 @@ class SpeakingRejected(BaseModel):
 SpeakingResult = SpeakingFeedback | SpeakingRejected
 
 
+class SpokenSentence(BaseModel):
+    """A sentence dictated in the review's sentence practice, transcribed by the audio model."""
+
+    ok: Literal[True]
+    text: str = Field(min_length=1, max_length=300)
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("text")
+    @classmethod
+    def normalize(cls, value: str) -> str:
+        return _clean(value) or ""
+
+
 def _load(payload: str | dict[str, Any]) -> Any:
     return json.loads(payload) if isinstance(payload, str) else payload
 
@@ -105,6 +119,16 @@ def parse_speaking_topic(
             if len(token) >= 4 and re.search(rf"\b{re.escape(token)}", text):
                 raise ValueError(f"Speaking topic gives away the target word {word!r}")
     return topic
+
+
+def parse_spoken_sentence(payload: str | dict[str, Any]) -> SpokenSentence | SpeakingRejected:
+    try:
+        raw = _load(payload)
+        if isinstance(raw, dict) and raw.get("ok") is False:
+            return SpeakingRejected.model_validate(raw)
+        return SpokenSentence.model_validate(raw)
+    except Exception as exc:
+        raise ValueError("Transcription does not match the contract") from exc
 
 
 def parse_speaking_result(payload: str | dict[str, Any]) -> SpeakingResult:

@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, checkAnswer, checkSentence, deleteCard, getReviewSession, getReviewSummary, gradeCard } from "../api/client";
+import { ApiError, checkAnswer, checkSentence, deleteCard, getReviewSession, getReviewSummary, gradeCard, transcribeSentence } from "../api/client";
 import type { Card, CheckResponse, ReviewSessionItem, ReviewSummary } from "../api/types";
 import type { ReviewMode } from "../home/HomeView";
 import { formatInterval } from "./GradeGrid";
@@ -18,6 +18,7 @@ vi.mock("../api/client", async (importOriginal) => {
     gradeCard: vi.fn(),
     deleteCard: vi.fn(),
     checkSentence: vi.fn(),
+    transcribeSentence: vi.fn(),
   };
 });
 
@@ -27,6 +28,7 @@ const mockedCheck = vi.mocked(checkAnswer);
 const mockedGrade = vi.mocked(gradeCard);
 const mockedDelete = vi.mocked(deleteCard);
 const mockedSentence = vi.mocked(checkSentence);
+const mockedTranscribe = vi.mocked(transcribeSentence);
 
 function card(id: number, word: string): Card {
   return {
@@ -519,6 +521,42 @@ describe("ReviewView", () => {
     expect(screen.getByText("gave", { selector: "strong" })).toBeInTheDocument();
     expect(screen.getByText("Use the past tense.")).toBeInTheDocument();
     expect(mockedGrade).not.toHaveBeenCalled();
+  });
+
+  it("a dictated sentence lands in the box and the microphone is released", async () => {
+    const stopTrack = vi.fn();
+    const stream = { getTracks: () => [{ stop: stopTrack }] };
+    class FakeRecorder {
+      mimeType = "audio/mp4";
+      stream = stream;
+      ondataavailable: ((event: { data: Blob }) => void) | null = null;
+      onstop: (() => void) | null = null;
+      start(): void {}
+      stop(): void {
+        this.ondataavailable?.({ data: new Blob(["m4a"]) });
+        this.onstop?.();
+      }
+    }
+    vi.stubGlobal("MediaRecorder", FakeRecorder);
+    Object.defineProperty(navigator, "mediaDevices", {
+      value: { getUserMedia: vi.fn().mockResolvedValue(stream) },
+      configurable: true,
+    });
+    mockedSession.mockResolvedValue([item(7, "give", "___ up")]);
+    mockedTranscribe.mockResolvedValue("He gave up.");
+    renderReview();
+
+    await answer("give");
+    await press(await screen.findByRole("button", { name: "Test yourself: use it in a sentence" }));
+    await press(screen.getByRole("button", { name: "🎤 Speak" }));
+    await press(screen.getByRole("button", { name: "■ Stop" }));
+
+    expect(await screen.findByDisplayValue("He gave up.")).toBeInTheDocument();
+    expect(mockedTranscribe).toHaveBeenCalledWith(7, expect.any(Blob));
+    expect(stopTrack).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "🎤 Speak" })).toBeEnabled();
+    vi.unstubAllGlobals();
+    Object.defineProperty(navigator, "mediaDevices", { value: undefined, configurable: true });
   });
 
   it("a sentence check failure is shown and the review goes on", async () => {

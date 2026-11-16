@@ -3,10 +3,15 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
-from app.api.deps import get_openrouter_client, require_telegram_webapp_user
+from app.api.deps import (
+    get_openrouter_client,
+    get_speaking_client,
+    require_telegram_webapp_user,
+)
 from app.api.schemas import (
     CardResponse,
     ReviewCheckRequest,
@@ -19,10 +24,12 @@ from app.api.schemas import (
     ReviewUndoResponse,
     SentenceFeedbackResponse,
     SentenceRequest,
+    TranscriptResponse,
 )
 from app.clients.openrouter import OpenRouterClient, OpenRouterError
 from app.db.session import get_session
 from app.models.card import Card
+from app.schemas.speaking import SpeakingRejected
 from app.services.answer_check import auto_rating, build_prompt, check_answer
 from app.services.app_settings import get_app_settings
 from app.services.review_stats import ReviewSummary, build_summary, record_goal_if_closed
@@ -130,6 +137,51 @@ def check_sentence(
             status_code=status.HTTP_502_BAD_GATEWAY, detail=exc.user_message
         ) from exc
     return SentenceFeedbackResponse.model_validate(feedback.model_dump())
+
+
+# MediaRecorder output: iOS records AAC in MP4, Chrome Opus in WebM.
+AUDIO_FORMATS = {"audio/mp4": "mp4", "audio/webm": "webm", "audio/ogg": "ogg", "audio/aac": "aac"}
+MAX_DICTATION_BYTES = 2_000_000  # about two minutes of AAC; a sentence takes seconds
+
+
+@router.post("/{card_id}/transcribe", response_model=TranscriptResponse)
+async def transcribe_sentence(
+    card_id: int,
+    request: Request,
+    session: SessionDep,
+    speaking_client: Annotated[OpenRouterClient, Depends(get_speaking_client)],
+) -> TranscriptResponse:
+    """A dictated sentence (raw audio body) as text for the sentence practice; nothing is kept."""
+    card = _get_card(session, card_id)
+    content_type = request.headers.get("content-type", "").split(";")[0].strip().lower()
+    audio_format = AUDIO_FORMATS.get(content_type)
+    if audio_format is None:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, detail="Unsupported audio format"
+        )
+    audio = await request.body()
+    if not audio:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty recording")
+    if len(audio) > MAX_DICTATION_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="Recording is too long"
+        )
+    try:
+        result = await run_in_threadpool(
+            speaking_client.transcribe_sentence,
+            audio=audio,
+            audio_format=audio_format,
+            word=card.canonical_text,
+        )
+    except OpenRouterError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=exc.user_message
+        ) from exc
+    if isinstance(result, SpeakingRejected):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=result.message_for_user
+        )
+    return TranscriptResponse(text=result.text)
 
 
 @router.post("/{card_id}/grade", response_model=ReviewGradeResponse)

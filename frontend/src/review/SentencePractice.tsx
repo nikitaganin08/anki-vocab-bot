@@ -5,7 +5,7 @@ import { checkSentence } from "../api/client";
 import type { CheckResponse } from "../api/types";
 import { Sheet } from "../components/Sheet";
 import { GradeGrid } from "./GradeGrid";
-import { MicTest } from "./MicTest";
+import { DictateButton, canDictate } from "./DictateButton";
 import { diffSentence } from "./sentenceDiff";
 
 // Optional extra on the back side: a button opens a sheet to write a sentence with the word and
@@ -34,7 +34,6 @@ export function SentencePractice({ cardId, word, result, busy, onGrade }: Senten
       {open ? (
         <Sheet label="Use it in a sentence" onClose={() => setOpen(false)}>
           <h2 className="sheet-title">{word}</h2>
-          <MicTest />
           <form
             className="sentence-practice"
             onSubmit={(event) => {
@@ -44,8 +43,18 @@ export function SentencePractice({ cardId, word, result, busy, onGrade }: Senten
               }
             }}
           >
+            {canDictate() ? (
+              <DictateButton
+                cardId={cardId}
+                onText={(text) => {
+                  setSentence((current) => (current.trim() ? `${current.trim()} ${text}` : text));
+                  mutation.reset();
+                }}
+              />
+            ) : null}
             <textarea
               aria-label="Your sentence"
+              className="sentence-input"
               placeholder="Write a sentence with this word"
               rows={2}
               maxLength={300}
@@ -54,7 +63,6 @@ export function SentencePractice({ cardId, word, result, busy, onGrade }: Senten
                 setSentence(event.target.value);
                 mutation.reset();
               }}
-              autoFocus
               autoCorrect="off"
               spellCheck={false}
             />

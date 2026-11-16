@@ -158,6 +158,19 @@ export async function checkSentence(cardId: number, sentence: string): Promise<S
   return request(`/api/review/${cardId}/sentence`, "POST", { sentence });
 }
 
+// The dictated sentence as raw audio (MediaRecorder output); returns the transcribed text.
+export async function transcribeSentence(cardId: number, audio: Blob): Promise<string> {
+  const response = await fetch(resolveApiPath(`/api/review/${cardId}/transcribe`), {
+    method: "POST",
+    headers: buildHeaders({ Accept: "application/json", "Content-Type": audio.type }),
+    body: audio,
+  });
+  if (!response.ok) {
+    throw new ApiError(await readErrorMessage(response), response.status);
+  }
+  return ((await response.json()) as { text: string }).text;
+}
+
 export async function gradeCard(cardId: number, body: GradeRequest): Promise<GradeResponse> {
   return request(`/api/review/${cardId}/grade`, "POST", body);
 }
