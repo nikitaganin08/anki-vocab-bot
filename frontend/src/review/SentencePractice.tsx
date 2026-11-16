@@ -5,6 +5,7 @@ import { checkSentence } from "../api/client";
 import type { CheckResponse } from "../api/types";
 import { Sheet } from "../components/Sheet";
 import { GradeGrid } from "./GradeGrid";
+import { MicTest } from "./MicTest";
 import { diffSentence } from "./sentenceDiff";
 
 // Optional extra on the back side: a button opens a sheet to write a sentence with the word and
@@ -92,6 +93,7 @@ export function SentencePractice({ cardId, word, result, busy, onGrade }: Senten
               </div>
             ) : null}
           </form>
+          <MicTest />
           <GradeGrid result={result} busy={busy} onGrade={onGrade} />
           <div className="sheet-actions sheet-actions-single">
             <button type="button" className="secondary-button" onClick={() => setOpen(false)}>
