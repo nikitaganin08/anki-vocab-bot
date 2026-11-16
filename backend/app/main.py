@@ -59,12 +59,16 @@ def healthcheck() -> dict[str, str]:
 _FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 _FRONTEND_INDEX = _FRONTEND_DIST / "index.html"
 
+# index.html must be revalidated so a deploy reaches Telegram's WebView at once; the hashed
+# assets it points to can be cached.
+_NO_CACHE = {"Cache-Control": "no-cache"}
+
 if _FRONTEND_INDEX.exists():
 
     @app.get("/telegram/webapp")
     @app.get("/telegram/webapp/")
     def telegram_webapp_index() -> FileResponse:
-        return FileResponse(_FRONTEND_INDEX)
+        return FileResponse(_FRONTEND_INDEX, headers=_NO_CACHE)
 
     @app.get("/telegram/webapp/{path:path}")
     def telegram_webapp_spa(path: str) -> FileResponse:
@@ -72,4 +76,4 @@ if _FRONTEND_INDEX.exists():
         if candidate.is_relative_to(_FRONTEND_DIST) and candidate.is_file():
             return FileResponse(candidate)
 
-        return FileResponse(_FRONTEND_INDEX)
+        return FileResponse(_FRONTEND_INDEX, headers=_NO_CACHE)

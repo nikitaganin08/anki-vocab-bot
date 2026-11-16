@@ -34,6 +34,7 @@ export function SentencePractice({ cardId, word, result, busy, onGrade }: Senten
       {open ? (
         <Sheet label="Use it in a sentence" onClose={() => setOpen(false)}>
           <h2 className="sheet-title">{word}</h2>
+          <MicTest />
           <form
             className="sentence-practice"
             onSubmit={(event) => {
@@ -93,7 +94,6 @@ export function SentencePractice({ cardId, word, result, busy, onGrade }: Senten
               </div>
             ) : null}
           </form>
-          <MicTest />
           <GradeGrid result={result} busy={busy} onGrade={onGrade} />
           <div className="sheet-actions sheet-actions-single">
             <button type="button" className="secondary-button" onClick={() => setOpen(false)}>
