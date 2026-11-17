@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.bot.handler import _web_app_keyboard
@@ -49,26 +49,29 @@ REMINDER_TEMPLATES: tuple[str, ...] = (
 def should_send(
     settings: AppSettings,
     now_local: datetime,
-    reviewed_today: bool,
     due_total: int,
     today_local: date,
     last_sent_local: datetime | None = None,
+    last_review_local: datetime | None = None,
 ) -> bool:
     if due_total <= 0 or settings.ignored_reminders >= PAUSE_AFTER_IGNORED:
         return False
     if not settings.reminder_hour <= now_local.hour < LAST_REMINDER_HOUR:
         return False
-    if settings.last_reminder_on != today_local:
-        # The first reminder of the day only comes before any review.
-        if reviewed_today:
-            return False
-        return (
+    first_today = settings.last_reminder_on != today_local
+    if first_today:
+        allowed = (
             settings.ignored_reminders < BACKOFF_AFTER_IGNORED or today_local.toordinal() % 2 == 0
         )
-    # Follow-ups only for someone who keeps answering reminders.
-    if settings.ignored_reminders >= BACKOFF_AFTER_IGNORED or last_sent_local is None:
+    else:
+        # Follow-ups only for someone who keeps answering reminders.
+        allowed = settings.ignored_reminders < BACKOFF_AFTER_IGNORED and last_sent_local is not None
+    if not allowed:
         return False
-    return now_local - last_sent_local >= timedelta(hours=FOLLOW_UP_HOURS)
+    # Cards left after a session started before reminder_hour still get a reminder,
+    # but never mid-session: 3 hours after the latest reminder or answer.
+    touches = [t for t in (None if first_today else last_sent_local, last_review_local) if t]
+    return not touches or now_local - max(touches) >= timedelta(hours=FOLLOW_UP_HOURS)
 
 
 def _cards(count: int) -> str:
@@ -108,6 +111,13 @@ def _reviewed_since(session: Session, since: datetime) -> bool:
     return session.scalar(query) is not None
 
 
+def _last_review_since(session: Session, since: datetime) -> datetime | None:
+    latest = session.scalar(
+        select(func.max(ReviewLogEntry.reviewed_at)).where(ReviewLogEntry.reviewed_at >= since)
+    )
+    return as_utc(latest) if latest else None
+
+
 async def send_reminder_if_due(
     session_factory: Callable[[], Session], bot: Bot, now: datetime
 ) -> bool:
@@ -121,9 +131,9 @@ async def send_reminder_if_due(
         def day_start(day: date) -> datetime:
             return datetime.combine(day, time(DAY_START_HOUR), tzinfo=tz).astimezone(UTC)
 
-        reviewed_today = _reviewed_since(session, day_start(today))
+        last_review = _last_review_since(session, day_start(today))
         last = settings.last_reminder_on
-        # Logs on the reminder's day all follow it: it is only sent before any review that day.
+        # Any review on the reminder's day counts as an answer, also one before the reminder.
         answered = last is not None and _reviewed_since(session, day_start(last))
         summary = build_summary(session, settings, now)
 
@@ -137,7 +147,10 @@ async def send_reminder_if_due(
         last_sent_local = (
             as_utc(settings.last_reminder_at).astimezone(tz) if settings.last_reminder_at else None
         )
-        if not should_send(settings, now_local, reviewed_today, due_total, today, last_sent_local):
+        last_review_local = last_review.astimezone(tz) if last_review else None
+        if not should_send(
+            settings, now_local, due_total, today, last_sent_local, last_review_local
+        ):
             if answered:
                 session.commit()
             return False
