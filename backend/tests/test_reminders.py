@@ -74,10 +74,10 @@ def _should_send(session: Session, *, day: date = TUESDAY, hour: int = 11, **kwa
     return should_send(
         settings,
         now_local,
-        kwargs.get("reviewed_today", False),
         kwargs.get("due_total", 12),
         day,
         kwargs.get("last_sent_local"),
+        kwargs.get("last_review_local"),
     )
 
 
@@ -102,8 +102,11 @@ def test_follow_up_after_three_hours_while_cards_are_left(session: Session) -> N
 
     assert not _should_send(session, hour=12, last_sent_local=sent)
     assert _should_send(session, hour=13, last_sent_local=sent)
-    # Someone who already did part of the session still gets the follow-up for the rest.
-    assert _should_send(session, hour=14, reviewed_today=True, last_sent_local=sent)
+    # Someone who already did part of the session still gets the follow-up for the rest,
+    # 3 hours after the latest answer.
+    answered = _reminded_at(TUESDAY, 12)
+    assert not _should_send(session, hour=14, last_sent_local=sent, last_review_local=answered)
+    assert _should_send(session, hour=15, last_sent_local=sent, last_review_local=answered)
 
 
 def test_no_follow_up_when_nothing_is_left_or_late_or_after_ignored(session: Session) -> None:
@@ -118,8 +121,11 @@ def test_no_follow_up_when_nothing_is_left_or_late_or_after_ignored(session: Ses
     assert not _should_send(session, hour=14, last_sent_local=sent)
 
 
-def test_not_when_reviewed_today(session: Session) -> None:
-    assert not _should_send(session, reviewed_today=True)
+def test_cards_left_after_an_early_session_still_get_a_reminder(session: Session) -> None:
+    # Started at 06:26, before reminder_hour, and left cards: remind, but not mid-session.
+    assert _should_send(session, hour=10, last_review_local=_reminded_at(TUESDAY, 6))
+    assert not _should_send(session, hour=10, last_review_local=_reminded_at(TUESDAY, 9))
+    assert _should_send(session, hour=12, last_review_local=_reminded_at(TUESDAY, 9))
 
 
 def test_not_when_nothing_due(session: Session) -> None:
