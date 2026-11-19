@@ -55,7 +55,6 @@ export function useReviewSession(mode: ReviewMode) {
     error: null,
     busy: false,
   });
-  const gradedTotal = useRef(0);
   const shownAt = useRef(0);
   const item = state.round.queue[state.round.pos];
 
@@ -63,10 +62,8 @@ export function useReviewSession(mode: ReviewMode) {
   // An empty round means nothing is left today (limits may have been hit since the dashboard).
   async function fetchRound(onItems: (items: ReviewSessionItem[]) => Partial<State>): Promise<void> {
     setState((s) => ({ ...s, phase: "loading", busy: false }));
-    // A capped session asks only for what is left of the cap, so the round (and its "k of T")
-    // ends at the cap; once the cap is reached, further rounds are regular ones.
-    const capLeft = (mode.capCards ?? 0) - gradedTotal.current;
-    const size = capLeft > 0 ? Math.min(ROUND_SIZE, capLeft) : ROUND_SIZE;
+    // A capped session (Quick: 5 cards) keeps its size: every round, "Another round" too.
+    const size = mode.capCards ?? ROUND_SIZE;
     try {
       const [items, summary] = await Promise.all([
         getReviewSession({ size, includeBacklog: mode.includeBacklog ?? false, onlyNew: mode.onlyNew ?? false }),
@@ -153,8 +150,7 @@ export function useReviewSession(mode: ReviewMode) {
       return fail(error);
     }
 
-    gradedTotal.current += 1;
-    const capReached = gradedTotal.current === mode.capCards;
+    const capReached = state.round.graded + 1 === mode.capCards;
     const { queue, pos } = state.round;
     // Needs another card to come in between; the last card of a round waits for the next one.
     const repeat =

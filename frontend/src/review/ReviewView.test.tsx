@@ -365,31 +365,31 @@ describe("ReviewView", () => {
     expect(onExit).toHaveBeenCalled();
   });
 
-  it("capped session asks only for what is left of the cap", async () => {
+  it("every round of a capped session keeps the cap", async () => {
     mockedSession
       .mockResolvedValueOnce([item(1, "give", "___ up"), item(2, "take", "___ off")])
-      .mockResolvedValueOnce([item(3, "make", "___ sense")])
-      .mockResolvedValueOnce([item(4, "keep", "___ calm")]);
-    renderReview({ capCards: 3 });
+      .mockResolvedValueOnce([item(3, "make", "___ sense"), item(4, "keep", "___ calm")])
+      .mockResolvedValueOnce([item(5, "turn", "___ down")]);
+    renderReview({ capCards: 2 });
 
     expect(await screen.findByText("Round 1 · 1 of 2")).toBeInTheDocument();
-    expect(mockedSession).toHaveBeenLastCalledWith({ size: 3, includeBacklog: false, onlyNew: false });
+    expect(mockedSession).toHaveBeenLastCalledWith({ size: 2, includeBacklog: false, onlyNew: false });
     await answer("give");
     await grade(/^Good/);
     await answer("take");
     await grade(/^Good/);
 
     expect(await screen.findByRole("heading", { name: "✓ Round complete" })).toBeInTheDocument();
-    expect(mockedSession).toHaveBeenLastCalledWith({ size: 1, includeBacklog: false, onlyNew: false });
+    expect(mockedSession).toHaveBeenLastCalledWith({ size: 2, includeBacklog: false, onlyNew: false });
     fireEvent.click(screen.getByRole("button", { name: "Another round" }));
-    expect(await screen.findByText("Round 2 · 1 of 1")).toBeInTheDocument();
-    expect(screen.getByRole("progressbar")).toHaveAttribute("max", "1");
+    expect(await screen.findByText("Round 2 · 1 of 2")).toBeInTheDocument();
     await answer("make");
     await grade(/^Good/);
+    await answer("keep");
+    await grade(/^Good/);
 
-    // The cap is reached: the round ends, and any further round is a regular one.
     expect(await screen.findByRole("heading", { name: "✓ Round complete" })).toBeInTheDocument();
-    expect(mockedSession).toHaveBeenLastCalledWith({ size: 200, includeBacklog: false, onlyNew: false });
+    expect(mockedSession).toHaveBeenLastCalledWith({ size: 2, includeBacklog: false, onlyNew: false });
   });
 
   it("a wrong answer can still be graded Good by hand", async () => {
