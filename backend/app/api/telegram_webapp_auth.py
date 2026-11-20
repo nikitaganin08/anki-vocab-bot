@@ -8,7 +8,9 @@ from urllib.parse import parse_qsl
 
 from fastapi import HTTPException, status
 
-AUTH_MAX_AGE_SECONDS = 3600
+# Telegram keeps the Mini App's launch data while the WebView lives (hours, across
+# backgrounding), so an hour-long limit broke a Mini App left open: a day it is.
+AUTH_MAX_AGE_SECONDS = 24 * 3600
 
 
 def _build_hash(data_check_string: str, bot_token: str) -> str:

@@ -89,7 +89,7 @@ The app receives words and stable expressions from Telegram, generates learning 
   copies to `/opt/nginx/snippets/anki.conf` and applies with `nginx -t` + reload (restoring the
   previous file if the test fails)
 - The deploy workflow also sets the bot's name, short description, description, command list (English; `/review`, `/find` and `/speak`) through the Bot API (`deploy/telegram/profile.py`). The app itself sets the menu button "Wordloop" for the owner's private chat on startup (`ensure_menu_button`; the bot-wide default does not read back reliably); it opens the Mini App in one tap, while a bot command can only reply with a button first. `/admin` was dropped from the command list as a duplicate (its handler still answers if typed)
-- In production, admin access is expected through Telegram Web App auth tied to the allowed Telegram user
+- In production, admin access is expected through Telegram Web App auth tied to the allowed Telegram user; the signed init data is accepted for 24 hours after `auth_date` (`AUTH_MAX_AGE_SECONDS`), since Telegram keeps it while a Mini App stays open
 - Docker uses a multi-stage build:
   - frontend build stage
   - backend dependency stage

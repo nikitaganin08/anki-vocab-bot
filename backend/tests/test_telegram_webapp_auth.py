@@ -57,13 +57,23 @@ def test_parse_and_validate_init_data_rejects_stale_auth() -> None:
         user_id=ALLOWED_USER_ID,
         auth_date=1_700_000_000,
     )
+    # A Mini App left open for hours still works.
+    assert (
+        parse_and_validate_init_data(
+            init_data,
+            bot_token=BOT_TOKEN,
+            allowed_user_id=ALLOWED_USER_ID,
+            now=1_700_000_000 + 23 * 3600,
+        )
+        == ALLOWED_USER_ID
+    )
 
     try:
         parse_and_validate_init_data(
             init_data,
             bot_token=BOT_TOKEN,
             allowed_user_id=ALLOWED_USER_ID,
-            now=1_700_003_700,
+            now=1_700_000_000 + 24 * 3600 + 1,
         )
     except HTTPException as exc:
         assert exc.status_code == 403
