@@ -18,14 +18,22 @@ Respond with a single JSON object only: {"topic": "...", "questions": ["...", ".
   come up naturally. The topic and the questions must NOT contain any of the words or their
   forms (for "free": no "free time", "freely"; for "somewhat": no "somewhat"). Use other
   wording, e.g. "spare hours" instead of "free time". Check every question before answering.
+- Recent topics are tasks the learner already had: write something clearly different, not
+  the same idea in other words and not the same pattern (if most of them are "a time you...",
+  do not start with "a time you").
 - When it is a story day, the topic asks for a personal story and the questions guide its
   beginning, middle and end.
 - Do not add other fields."""
 
 
-def build_speaking_topic_messages(words: list[str], story_day: bool) -> list[dict[str, Any]]:
+def build_speaking_topic_messages(
+    words: list[str], story_day: bool, recent: list[str]
+) -> list[dict[str, Any]]:
     lines = [f"words: {', '.join(words) if words else 'none'}"]
     lines.append(f"story day: {'yes' if story_day else 'no'}")
+    lines.append(
+        "recent topics:" + "".join(f"\n- {t}" for t in recent) if recent else "recent topics: none"
+    )
     return [
         {"role": "system", "content": TOPIC_PROMPT},
         {"role": "user", "content": "\n".join(lines)},

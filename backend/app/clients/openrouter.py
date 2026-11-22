@@ -84,9 +84,11 @@ class OpenRouterClient:
             ),
         )
 
-    def generate_speaking_topic(self, words: list[str], story_day: bool) -> SpeakingTopic:
+    def generate_speaking_topic(
+        self, words: list[str], story_day: bool, recent: list[str]
+    ) -> SpeakingTopic:
         return self._request_json_completion(
-            messages=build_speaking_topic_messages(words, story_day),
+            messages=build_speaking_topic_messages(words, story_day, recent),
             reasoning={"enabled": False},
             response_parser=lambda content: parse_speaking_topic(content, words),
             invalid_contract_user_message=(

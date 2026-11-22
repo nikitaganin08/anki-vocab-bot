@@ -11,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.speaking import SpeakingIssue, SpeakingSession
-from app.services.speaking import CATEGORY_LABELS
+from app.services.speaking import CATEGORY_LABELS, topic_of
 from app.services.srs import as_utc
 
 WINDOW_DAYS = 30
@@ -46,13 +46,6 @@ class SpeakingStats:
     words_total: int
     categories: list[CategoryCount] = field(default_factory=list)
     sessions: list[SessionRow] = field(default_factory=list)
-
-
-def topic_of(prompt_text: str | None) -> str | None:
-    for line in (prompt_text or "").splitlines():
-        if line.startswith("Topic: "):
-            return line.removeprefix("Topic: ")
-    return None
 
 
 def _rate(rows: list[SpeakingSession]) -> float | None:

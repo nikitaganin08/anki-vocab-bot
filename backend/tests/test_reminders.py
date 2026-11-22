@@ -359,7 +359,9 @@ class RefusingBot(FakeBot):
 def test_speaking_reminder_replaces_the_previous_one_quietly(
     session: Session, session_factory: sessionmaker[Session]
 ) -> None:
-    topic = lambda _words, _story: SpeakingTopic(topic="your weekend", questions=["What?", "Why?"])  # noqa: E731
+    def topic(*_args: object) -> SpeakingTopic:
+        return SpeakingTopic(topic="your weekend", questions=["What?", "Why?"])
+
     bot = RefusingBot()
 
     def send(now: datetime) -> bool:
