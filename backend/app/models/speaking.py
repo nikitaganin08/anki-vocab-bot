@@ -30,6 +30,8 @@ class SpeakingSession(Base):
     llm_model: Mapped[str] = mapped_column(String(255), nullable=False)
     # The owner's message in the chat (a reference, not the file): the weekly summary forwards it.
     telegram_message_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # The bot's feedback message: a recording sent as a reply to it continues this session.
+    feedback_message_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class SpeakingIssue(Base):

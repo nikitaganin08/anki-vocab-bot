@@ -268,6 +268,40 @@ def format_feedback(
 ReviewSpeaking = Callable[..., SpeakingResult]
 
 
+@dataclass
+class RecordingReply:
+    text: str
+    # The stored session; the handler records the feedback message on it.
+    session_id: int | None = None
+    # The old feedback of a continued session, replaced by this reply.
+    replaces: int | None = None
+
+
+def _continued(session: Session, reply_to: int | None) -> SpeakingSession | None:
+    if reply_to is None:
+        return None
+    query = select(SpeakingSession).where(
+        (SpeakingSession.feedback_message_id == reply_to)
+        | (SpeakingSession.telegram_message_id == reply_to)
+    )
+    return session.scalar(query.order_by(SpeakingSession.recorded_at.desc()).limit(1))
+
+
+def _focus_before(session: Session, row: SpeakingSession | None) -> str | None:
+    query = select(SpeakingSession).order_by(SpeakingSession.recorded_at.desc()).limit(1)
+    if row is not None:
+        query = query.where(SpeakingSession.recorded_at < row.recorded_at)
+    previous = session.scalar(query)
+    return previous.next_time if previous else None
+
+
+def remember_feedback(session: Session, session_id: int, message_id: int) -> None:
+    row = session.get(SpeakingSession, session_id)
+    if row is not None:
+        row.feedback_message_id = message_id
+        session.commit()
+
+
 def analyse_recording(
     session: Session,
     review_speaking: ReviewSpeaking,
@@ -279,17 +313,22 @@ def analyse_recording(
     llm_model: str,
     now: datetime,
     telegram_message_id: int | None = None,
-) -> str:
-    """Send the recording to the audio model, store what it found, return the chat reply."""
-    settings = get_app_settings(session)
-    day = local_day(settings, now)
-    topic = _today_topic(settings, day.today)
-    prompt_text = task_text(topic) if topic else None
-    words: list[dict[str, object]] = (
-        json.loads(settings.speaking_prompt_words_json) if topic else []
-    )
-    latest = latest_session(session)
-    last_focus = latest.next_time if latest else None
+    reply_to: int | None = None,
+) -> RecordingReply:
+    """Send the recording to the audio model, store what it found, return the chat reply.
+
+    A recording sent as a reply to a feedback continues that session: the model hears the new
+    part with the earlier transcript, and both parts end up in one session and one feedback."""
+    row = _continued(session, reply_to)
+    if row is not None:
+        prompt_text = row.prompt_text
+        words: list[dict[str, object]] = json.loads(row.words_json)
+    else:
+        settings = get_app_settings(session)
+        topic = _today_topic(settings, local_day(settings, now).today)
+        prompt_text = task_text(topic) if topic else None
+        words = json.loads(settings.speaking_prompt_words_json) if topic else []
+    last_focus = _focus_before(session, row)
 
     result = review_speaking(
         audio=audio,
@@ -297,11 +336,13 @@ def analyse_recording(
         prompt_text=prompt_text,
         words=[str(w["word"]) for w in words],
         last_focus=last_focus,
+        earlier_part=row.transcript if row else None,
     )
     if isinstance(result, SpeakingRejected):
-        return format_feedback(
+        text = format_feedback(
             duration_seconds=duration_seconds, fillers=Counter(), words=[], result=result
         )
+        return RecordingReply(text)
 
     if not last_focus:
         result.focus_check = None
@@ -310,26 +351,32 @@ def analyse_recording(
         {
             "card_id": w["card_id"],
             "word": w["word"],
-            "used": used.get(str(w["word"]).casefold(), False),
+            "used": bool(w.get("used")) or used.get(str(w["word"]).casefold(), False),
         }
         for w in words
     ]
-    fillers = count_fillers(result.transcript)
-    row = SpeakingSession(
-        recorded_at=as_utc(now),
-        kind=kind,
-        duration_seconds=duration_seconds,
-        prompt_text=prompt_text,
-        words_json=json.dumps(words, ensure_ascii=False),
-        transcript=result.transcript,
-        filler_count=sum(fillers.values()),
-        natural_version=result.natural_version,
-        next_time=result.next_time,
-        focus_check=result.focus_check,
-        llm_model=llm_model,
-        telegram_message_id=telegram_message_id,
-    )
-    session.add(row)
+    replaces = None
+    if row is None:
+        row = SpeakingSession(
+            recorded_at=as_utc(now),
+            kind=kind,
+            duration_seconds=duration_seconds,
+            prompt_text=prompt_text,
+            transcript=result.transcript,
+            llm_model=llm_model,
+            telegram_message_id=telegram_message_id,
+        )
+        session.add(row)
+    else:
+        replaces = row.feedback_message_id
+        row.duration_seconds += duration_seconds
+        row.transcript = f"{row.transcript}\n{result.transcript}"
+    fillers = count_fillers(row.transcript)
+    row.words_json = json.dumps(words, ensure_ascii=False)
+    row.filler_count = sum(fillers.values())
+    row.natural_version = result.natural_version
+    row.next_time = result.next_time
+    row.focus_check = result.focus_check
     session.flush()
     session.add_all(
         SpeakingIssue(
@@ -338,13 +385,20 @@ def analyse_recording(
         for fix in result.fixes
     )
     session.commit()
-    return format_feedback(
-        duration_seconds=duration_seconds,
+    issues = session.scalars(
+        select(SpeakingIssue).where(SpeakingIssue.session_id == row.id).order_by(SpeakingIssue.id)
+    )
+    every_fix = [
+        SpeakingFix(wrong=i.wrong, right=i.right, why=i.why, category=i.category) for i in issues
+    ]
+    text = format_feedback(
+        duration_seconds=row.duration_seconds,
         fillers=fillers,
         words=words,
-        result=result,
+        result=result.model_copy(update={"fixes": every_fix}),
         last_focus=last_focus,
     )
+    return RecordingReply(text, session_id=row.id, replaces=replaces)
 
 
 def should_send(settings: AppSettings, now: datetime, day: LocalDay, recorded_today: bool) -> bool:

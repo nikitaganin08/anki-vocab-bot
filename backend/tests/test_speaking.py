@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.bot.handler import (
@@ -33,12 +33,14 @@ from app.schemas.speaking import (
 )
 from app.services.app_settings import get_app_settings
 from app.services.speaking import (
+    RecordingReply,
     analyse_recording,
     count_fillers,
     pick_words,
     prepare_reminder,
     prepare_weekly_summary,
     prompt_for_speak_command,
+    remember_feedback,
     today_prompt,
 )
 from app.services.speaking_prompt import build_speaking_topic_messages
@@ -208,7 +210,7 @@ def test_analyse_recording_stores_findings_not_media(session: Session) -> None:
         duration_seconds=47,
         llm_model="google/gemini-3.8-flash",
         now=_moscow(12, 17),
-    )
+    ).text
 
     assert calls[0]["audio"] == b"OggS..." and calls[0]["audio_format"] == "ogg"
     assert calls[0]["last_focus"] == "Slow down."
@@ -242,6 +244,82 @@ def test_analyse_recording_stores_findings_not_media(session: Session) -> None:
     ]
 
 
+def test_recording_in_reply_to_feedback_continues_the_session(session: Session) -> None:
+    _cards(session)
+    today_prompt(session, TopicStub(), _moscow(12, 15))
+    session.add(_session_row(next_time="Slow down.", recorded_at=_moscow(11, 17)))
+    session.commit()
+    first = analyse_recording(
+        session,
+        lambda **_: _feedback(),
+        audio=b"a",
+        kind="voice",
+        audio_format="ogg",
+        duration_seconds=47,
+        llm_model="m",
+        now=_moscow(12, 17),
+        telegram_message_id=500,
+    )
+    assert first.session_id is not None and first.replaces is None
+    remember_feedback(session, first.session_id, 501)
+    calls: list[dict[str, Any]] = []
+
+    def review(**kwargs: Any) -> SpeakingFeedback:
+        calls.append(kwargs)
+        return _feedback(
+            transcript="Um, and then we left.",
+            words_used=[{"word": "vivid", "used": True}],
+            fixes=[{"wrong": "we left", "right": "we went", "why": "x", "category": "tense"}],
+            natural_version="Then we headed home.",
+            next_time="Pause instead of um.",
+        )
+
+    second = analyse_recording(
+        session,
+        review,
+        audio=b"b",
+        kind="voice",
+        audio_format="ogg",
+        duration_seconds=13,
+        llm_model="m",
+        now=_moscow(12, 17, 5),
+        telegram_message_id=502,
+        reply_to=501,
+    )
+
+    # The model hears the new part with the earlier one; last focus is still the one before.
+    assert calls[0]["earlier_part"].startswith("Um, I suggested")
+    assert calls[0]["last_focus"] == "Slow down."
+    assert (second.session_id, second.replaces) == (first.session_id, 501)
+    row = session.get(SpeakingSession, first.session_id)
+    assert row is not None and row.duration_seconds == 60 and row.filler_count == 4
+    assert (
+        row.transcript.endswith("\nUm, and then we left.")
+        and row.next_time == "Pause instead of um."
+    )
+    assert row.telegram_message_id == 500
+    assert sum(w["used"] for w in json.loads(row.words_json)) == 2  # linger before, vivid now
+    assert session.scalars(select(func.count(SpeakingSession.id))).one() == 2
+    assert "✅ <b>Feedback</b> · 1:00" in second.text and "Fixes" in second.text
+    assert "suggested going" in second.text and "we went" in second.text
+    assert "Then we headed home." in second.text
+
+
+def test_reply_to_an_unknown_message_starts_a_new_session(session: Session) -> None:
+    reply = analyse_recording(
+        session,
+        lambda **kw: _feedback(words_used=[]) if kw["earlier_part"] is None else None,
+        audio=b"x",
+        kind="voice",
+        audio_format="ogg",
+        duration_seconds=30,
+        llm_model="m",
+        now=_moscow(12, 9),
+        reply_to=12345,
+    )
+    assert reply.replaces is None and reply.session_id is not None
+
+
 def test_free_speech_without_prompt_or_focus(session: Session) -> None:
     def review(**kwargs: Any) -> SpeakingFeedback:
         assert kwargs["prompt_text"] is None and kwargs["words"] == []
@@ -257,7 +335,7 @@ def test_free_speech_without_prompt_or_focus(session: Session) -> None:
         duration_seconds=30,
         llm_model="m",
         now=_moscow(12, 9),
-    )
+    ).text
     assert "Last focus" not in reply and "Words:" not in reply and "Fixes" not in reply
     row = session.scalars(select(SpeakingSession)).one()
     assert row.focus_check is None and row.prompt_text is None and row.words_json == "[]"
@@ -276,7 +354,7 @@ def test_last_focus_line_stays_when_the_model_could_not_tell(session: Session) -
         duration_seconds=30,
         llm_model="m",
         now=_moscow(12, 17),
-    )
+    ).text
     assert "🎯 Last focus: <b>no chance to tell</b>" in reply
 
 
@@ -290,7 +368,7 @@ def test_rejected_recording_is_not_stored(session: Session) -> None:
         duration_seconds=5,
         llm_model="m",
         now=_moscow(12, 9),
-    )
+    ).text
     assert reply == "🤔 No English &lt;speech&gt;."
     assert session.scalars(select(SpeakingSession)).all() == []
 
@@ -361,8 +439,10 @@ class FakeMessage:
         self.message_id = 555
         self.voice = media.get("voice")
         self.video_note = media.get("video_note")
+        self.reply_to_message = media.get("reply_to_message")
         self.answers: list[tuple[str, dict[str, Any]]] = []
         self.downloads: list[Any] = []
+        self.deleted: list[int] = []
 
         async def send_chat_action(_chat_id: int, _action: str) -> None:
             return None
@@ -371,10 +451,16 @@ class FakeMessage:
             self.downloads.append(file)
             return BytesIO(b"audio-bytes")
 
-        self.bot = SimpleNamespace(send_chat_action=send_chat_action, download=download)
+        async def delete_message(_chat_id: int, message_id: int) -> None:
+            self.deleted.append(message_id)
 
-    async def answer(self, text: str, **kwargs: Any) -> None:
+        self.bot = SimpleNamespace(
+            send_chat_action=send_chat_action, download=download, delete_message=delete_message
+        )
+
+    async def answer(self, text: str, **kwargs: Any) -> SimpleNamespace:
         self.answers.append((text, kwargs))
+        return SimpleNamespace(message_id=777)
 
     async def reply(self, text: str, **kwargs: Any) -> None:
         self.answers.append((text, {"reply": True, **kwargs}))
@@ -388,10 +474,13 @@ def _handle(handler: TelegramRecordingHandler, message: FakeMessage) -> None:
     asyncio.run(run())
 
 
-def _recording_handler(analyse: Any) -> TelegramRecordingHandler:
+def _recording_handler(
+    analyse: Any, remembered: list[tuple[int, int]] | None = None
+) -> TelegramRecordingHandler:
     return TelegramRecordingHandler(
         allowed_user_id=TELEGRAM_ALLOWED_USER_ID,
         analyse=analyse,
+        remember_feedback=lambda *args: (remembered if remembered is not None else []).append(args),
         rate_limiter=InMemoryRateLimiter(limit=5, window_seconds=60.0),
     )
 
@@ -399,25 +488,44 @@ def _recording_handler(analyse: Any) -> TelegramRecordingHandler:
 def test_voice_and_video_note_are_analysed_in_memory() -> None:
     calls: list[tuple[Any, ...]] = []
 
-    def analyse(*args: Any) -> str:
+    def analyse(*args: Any) -> RecordingReply:
         calls.append(args)
-        return "<b>Feedback</b>"
+        return RecordingReply("<b>Feedback</b>", session_id=9)
 
-    handler = _recording_handler(analyse)
+    remembered: list[tuple[int, int]] = []
+    handler = _recording_handler(analyse, remembered)
     voice = FakeMessage(voice=SimpleNamespace(duration=47, file_id="v"))
     _handle(handler, voice)
     note = FakeMessage(video_note=SimpleNamespace(duration=42, file_id="n"))
     _handle(handler, note)
 
     assert calls == [
-        (b"audio-bytes", "voice", "ogg", 47, 555),
-        (b"audio-bytes", "video_note", "mp4", 42, 555),
+        (b"audio-bytes", "voice", "ogg", 47, 555, None),
+        (b"audio-bytes", "video_note", "mp4", 42, 555, None),
     ]
     assert voice.answers == [("<b>Feedback</b>", {"parse_mode": "HTML"})]
+    assert remembered == [(9, 777), (9, 777)] and voice.deleted == []
+
+
+def test_reply_to_a_feedback_continues_it_and_replaces_the_old_feedback() -> None:
+    calls: list[tuple[Any, ...]] = []
+
+    def analyse(*args: Any) -> RecordingReply:
+        calls.append(args)
+        return RecordingReply("<b>Both parts</b>", session_id=9, replaces=600)
+
+    remembered: list[tuple[int, int]] = []
+    voice = FakeMessage(
+        voice=SimpleNamespace(duration=20), reply_to_message=SimpleNamespace(message_id=600)
+    )
+    _handle(_recording_handler(analyse, remembered), voice)
+
+    assert calls[0][-1] == 600
+    assert remembered == [(9, 777)] and voice.deleted == [600]
 
 
 def test_long_foreign_or_failed_recordings() -> None:
-    def failing(*_: Any) -> str:
+    def failing(*_: Any) -> RecordingReply:
         raise OpenRouterError("x", code="openrouter_timeout", user_message="Timed out.")
 
     handler = _recording_handler(failing)
@@ -449,9 +557,9 @@ class FakeCallback:
 
 
 def test_try_again_takes_the_recording_from_the_failure_reply() -> None:
-    results = iter([RuntimeError("boom"), "<b>Feedback</b>"])
+    results = iter([RuntimeError("boom"), RecordingReply("<b>Feedback</b>")])
 
-    def flaky(*_: Any) -> str:
+    def flaky(*_: Any) -> RecordingReply:
         result = next(results)
         if isinstance(result, Exception):
             raise result
@@ -526,7 +634,7 @@ def test_top_three_fixes_shown_and_the_rest_collapsed_all_stored(session: Sessio
         duration_seconds=103,
         llm_model="m",
         now=_moscow(12, 9),
-    )
+    ).text
 
     assert "✏️ <b>Top fixes</b> (3 of 5)\n1. <s>w1</s> → <b>r1</b>" in reply
     assert "3. <s>w3</s> → <b>r3</b>" in reply
