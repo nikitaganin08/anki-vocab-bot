@@ -66,6 +66,9 @@ Respond with a single JSON object only:
   "let me think" or "the thing is".
 - focus_check: whether the learner followed last time's focus: better, same or worse; null when
   there is no last focus or the recording gives no chance to tell.
+- When an earlier part is given, this recording continues the same answer after a pause and the
+  earlier part was already reviewed: transcript and fixes cover only this recording; words_used,
+  natural_version, next_time and focus_check cover the whole answer, earlier part included.
 - If there is no English speech in the recording (silence, noise, another language), respond
   {{"ok": false, "message_for_user": "..."}} with one short English sentence.
 - Do not add other fields."""
@@ -111,12 +114,15 @@ def build_speaking_feedback_messages(
     prompt_text: str | None,
     words: list[str],
     last_focus: str | None,
+    earlier_part: str | None = None,
 ) -> list[dict[str, Any]]:
     context = [
         f"task: {prompt_text}" if prompt_text else "task: free speech, no task was given",
         f"words: {', '.join(words) if words else 'none'}",
         f"last focus: {last_focus or 'none'}",
     ]
+    if earlier_part:
+        context.append(f"earlier part: {earlier_part}")
     return [
         {"role": "system", "content": FEEDBACK_PROMPT},
         {

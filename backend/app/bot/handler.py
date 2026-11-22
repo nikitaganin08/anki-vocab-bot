@@ -23,6 +23,7 @@ from app.models.card import Card
 from app.schemas.description_lookup import DescriptionLookupResponse, FoundDescriptionLookupResponse
 from app.services.card_service import CardServiceResult
 from app.services.speaking import MAX_SECONDS as SPEAKING_MAX_SECONDS
+from app.services.speaking import RecordingReply
 
 logger = logging.getLogger(__name__)
 
@@ -322,11 +323,14 @@ class TelegramRecordingHandler:
     """Voice messages and video notes: feedback from the audio model; the file is not kept.
 
     A failure is a reply to the recording with "Try again": the retry takes the recording
-    from that reply, so nothing has to be stored to download it again."""
+    from that reply, so nothing has to be stored to download it again. A recording sent as a
+    reply to a feedback continues that session; the new feedback replaces the old one."""
 
     allowed_user_id: int
-    # (audio bytes, kind, audio format, duration in seconds, message id) -> Telegram HTML reply
-    analyse: Callable[[bytes, str, str, int, int], str]
+    # (audio bytes, kind, audio format, duration, message id, replied-to message id) -> reply
+    analyse: Callable[[bytes, str, str, int, int, int | None], RecordingReply]
+    # (session id, feedback message id)
+    remember_feedback: Callable[[int, int], None]
     rate_limiter: InMemoryRateLimiter
     max_seconds: int = SPEAKING_MAX_SECONDS
     pending: set[asyncio.Task[None]] = field(default_factory=set)
@@ -374,13 +378,15 @@ class TelegramRecordingHandler:
         try:
             await message.bot.send_chat_action(message.chat.id, "typing")
             buffer = await message.bot.download(media)
-            text = await asyncio.to_thread(
+            replied = getattr(message, "reply_to_message", None)
+            reply = await asyncio.to_thread(
                 self.analyse,
                 buffer.getvalue(),
                 kind,
                 RECORDING_FORMATS[kind],
                 media.duration,
                 message.message_id,
+                replied.message_id if replied else None,
             )
         except OpenRouterError as exc:
             await message.reply(exc.user_message, reply_markup=RETRY_KEYBOARD)
@@ -389,4 +395,9 @@ class TelegramRecordingHandler:
             logger.exception("Speaking analysis failed")
             await message.reply(RECORDING_FAILED, reply_markup=RETRY_KEYBOARD)
             return
-        await message.answer(text, parse_mode="HTML")
+        sent = await message.answer(reply.text, parse_mode="HTML")
+        if reply.session_id is not None:
+            await asyncio.to_thread(self.remember_feedback, reply.session_id, sent.message_id)
+        if reply.replaces is not None:
+            with suppress(TelegramAPIError):
+                await message.bot.delete_message(message.chat.id, reply.replaces)

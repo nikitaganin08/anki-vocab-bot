@@ -104,6 +104,7 @@ class OpenRouterClient:
         prompt_text: str | None,
         words: list[str],
         last_focus: str | None,
+        earlier_part: str | None = None,
     ) -> SpeakingResult:
         """Needs an audio-capable model (SPEAKING_LLM_MODEL)."""
         return self._request_json_completion(
@@ -113,6 +114,7 @@ class OpenRouterClient:
                 prompt_text=prompt_text,
                 words=words,
                 last_focus=last_focus,
+                earlier_part=earlier_part,
             ),
             reasoning={"effort": "low"},
             # The learner's voice goes only to providers that neither store nor train on it.

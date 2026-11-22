@@ -27,7 +27,13 @@ from app.core.config import get_settings
 from app.db.session import SessionLocal
 from app.models.card import Card
 from app.services.card_service import CardServiceResult, apply_source_text
-from app.services.speaking import GenerateTopic, analyse_recording, prompt_for_speak_command
+from app.services.speaking import (
+    GenerateTopic,
+    RecordingReply,
+    analyse_recording,
+    prompt_for_speak_command,
+    remember_feedback,
+)
 
 
 @dataclass(slots=True)
@@ -88,10 +94,15 @@ def _build_speak_prompt(client: OpenRouterClient) -> Callable[[], str]:
 
 def _build_analyse_recording(
     client: OpenRouterClient,
-) -> Callable[[bytes, str, str, int, int], str]:
+) -> Callable[[bytes, str, str, int, int, int | None], RecordingReply]:
     def analyse(
-        audio: bytes, kind: str, audio_format: str, duration_seconds: int, message_id: int
-    ) -> str:
+        audio: bytes,
+        kind: str,
+        audio_format: str,
+        duration_seconds: int,
+        message_id: int,
+        reply_to: int | None,
+    ) -> RecordingReply:
         with SessionLocal() as session:
             return analyse_recording(
                 session,
@@ -103,9 +114,15 @@ def _build_analyse_recording(
                 llm_model=client.model,
                 now=datetime.now(UTC),
                 telegram_message_id=message_id,
+                reply_to=reply_to,
             )
 
     return analyse
+
+
+def _remember_feedback(session_id: int, message_id: int) -> None:
+    with SessionLocal() as session:
+        remember_feedback(session, session_id, message_id)
 
 
 async def ensure_menu_button(bot: Bot) -> None:
@@ -247,6 +264,7 @@ def build_bot_runtime() -> BotRuntime:
             TelegramRecordingHandler(
                 allowed_user_id=settings.telegram_allowed_user_id,
                 analyse=_build_analyse_recording(speaking_client),
+                remember_feedback=_remember_feedback,
                 rate_limiter=rate_limiter,
             ),
         )
