@@ -4,7 +4,7 @@ import asyncio
 import json
 import random
 from collections import Counter
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from types import SimpleNamespace
 from typing import Any
@@ -41,6 +41,7 @@ from app.services.speaking import (
     prompt_for_speak_command,
     today_prompt,
 )
+from app.services.speaking_prompt import build_speaking_topic_messages
 
 from .conftest import TELEGRAM_ALLOWED_USER_ID, make_card
 
@@ -55,10 +56,10 @@ def _moscow(day: int, hour: int, minute: int = 0) -> datetime:
 
 class TopicStub:
     def __init__(self) -> None:
-        self.calls: list[tuple[list[str], bool]] = []
+        self.calls: list[tuple[list[str], bool, list[str]]] = []
 
-    def __call__(self, words: list[str], story_day: bool) -> SpeakingTopic:
-        self.calls.append((words, story_day))
+    def __call__(self, words: list[str], story_day: bool, recent: list[str]) -> SpeakingTopic:
+        self.calls.append((words, story_day, recent))
         return TOPIC
 
 
@@ -142,6 +143,28 @@ def test_today_prompt_is_generated_once_with_words_and_last_focus(session: Sessi
 
     today_prompt(session, topic, _moscow(14, 15))  # Saturday: story day
     assert topic.calls[1][1] is True
+
+
+def test_topic_prompt_gets_recent_topics_once_each(session: Session) -> None:
+    old = _moscow(10, 16) - timedelta(days=15)
+    for at, topic in [
+        (old, "old"),
+        (_moscow(10, 16), "a hobby"),
+        (_moscow(11, 16), "a trip"),
+        (_moscow(12, 16), "a hobby"),
+    ]:
+        row = _session_row()
+        row.prompt_text = f"Topic: {topic}\n1. Why?"
+        row.recorded_at = at
+        session.add(row)
+    session.commit()
+    stub = TopicStub()
+
+    today_prompt(session, stub, _moscow(13, 15))
+
+    assert stub.calls[0][2] == ["a hobby", "a trip"]
+    messages = build_speaking_topic_messages(["x"], False, ["a hobby", "a trip"])
+    assert messages[1]["content"].endswith("recent topics:\n- a hobby\n- a trip")
 
 
 def test_speak_command_lifts_the_backoff(session: Session) -> None:

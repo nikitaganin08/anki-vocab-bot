@@ -54,7 +54,9 @@ FILLER_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
 # Text nodes only: apostrophes stay readable in Telegram.
 escape = partial(html_escape, quote=False)
 
-GenerateTopic = Callable[[list[str], bool], SpeakingTopic]
+# (target words, story day, recent topics not to repeat) -> topic
+GenerateTopic = Callable[[list[str], bool, list[str]], SpeakingTopic]
+RECENT_TOPIC_DAYS = 14
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,6 +106,25 @@ def pick_words(session: Session) -> list[dict[str, object]]:
         }
         for card in cards
     ]
+
+
+def topic_of(prompt_text: str | None) -> str | None:
+    for line in (prompt_text or "").splitlines():
+        if line.startswith("Topic: "):
+            return line.removeprefix("Topic: ")
+    return None
+
+
+def recent_topics(session: Session, now: datetime) -> list[str]:
+    """Topics of recent recordings, so the model stops writing the same task every day."""
+    since = as_utc(now) - timedelta(days=RECENT_TOPIC_DAYS)
+    query = (
+        select(SpeakingSession.prompt_text)
+        .where(SpeakingSession.recorded_at >= since)
+        .order_by(SpeakingSession.recorded_at.desc())
+    )
+    topics = (topic_of(text) for text in session.scalars(query))
+    return list(dict.fromkeys(t for t in topics if t))
 
 
 def latest_session(session: Session) -> SpeakingSession | None:
@@ -162,7 +183,9 @@ def today_prompt(
     if topic is None:
         words = pick_words(session)
         topic = generate_topic(
-            [str(w["word"]) for w in words], day.today.weekday() == STORY_WEEKDAY
+            [str(w["word"]) for w in words],
+            day.today.weekday() == STORY_WEEKDAY,
+            recent_topics(session, now),
         )
         settings.speaking_prompt = topic.model_dump_json()
         settings.speaking_prompt_words_json = json.dumps(words, ensure_ascii=False)
