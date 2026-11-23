@@ -158,6 +158,11 @@ export async function checkSentence(cardId: number, sentence: string): Promise<S
   return request(`/api/review/${cardId}/sentence`, "POST", { sentence });
 }
 
+// What a wrongly typed word means (deck card first, else the LLM); null when it is not English.
+export async function translateTyped(text: string): Promise<string | null> {
+  return (await request<{ translation: string | null }>("/api/review/translate", "POST", { text })).translation;
+}
+
 // The dictated sentence as raw audio (MediaRecorder output); returns the transcribed text.
 export async function transcribeSentence(cardId: number, audio: Blob): Promise<string> {
   const response = await fetch(resolveApiPath(`/api/review/${cardId}/transcribe`), {

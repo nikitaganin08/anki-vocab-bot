@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, checkAnswer, checkSentence, deleteCard, getReviewSession, getReviewSummary, gradeCard, transcribeSentence } from "../api/client";
+import { ApiError, checkAnswer, checkSentence, deleteCard, getReviewSession, getReviewSummary, gradeCard, transcribeSentence, translateTyped } from "../api/client";
 import type { Card, CheckResponse, ReviewSessionItem, ReviewSummary } from "../api/types";
 import type { ReviewMode } from "../home/HomeView";
 import { formatInterval } from "./GradeGrid";
@@ -19,6 +19,7 @@ vi.mock("../api/client", async (importOriginal) => {
     deleteCard: vi.fn(),
     checkSentence: vi.fn(),
     transcribeSentence: vi.fn(),
+    translateTyped: vi.fn(),
   };
 });
 
@@ -29,6 +30,7 @@ const mockedGrade = vi.mocked(gradeCard);
 const mockedDelete = vi.mocked(deleteCard);
 const mockedSentence = vi.mocked(checkSentence);
 const mockedTranscribe = vi.mocked(transcribeSentence);
+const mockedTranslate = vi.mocked(translateTyped);
 
 function card(id: number, word: string): Card {
   return {
@@ -151,6 +153,7 @@ describe("ReviewView", () => {
     mockedSession.mockReset();
     mockedSummary.mockReset().mockResolvedValue(summary());
     mockedCheck.mockReset().mockResolvedValue(checked());
+    mockedTranslate.mockReset().mockResolvedValue(null);
     mockedGrade.mockReset().mockResolvedValue({ srs_due_at: dueIn(24 * 60), srs_state: "review" });
   });
 
@@ -390,6 +393,24 @@ describe("ReviewView", () => {
 
     expect(await screen.findByRole("heading", { name: "✓ Round complete" })).toBeInTheDocument();
     expect(mockedSession).toHaveBeenLastCalledWith({ size: 2, includeBacklog: false, onlyNew: false });
+  });
+
+  it("a wrong word shows what it means, a typo does not", async () => {
+    mockedSession.mockResolvedValue([item(1, "give", "___ up"), item(2, "take", "___ off")]);
+    mockedCheck
+      .mockResolvedValueOnce(checked({ verdict: "wrong", auto_rating: 1 }))
+      .mockResolvedValueOnce(checked({ verdict: "typo", expected: "take" }));
+    mockedTranslate.mockResolvedValue("уступать");
+    renderReview();
+
+    await answer("Yield");
+    expect(await screen.findByText("— уступать")).toBeInTheDocument();
+    expect(mockedTranslate).toHaveBeenCalledWith("yield");
+    await press(await screen.findByRole("button", { name: /^Again/ }));
+
+    await answer("tak");
+    await screen.findByText("Typo");
+    expect(mockedTranslate).toHaveBeenCalledTimes(1);
   });
 
   it("a wrong answer can still be graded Good by hand", async () => {

@@ -1,4 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
+
+import { translateTyped } from "../api/client";
 
 import type { Card, ReviewPrompt } from "../api/types";
 import { GradeGrid } from "./GradeGrid";
@@ -66,6 +69,15 @@ export function AnswerCard({ card, prompt, answer, busy, onGrade }: AnswerCardPr
   }, [busy, onGrade]);
 
   const empty = typed.trim() === "";
+  // A wrong word gets its own meaning next to it; a failed lookup just shows nothing.
+  const wrongWord = result.verdict === "wrong" && !empty ? typed.trim().toLowerCase() : null;
+  const translation = useQuery({
+    queryKey: ["translate", wrongWord],
+    queryFn: () => translateTyped(wrongWord ?? ""),
+    enabled: wrongWord !== null,
+    staleTime: Infinity,
+    retry: false,
+  });
   const tone = result.verdict === "correct" ? "ok" : result.verdict === "typo" || result.verdict === "form" ? "warn" : "bad";
   const label = empty ? "No answer" : VERDICT_LABELS[result.verdict];
   const [before, after] = prompt.kind === "chunk" ? prompt.masked.split("___") : ["", ""];
@@ -77,7 +89,10 @@ export function AnswerCard({ card, prompt, answer, busy, onGrade }: AnswerCardPr
         {result.verdict === "correct" || empty ? null : (
           <span className="review-typed">
             {result.verdict === "wrong" ? (
-              <s className="verdict-typed">{typed}</s>
+              <>
+                <s className="verdict-typed">{typed}</s>
+                {translation.data ? <span className="typed-translation"> — {translation.data}</span> : null}
+              </>
             ) : result.verdict === "typo" ? (
               <Diff text={typed} other={result.expected} />
             ) : (

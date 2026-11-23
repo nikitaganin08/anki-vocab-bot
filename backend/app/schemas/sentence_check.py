@@ -65,3 +65,24 @@ def parse_sentence_feedback(payload: str | dict[str, Any]) -> SentenceFeedback:
         return SentenceFeedback.model_validate(raw)
     except Exception as exc:
         raise ValueError("Sentence feedback does not match the contract") from exc
+
+
+class WordTranslation(BaseModel):
+    """Russian translation of a word the learner typed by mistake; null when it is not English."""
+
+    translation: str | None = Field(default=None, max_length=80)
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("translation")
+    @classmethod
+    def normalize(cls, value: str | None) -> str | None:
+        return _clean(value)
+
+
+def parse_word_translation(payload: str | dict[str, Any]) -> str | None:
+    try:
+        raw = json.loads(payload) if isinstance(payload, str) else payload
+        return WordTranslation.model_validate(raw).translation
+    except Exception as exc:
+        raise ValueError("Word translation does not match the contract") from exc

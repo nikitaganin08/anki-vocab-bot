@@ -136,6 +136,14 @@ class TranscriptResponse(BaseModel):
     text: str
 
 
+class TranslateRequest(BaseModel):
+    text: str = Field(min_length=1, max_length=60)
+
+
+class TranslateResponse(BaseModel):
+    translation: str | None
+
+
 class SentenceIssueResponse(BaseModel):
     wrong: str | None
     right: str | None
