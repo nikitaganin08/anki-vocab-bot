@@ -13,7 +13,11 @@ from app.schemas.description_lookup import (
     parse_description_lookup_response,
 )
 from app.schemas.llm import LlmResponse, parse_llm_response
-from app.schemas.sentence_check import SentenceFeedback, parse_sentence_feedback
+from app.schemas.sentence_check import (
+    SentenceFeedback,
+    parse_sentence_feedback,
+    parse_word_translation,
+)
 from app.schemas.speaking import (
     SpeakingRejected,
     SpeakingResult,
@@ -24,7 +28,11 @@ from app.schemas.speaking import (
     parse_spoken_sentence,
 )
 from app.services.description_lookup_prompt import build_description_lookup_messages
-from app.services.llm_prompt import build_llm_messages, build_sentence_check_messages
+from app.services.llm_prompt import (
+    build_llm_messages,
+    build_sentence_check_messages,
+    build_word_translation_messages,
+)
 from app.services.speaking_prompt import (
     build_speaking_feedback_messages,
     build_speaking_topic_messages,
@@ -70,6 +78,14 @@ class OpenRouterClient:
             invalid_contract_user_message=(
                 "The language model returned an invalid response. Please try again."
             ),
+        )
+
+    def translate_word(self, text: str) -> str | None:
+        return self._request_json_completion(
+            messages=build_word_translation_messages(text),
+            reasoning={"enabled": False},
+            response_parser=parse_word_translation,
+            invalid_contract_user_message="Couldn't translate this word.",
         )
 
     def lookup_candidates_from_description(

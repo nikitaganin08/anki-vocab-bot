@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
@@ -25,6 +26,8 @@ from app.api.schemas import (
     SentenceFeedbackResponse,
     SentenceRequest,
     TranscriptResponse,
+    TranslateRequest,
+    TranslateResponse,
 )
 from app.clients.openrouter import OpenRouterClient, OpenRouterError
 from app.db.session import get_session
@@ -32,6 +35,7 @@ from app.models.card import Card
 from app.schemas.speaking import SpeakingRejected
 from app.services.answer_check import auto_rating, build_prompt, check_answer
 from app.services.app_settings import get_app_settings
+from app.services.card_service import normalize_canonical_text
 from app.services.review_stats import ReviewSummary, build_summary, record_goal_if_closed
 from app.services.srs import (
     GradeInput,
@@ -137,6 +141,27 @@ def check_sentence(
             status_code=status.HTTP_502_BAD_GATEWAY, detail=exc.user_message
         ) from exc
     return SentenceFeedbackResponse.model_validate(feedback.model_dump())
+
+
+@router.post("/translate", response_model=TranslateResponse)
+def translate_typed(
+    body: TranslateRequest,
+    session: SessionDep,
+    openrouter_client: Annotated[OpenRouterClient, Depends(get_openrouter_client)],
+) -> TranslateResponse:
+    """What a wrong answer means: the deck's translation when it is a card, else the LLM's."""
+    text = body.text.strip()
+    card = session.scalar(
+        select(Card).where(Card.canonical_text_normalized == normalize_canonical_text(text))
+    )
+    if card is not None and card.translation_variants_json:
+        return TranslateResponse(translation=", ".join(card.translation_variants_json[:2]))
+    try:
+        return TranslateResponse(translation=openrouter_client.translate_word(text))
+    except OpenRouterError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail=exc.user_message
+        ) from exc
 
 
 # MediaRecorder output: iOS records AAC in MP4, Chrome Opus in WebM.

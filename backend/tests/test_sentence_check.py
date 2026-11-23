@@ -9,7 +9,12 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_openrouter_client, get_speaking_client
 from app.clients.openrouter import OpenRouterError
 from app.main import app
-from app.schemas.sentence_check import SentenceFeedback, SentenceIssue, parse_sentence_feedback
+from app.schemas.sentence_check import (
+    SentenceFeedback,
+    SentenceIssue,
+    parse_sentence_feedback,
+    parse_word_translation,
+)
 from app.schemas.speaking import SpeakingRejected, SpokenSentence, parse_spoken_sentence
 from app.services.llm_prompt import build_sentence_check_messages
 
@@ -162,3 +167,59 @@ def test_parse_spoken_sentence() -> None:
     assert parse_spoken_sentence({"ok": True, "text": " He  pleaded. "}).text == "He pleaded."
     with pytest.raises(ValueError):
         parse_spoken_sentence({"ok": True, "text": ""})
+
+
+@dataclass
+class FakeTranslator:
+    result: str | None | Exception
+    calls: list[str] = field(default_factory=list)
+
+    def translate_word(self, text: str) -> str | None:
+        self.calls.append(text)
+        if isinstance(self.result, Exception):
+            raise self.result
+        return self.result
+
+
+def test_translate_takes_the_deck_card_first(client: TestClient, session: Session) -> None:
+    session.add(
+        make_card(
+            canonical_text="insist",
+            canonical_text_normalized="insist",
+            translation_variants_json=["настаивать", "требовать", "упорствовать"],
+        )
+    )
+    session.commit()
+    fake = FakeTranslator("x")
+    app.dependency_overrides[get_openrouter_client] = lambda: fake
+
+    resp = client.post(
+        "/api/review/translate", json={"text": " Insist "}, headers=telegram_headers()
+    )
+
+    assert resp.json() == {"translation": "настаивать, требовать"} and fake.calls == []
+
+
+def test_translate_asks_the_model_for_other_words(client: TestClient, session: Session) -> None:
+    url = "/api/review/translate"
+    app.dependency_overrides[get_openrouter_client] = lambda: FakeTranslator("убеждать")
+    assert client.post(url, json={"text": "persuade"}, headers=telegram_headers()).json() == {
+        "translation": "убеждать"
+    }
+
+    app.dependency_overrides[get_openrouter_client] = lambda: FakeTranslator(
+        OpenRouterError("x", code="x", user_message="Couldn't translate this word.")
+    )
+    failed = client.post(url, json={"text": "persuade"}, headers=telegram_headers())
+    too_long = client.post(url, json={"text": "x" * 61}, headers=telegram_headers())
+    assert failed.status_code == 502 and too_long.status_code == 422
+    assert client.post(url, json={"text": "persuade"}).status_code == 401
+
+
+def test_parse_word_translation() -> None:
+    assert parse_word_translation({"translation": " убеждать,  уговаривать "}) == (
+        "убеждать, уговаривать"
+    )
+    assert parse_word_translation({"translation": None}) is None
+    with pytest.raises(ValueError):
+        parse_word_translation({"translation": "x", "note": "y"})

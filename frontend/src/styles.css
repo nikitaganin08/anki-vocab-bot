@@ -599,6 +599,10 @@ progress::-moz-progress-bar {
   color: var(--danger);
 }
 
+.typed-translation {
+  color: var(--hint);
+}
+
 .icon-button {
   display: inline-grid;
   place-items: center;
