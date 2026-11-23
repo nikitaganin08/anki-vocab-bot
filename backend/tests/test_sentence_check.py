@@ -186,7 +186,7 @@ def test_translate_takes_the_deck_card_first(client: TestClient, session: Sessio
         make_card(
             canonical_text="insist",
             canonical_text_normalized="insist",
-            translation_variants_json=["настаивать", "требовать", "упорствовать"],
+            translation_variants_json=["настаивать, требовать", "настаивать", "упорствовать"],
         )
     )
     session.commit()

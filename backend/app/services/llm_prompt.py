@@ -159,16 +159,18 @@ def build_sentence_check_messages(target: str, sentence: str) -> list[dict[str, 
     ]
 
 
-WORD_TRANSLATION_PROMPT = """The learner (first language Russian) typed an English word or short
-phrase as a wrong answer in a vocabulary review. Show what they typed means.
+WORD_TRANSLATION_PROMPT = """Translate an English word or phrase into Russian. The learner
+typed it as a wrong answer in a vocabulary review and wants to see what it means.
 Respond with a single JSON object only: {"translation": "..." | null}.
-- translation: 1-2 common Russian translations, comma-separated, lower case, no explanations.
-- null when the text is not an English word or phrase (a typo of nothing, random letters).
+- translation: at most 2 common Russian translations, comma-separated, lower case, nothing else.
+  Any real English word or phrase gets one, also phrasal verbs, idioms and inflected forms
+  ("took" -> "взял").
+- null only for text that is not English at all (random letters, a misspelling of nothing).
 - Do not add other fields."""
 
 
 def build_word_translation_messages(text: str) -> list[dict[str, str]]:
     return [
         {"role": "system", "content": WORD_TRANSLATION_PROMPT},
-        {"role": "user", "content": text},
+        {"role": "user", "content": f"text: {text}"},
     ]

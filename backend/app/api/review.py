@@ -155,7 +155,9 @@ def translate_typed(
         select(Card).where(Card.canonical_text_normalized == normalize_canonical_text(text))
     )
     if card is not None and card.translation_variants_json:
-        return TranslateResponse(translation=", ".join(card.translation_variants_json[:2]))
+        # Variants may hold several comma-separated words and repeat each other.
+        words = (w.strip() for v in card.translation_variants_json for w in v.split(","))
+        return TranslateResponse(translation=", ".join(list(dict.fromkeys(words))[:2]))
     try:
         return TranslateResponse(translation=openrouter_client.translate_word(text))
     except OpenRouterError as exc:
