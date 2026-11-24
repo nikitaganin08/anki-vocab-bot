@@ -581,11 +581,9 @@ progress::-moz-progress-bar {
 .review-typed {
   flex: 1;
   min-width: 0;
-  overflow: hidden;
   color: var(--hint);
   font-size: 15px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .review-typed mark {
